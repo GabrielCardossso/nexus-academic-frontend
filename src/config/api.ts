@@ -8,7 +8,7 @@
  */
 export const API_BASE_URL: string =
   import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
-
+ 
 /**
  * Caminhos dos endpoints.
  * TROQUE pelos caminhos que o back-end criar (veja no Swagger:
@@ -17,7 +17,12 @@ export const API_BASE_URL: string =
 export const ENDPOINTS = {
   // TODO: coloque aqui o endpoint de CADASTRO DE CLIENTE
   cadastrarCliente: '/api/clientes',
-
+ 
   // TODO: coloque aqui o endpoint de CADASTRO DE PRODUTO
   cadastrarProduto: '/api/produtos',
+ 
+  // TODO: endpoints de LISTAGEM (GET). Normalmente é o mesmo caminho do cadastro.
+  listarClientes: '/api/clientes',
+  listarProdutos: '/api/produtos',
 };
+ 

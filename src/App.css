@@ -10,13 +10,34 @@ body {
 }
 
 .container {
-  max-width: 480px;
+  max-width: 1000px;
   margin: 40px auto;
   padding: 0 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  /* 3 linhas: título | cliente | produto. Cada linha fica alinhada nas duas colunas */
+  grid-template-rows: auto auto auto;
+  grid-auto-flow: column;
+  gap: 20px 24px;
+  align-items: stretch;
+}
+
+/* As colunas só agrupam no JSX; no CSS os cards entram direto na grade */
+.coluna {
+  display: contents;
+}
+
+/* Em telas pequenas, tudo fica em uma coluna só */
+@media (max-width: 760px) {
+  .container {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-auto-flow: row;
+  }
 }
 
 h1 {
-  margin-bottom: 24px;
+  margin: 0;
 }
 
 .card {
@@ -27,7 +48,6 @@ h1 {
   padding: 20px;
   border-radius: 8px;
   border: 1px solid #d8dee4;
-  margin-bottom: 20px;
 }
 
 .card h2 {
@@ -45,6 +65,11 @@ input {
 input:focus {
   outline: 2px solid #2563eb;
   outline-offset: 1px;
+}
+
+/* Botão sempre no fundo do card (alinhado entre cadastro e listagem) */
+.card > button {
+  margin-top: auto;
 }
 
 button {
@@ -78,4 +103,36 @@ button:disabled {
 
 .msg.erro {
   color: #b91c1c;
+}
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px; /* lista grande rola, sem esticar o card de cadastro */
+  overflow-y: auto;
+}
+
+.lista li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: #f6f8fa;
+  border: 1px solid #d8dee4;
+  border-radius: 6px;
+}
+
+.lista li span {
+  font-size: 0.9rem;
+  color: #57606a;
+}
+
+.vazio {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #57606a;
 }
