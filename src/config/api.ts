@@ -25,4 +25,9 @@ export const ENDPOINTS = {
   listarClientes: '/api/clientes',
   listarProdutos: '/api/produtos',
 };
- 
+
+/**
+ * true  = salva/lê do localStorage do navegador (temporário, sem back-end).
+ * false = usa o back-end real (API_BASE_URL + ENDPOINTS acima).
+ */
+export const USAR_DADOS_LOCAIS = true;
