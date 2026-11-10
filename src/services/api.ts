@@ -1,32 +1,18 @@
-import { API_BASE_URL, ENDPOINTS } from '../config/api';
-
-/**
- * Formato dos dados enviados ao back-end.
- * TROQUE os nomes dos campos para bater com o DTO do Java
- * (ex.: se o DTO tiver "email" em vez de "contato", renomeie aqui).
- */
-export interface ClienteRequest {
-  nome: string;
-  contato: string; // telefone ou e-mail
-}
-
-export interface ProdutoRequest {
-  nome: string;
-  codigo: string;
-}
-
-/**
- * Formato dos dados que o back-end devolve na listagem.
- * Normalmente é o mesmo do Request + o "id" gerado pelo banco.
- * Ajuste os nomes se o DTO de resposta for diferente.
- */
-export interface ClienteResponse extends ClienteRequest {
-  id?: number | string;
-}
-
-export interface ProdutoResponse extends ProdutoRequest {
-  id?: number | string;
-}
+import { API_BASE_URL, ENDPOINTS, USAR_DADOS_LOCAIS } from '../config/api';
+import type {
+  ClienteCriarRequest,
+  ClienteCriarResponse,
+  ClienteListarResponse,
+  ProdutoCriarRequest,
+  ProdutoCriarResponse,
+  ProdutoListarResponse,
+} from '../types';
+import {
+  cadastrarClienteLocal,
+  cadastrarProdutoLocal,
+  listarClientesLocal,
+  listarProdutosLocal,
+} from './dadosLocais';
 
 /**
  * Autenticação (Spring Security).
@@ -84,18 +70,22 @@ async function get<T>(endpoint: string): Promise<T[]> {
   return [];
 }
 
-export function cadastrarCliente(cliente: ClienteRequest) {
-  return post(ENDPOINTS.cadastrarCliente, cliente);
+export function cadastrarCliente(cliente: ClienteCriarRequest) {
+  if (USAR_DADOS_LOCAIS) return cadastrarClienteLocal(cliente);
+  return post<ClienteCriarResponse>(ENDPOINTS.cadastrarCliente, cliente);
 }
 
-export function cadastrarProduto(produto: ProdutoRequest) {
-  return post(ENDPOINTS.cadastrarProduto, produto);
+export function cadastrarProduto(produto: ProdutoCriarRequest) {
+  if (USAR_DADOS_LOCAIS) return cadastrarProdutoLocal(produto);
+  return post<ProdutoCriarResponse>(ENDPOINTS.cadastrarProduto, produto);
 }
 
 export function listarClientes() {
-  return get<ClienteResponse>(ENDPOINTS.listarClientes);
+  if (USAR_DADOS_LOCAIS) return listarClientesLocal();
+  return get<ClienteListarResponse>(ENDPOINTS.listarClientes);
 }
 
 export function listarProdutos() {
-  return get<ProdutoResponse>(ENDPOINTS.listarProdutos);
+  if (USAR_DADOS_LOCAIS) return listarProdutosLocal();
+  return get<ProdutoListarResponse>(ENDPOINTS.listarProdutos);
 }
