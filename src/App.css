@@ -55,14 +55,16 @@ h1 {
   font-size: 1.1rem;
 }
 
-input {
+input,
+select {
   padding: 10px 12px;
   font-size: 1rem;
   border: 1px solid #c4cad1;
   border-radius: 6px;
 }
 
-input:focus {
+input:focus,
+select:focus {
   outline: 2px solid #2563eb;
   outline-offset: 1px;
 }
@@ -112,7 +114,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 240px; /* lista grande rola, sem esticar o card de cadastro */
+  max-height: 320px; /* lista grande rola, sem esticar o card de cadastro */
   overflow-y: auto;
 }
 

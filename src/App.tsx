@@ -1,16 +1,16 @@
-import { useState, type FormEvent } from 'react';
-import {
-  cadastrarCliente,
-  cadastrarProduto,
-  listarClientes,
-  listarProdutos,
-  type ClienteResponse,
-  type ProdutoResponse,
-} from './services/api';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { cadastrarCliente, cadastrarProduto, listarClientes, listarProdutos } from './services/api';
+import type { ClienteCategoria, ClienteListarResponse, ProdutoListarResponse } from './types';
 
 type Mensagem = { tipo: 'sucesso' | 'erro'; texto: string } | null;
 
-type ItemLista = { chave: string; titulo: string; detalhe: string };
+type ItemLista = { chave: string; titulo: string; detalhes: string[] };
+
+const moeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+// Estado inicial dos formulários (número vira string porque o <input> trabalha com texto)
+const CLIENTE_VAZIO = { name: '', cpf: '', telefone: '', email: '', categoria: 'NORMAL' as ClienteCategoria };
+const PRODUTO_VAZIO = { nome: '', descricao: '', estoque: '', preco: '' };
 
 interface ListaCardProps {
   titulo: string;
@@ -33,7 +33,9 @@ function ListaCard({ titulo, textoBotao, itens, carregando, erro, onListar }: Li
           {itens.map((item) => (
             <li key={item.chave}>
               <strong>{item.titulo}</strong>
-              <span>{item.detalhe}</span>
+              {item.detalhes.map((detalhe) => (
+                <span key={detalhe}>{detalhe}</span>
+              ))}
             </li>
           ))}
         </ul>
@@ -47,25 +49,29 @@ function ListaCard({ titulo, textoBotao, itens, carregando, erro, onListar }: Li
 
 export default function App() {
   // ---------- Cadastro: Cliente ----------
-  const [nomeCliente, setNomeCliente] = useState('');
-  const [contatoCliente, setContatoCliente] = useState('');
+  const [formCliente, setFormCliente] = useState(CLIENTE_VAZIO);
   const [msgCliente, setMsgCliente] = useState<Mensagem>(null);
   const [enviandoCliente, setEnviandoCliente] = useState(false);
 
   // ---------- Cadastro: Produto ----------
-  const [nomeProduto, setNomeProduto] = useState('');
-  const [codigoProduto, setCodigoProduto] = useState('');
+  const [formProduto, setFormProduto] = useState(PRODUTO_VAZIO);
   const [msgProduto, setMsgProduto] = useState<Mensagem>(null);
   const [enviandoProduto, setEnviandoProduto] = useState(false);
 
   // ---------- Listagem ----------
-  const [clientes, setClientes] = useState<ClienteResponse[] | null>(null);
+  const [clientes, setClientes] = useState<ClienteListarResponse[] | null>(null);
   const [carregandoClientes, setCarregandoClientes] = useState(false);
   const [erroClientes, setErroClientes] = useState<string | null>(null);
 
-  const [produtos, setProdutos] = useState<ProdutoResponse[] | null>(null);
+  const [produtos, setProdutos] = useState<ProdutoListarResponse[] | null>(null);
   const [carregandoProdutos, setCarregandoProdutos] = useState(false);
   const [erroProdutos, setErroProdutos] = useState<string | null>(null);
+
+  /** Atualiza um campo do formulário pelo atributo name do input. */
+  function campo<T extends Record<string, string>>(setForm: (fn: (f: T) => T) => void) {
+    return (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  }
 
   async function carregarClientes() {
     setCarregandoClientes(true);
@@ -96,10 +102,9 @@ export default function App() {
     setEnviandoCliente(true);
     setMsgCliente(null);
     try {
-      await cadastrarCliente({ nome: nomeCliente, contato: contatoCliente });
+      await cadastrarCliente(formCliente);
       setMsgCliente({ tipo: 'sucesso', texto: 'Cliente cadastrado!' });
-      setNomeCliente('');
-      setContatoCliente('');
+      setFormCliente(CLIENTE_VAZIO);
       // Se a lista já estava aberta, atualiza para mostrar o novo cliente
       if (clientes !== null) carregarClientes();
     } catch (err) {
@@ -114,10 +119,14 @@ export default function App() {
     setEnviandoProduto(true);
     setMsgProduto(null);
     try {
-      await cadastrarProduto({ nome: nomeProduto, codigo: codigoProduto });
+      await cadastrarProduto({
+        nome: formProduto.nome,
+        descricao: formProduto.descricao,
+        estoque: Number(formProduto.estoque),
+        preco: Number(formProduto.preco),
+      });
       setMsgProduto({ tipo: 'sucesso', texto: 'Produto cadastrado!' });
-      setNomeProduto('');
-      setCodigoProduto('');
+      setFormProduto(PRODUTO_VAZIO);
       if (produtos !== null) carregarProdutos();
     } catch (err) {
       setMsgProduto({ tipo: 'erro', texto: (err as Error).message });
@@ -125,6 +134,9 @@ export default function App() {
       setEnviandoProduto(false);
     }
   }
+
+  const onClienteChange = campo(setFormCliente);
+  const onProdutoChange = campo(setFormProduto);
 
   return (
     <main className="container">
@@ -135,19 +147,44 @@ export default function App() {
         <form className="card" onSubmit={handleCliente}>
           <h2>Cliente</h2>
           <input
+            name="name"
             type="text"
             placeholder="Nome do cliente"
-            value={nomeCliente}
-            onChange={(e) => setNomeCliente(e.target.value)}
+            value={formCliente.name}
+            onChange={onClienteChange}
+            minLength={3}
+            maxLength={60}
             required
           />
           <input
+            name="cpf"
             type="text"
-            placeholder="Telefone ou e-mail"
-            value={contatoCliente}
-            onChange={(e) => setContatoCliente(e.target.value)}
+            inputMode="numeric"
+            placeholder="CPF"
+            value={formCliente.cpf}
+            onChange={onClienteChange}
+            maxLength={14}
             required
           />
+          <input
+            name="telefone"
+            type="tel"
+            placeholder="Telefone"
+            value={formCliente.telefone}
+            onChange={onClienteChange}
+          />
+          <input
+            name="email"
+            type="email"
+            placeholder="E-mail"
+            value={formCliente.email}
+            onChange={onClienteChange}
+            required
+          />
+          <select name="categoria" value={formCliente.categoria} onChange={onClienteChange}>
+            <option value="NORMAL">Normal</option>
+            <option value="VIP">VIP</option>
+          </select>
           {msgCliente && <p className={`msg ${msgCliente.tipo}`}>{msgCliente.texto}</p>}
           <button type="submit" disabled={enviandoCliente}>
             {enviandoCliente ? 'Enviando...' : 'Cadastrar cliente'}
@@ -157,17 +194,38 @@ export default function App() {
         <form className="card" onSubmit={handleProduto}>
           <h2>Produto</h2>
           <input
+            name="nome"
             type="text"
             placeholder="Nome do produto"
-            value={nomeProduto}
-            onChange={(e) => setNomeProduto(e.target.value)}
+            value={formProduto.nome}
+            onChange={onProdutoChange}
             required
           />
           <input
+            name="descricao"
             type="text"
-            placeholder="Código do produto"
-            value={codigoProduto}
-            onChange={(e) => setCodigoProduto(e.target.value)}
+            placeholder="Descrição"
+            value={formProduto.descricao}
+            onChange={onProdutoChange}
+          />
+          <input
+            name="preco"
+            type="number"
+            placeholder="Preço (R$)"
+            value={formProduto.preco}
+            onChange={onProdutoChange}
+            min={0}
+            step="0.01"
+            required
+          />
+          <input
+            name="estoque"
+            type="number"
+            placeholder="Estoque"
+            value={formProduto.estoque}
+            onChange={onProdutoChange}
+            min={0}
+            step={1}
             required
           />
           {msgProduto && <p className={`msg ${msgProduto.tipo}`}>{msgProduto.texto}</p>}
@@ -189,10 +247,14 @@ export default function App() {
           onListar={carregarClientes}
           itens={
             clientes &&
-            clientes.map((c, i) => ({
-              chave: String(c.id ?? i),
-              titulo: c.nome,
-              detalhe: c.contato,
+            clientes.map((c) => ({
+              chave: c.email, // e-mail é único; a listagem do back não traz id
+              titulo: c.name,
+              detalhes: [
+                `Telefone: ${c.telefone || '—'}`,
+                `E-mail: ${c.email}`,
+                `Categoria: ${c.categoria}`,
+              ],
             }))
           }
         />
@@ -206,9 +268,13 @@ export default function App() {
           itens={
             produtos &&
             produtos.map((p, i) => ({
-              chave: String(p.id ?? i),
+              chave: `${i}-${p.nome}`, // a listagem do back não traz id
               titulo: p.nome,
-              detalhe: `Código: ${p.codigo}`,
+              detalhes: [
+                p.descricao || 'Sem descrição',
+                `Preço: ${moeda.format(Number(p.preco))}`,
+                `Estoque: ${p.estoque}`,
+              ],
             }))
           }
         />
