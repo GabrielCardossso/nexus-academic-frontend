@@ -7,7 +7,7 @@ Este repositório guarda **apenas a parte do front**. O sistema completo é divi
 | Repositório | O que contém | Link |
 |---|---|---|
 | **nexus-academic-frontend** (este) | Interface web (React + TypeScript) | https://github.com/GabrielCardossso/nexus-academic-frontend |
-| Back-end do Nexus | API (Java / Spring Boot), mantida por outra pessoa da equipe | _adicionar link_ |
+| Back-end do Nexus | API (Java / Spring Boot), mantida por ([@LionT750](https://github.com/LionT750))| https://github.com/LionT750/Nexus |
 | Repositório do tech lead | Junta front + back para integração e testes | _adicionar link_ |
 
 > Este projeto tem fins exclusivamente educacionais.
@@ -125,4 +125,4 @@ src/
 - Front-end: Gabriel ([@GabrielCardossso](https://github.com/GabrielCardossso))
 - Back-end: Lucas ([@LionT750](https://github.com/LionT750))
 - Tech lead: Rafael ([@confeyte ](https://github.com/confeyte))
-- QA: João: ([@CoruJa1m  ](https://github.com/CoruJa1m))
+- QA: João ([@CoruJa1m  ](https://github.com/CoruJa1m))
