@@ -9,35 +9,181 @@ body {
   color: #1f2328;
 }
 
-.container {
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.conteudo {
+  flex: 1;
+  min-width: 0;
   max-width: 1000px;
-  margin: 40px auto;
-  padding: 0 16px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+h1 {
+  margin: 0 0 20px;
+}
+
+.tela {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  /* 3 linhas: título | cliente | produto. Cada linha fica alinhada nas duas colunas */
-  grid-template-rows: auto auto auto;
-  grid-auto-flow: column;
   gap: 20px 24px;
   align-items: stretch;
 }
 
-/* As colunas só agrupam no JSX; no CSS os cards entram direto na grade */
-.coluna {
-  display: contents;
+.largura-total {
+  grid-column: 1 / -1;
 }
 
-/* Em telas pequenas, tudo fica em uma coluna só */
 @media (max-width: 760px) {
-  .container {
+  .tela {
     grid-template-columns: 1fr;
-    grid-template-rows: none;
-    grid-auto-flow: row;
   }
 }
 
-h1 {
-  margin: 0;
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 230px;
+  flex-shrink: 0;
+  padding: 24px 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+  transition: width 0.2s;
+}
+
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 24px;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.menu-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.menu-titulo {
+  padding: 0 12px 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.sidebar button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  font-weight: 500;
+  color: #e2e8f0;
+  background: transparent;
+}
+
+.sidebar img {
+  filter: brightness(0) invert(1);
+}
+
+.sidebar button:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.sidebar button.ativa,
+.sidebar button.ativa:hover:not(:disabled) {
+  color: #fff;
+  background: #2563eb;
+}
+
+.sidebar .btn-recolher {
+  margin-top: auto;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  width: 100%;
+}
+
+@media (min-width: 761px) {
+  .sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .sidebar.recolhida {
+    width: 72px;
+    padding: 24px 8px;
+  }
+
+  .sidebar.recolhida .texto,
+  .sidebar.recolhida .menu-titulo {
+    display: none;
+  }
+
+  .sidebar.recolhida .marca {
+    justify-content: center;
+    padding: 0 0 24px;
+  }
+
+  .sidebar.recolhida button {
+    justify-content: center;
+  }
+
+  .sidebar.recolhida .btn-recolher {
+    justify-content: center;
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .layout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    padding: 16px;
+  }
+
+  .marca {
+    padding-bottom: 12px;
+  }
+
+  .sidebar nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+
+  .menu-grupo {
+    margin-bottom: 0;
+  }
+
+  .menu-titulo {
+    display: none;
+  }
+
+  .sidebar .btn-recolher {
+    display: none;
+  }
+
+  .conteudo {
+    padding: 24px 16px;
+  }
 }
 
 .card {
@@ -61,6 +207,7 @@ select {
   font-size: 1rem;
   border: 1px solid #c4cad1;
   border-radius: 6px;
+  background: #fff;
 }
 
 input:focus,
@@ -69,7 +216,6 @@ select:focus {
   outline-offset: 1px;
 }
 
-/* Botão sempre no fundo do card (alinhado entre cadastro e listagem) */
 .card > button {
   margin-top: auto;
 }
@@ -107,6 +253,12 @@ button:disabled {
   color: #b91c1c;
 }
 
+.dica {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #57606a;
+}
+
 .lista {
   list-style: none;
   margin: 0;
@@ -114,8 +266,12 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 320px; /* lista grande rola, sem esticar o card de cadastro */
+  max-height: 320px;
   overflow-y: auto;
+}
+
+.lista.alta {
+  max-height: 560px;
 }
 
 .lista li {
@@ -137,4 +293,50 @@ button:disabled {
   margin: 0;
   font-size: 0.9rem;
   color: #57606a;
+}
+
+.linha-produto {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.linha-produto small {
+  color: #57606a;
+}
+
+.linha-produto input {
+  width: 90px;
+}
+
+.resumo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: #f6f8fa;
+  border: 1px solid #d8dee4;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.acoes {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.acoes button {
+  padding: 6px 12px;
+  font-size: 0.9rem;
+}
+
+button.rejeitar {
+  background: #b91c1c;
+}
+
+button.rejeitar:hover:not(:disabled) {
+  background: #991b1b;
 }

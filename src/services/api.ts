@@ -3,6 +3,7 @@ import type {
   ClienteCriarRequest,
   ClienteCriarResponse,
   ClienteListarResponse,
+  PedidoCriarRequest,
   ProdutoCriarRequest,
   ProdutoCriarResponse,
   ProdutoListarResponse,
@@ -10,7 +11,11 @@ import type {
 import {
   cadastrarClienteLocal,
   cadastrarProdutoLocal,
+  criarPedidoLocal,
+  decidirDescontoLocal,
   listarClientesLocal,
+  listarColaboradoresLocal,
+  listarPedidosLocal,
   listarProdutosLocal,
 } from './dadosLocais';
 
@@ -88,4 +93,35 @@ export function listarClientes() {
 export function listarProdutos() {
   if (USAR_DADOS_LOCAIS) return listarProdutosLocal();
   return get<ProdutoListarResponse>(ENDPOINTS.listarProdutos);
+}
+
+/**
+ * Pedidos, descontos e colaboradores: o back ainda não tem endpoint para isso,
+ * então só funcionam no modo local. Quando existirem, troque pelo mesmo padrão
+ * dos clientes/produtos acima (post/get + ENDPOINTS).
+ */
+function exigirModoLocal() {
+  if (!USAR_DADOS_LOCAIS) {
+    throw new Error('Pedidos, descontos e colaboradores ainda não têm endpoint no back-end.');
+  }
+}
+
+export async function criarPedido(pedido: PedidoCriarRequest) {
+  exigirModoLocal();
+  return criarPedidoLocal(pedido);
+}
+
+export async function listarPedidos() {
+  exigirModoLocal();
+  return listarPedidosLocal();
+}
+
+export async function decidirDesconto(pedidoId: number, aprovar: boolean, colaboradorId: number) {
+  exigirModoLocal();
+  return decidirDescontoLocal(pedidoId, aprovar, colaboradorId);
+}
+
+export async function listarColaboradores() {
+  exigirModoLocal();
+  return listarColaboradoresLocal();
 }
