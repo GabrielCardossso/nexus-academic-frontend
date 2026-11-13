@@ -13,6 +13,7 @@ import {
   cadastrarProdutoLocal,
   criarPedidoLocal,
   decidirDescontoLocal,
+  devolverPedidoLocal,
   listarClientesLocal,
   listarColaboradoresLocal,
   listarPedidosLocal,
@@ -96,7 +97,7 @@ export function listarProdutos() {
 }
 
 /**
- * Pedidos, descontos e colaboradores: o back ainda não tem endpoint para isso,
+ * Pedidos (venda e aluguel), descontos, devolução e colaboradores: o back ainda não tem endpoint para isso,
  * então só funcionam no modo local. Quando existirem, troque pelo mesmo padrão
  * dos clientes/produtos acima (post/get + ENDPOINTS).
  */
@@ -119,6 +120,11 @@ export async function listarPedidos() {
 export async function decidirDesconto(pedidoId: number, aprovar: boolean, colaboradorId: number) {
   exigirModoLocal();
   return decidirDescontoLocal(pedidoId, aprovar, colaboradorId);
+}
+
+export async function devolverPedido(pedidoId: number) {
+  exigirModoLocal();
+  return devolverPedidoLocal(pedidoId);
 }
 
 export async function listarColaboradores() {

@@ -21,10 +21,10 @@ import type {
   SolicitacaoDesconto,
 } from '../types';
 
-// "v2": formato novo (CNPJ, limite de crédito, status). Dados antigos de teste ficam de lado.
-const CHAVE_CLIENTES = 'nexus:v2:clientes';
-const CHAVE_PRODUTOS = 'nexus:v2:produtos';
-const CHAVE_PEDIDOS = 'nexus:v2:pedidos';
+// "v3": formato novo (preço de venda e de aluguel, pedido com tipo). Dados antigos de teste ficam de lado.
+const CHAVE_CLIENTES = 'nexus:v3:clientes';
+const CHAVE_PRODUTOS = 'nexus:v3:produtos';
+const CHAVE_PEDIDOS = 'nexus:v3:pedidos';
 
 // O que fica guardado (como a tabela do banco): tem id e cnpj.
 type ClienteSalvo = ClienteCriarRequest & { id: number };
@@ -52,6 +52,16 @@ function salvar<T>(chave: string, itens: T[]) {
 /** Simula o @GeneratedValue(IDENTITY): maior id atual + 1. */
 function proximoId(itens: { id: number }[]): number {
   return itens.reduce((maior, item) => Math.max(maior, item.id), 0) + 1;
+}
+
+/** Soma ao limite de crédito do cliente (valor negativo desconta). */
+function ajustarCredito(clienteId: number, valor: number) {
+  salvar(
+    CHAVE_CLIENTES,
+    ler<ClienteSalvo>(CHAVE_CLIENTES).map((c) =>
+      c.id === clienteId ? { ...c, limiteCredito: Math.round((c.limiteCredito + valor) * 100) / 100 } : c,
+    ),
+  );
 }
 
 /**
@@ -133,6 +143,13 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
   if (!cliente) throw new Error('Cliente não encontrado.');
   if (req.itens.length === 0) throw new Error('O pedido precisa de pelo menos um produto.');
 
+  // Aluguel: o fim do aluguel é calculado pela quantidade de meses.
+  const aluguel = req.tipo === 'ALUGUEL';
+  const meses = aluguel ? req.meses : undefined;
+  if (aluguel && (!meses || !Number.isInteger(meses) || meses <= 0)) {
+    throw new Error('Informe a duração do aluguel em meses.');
+  }
+
   const itens: ItemPedido[] = req.itens.map(({ produtoId, quantidade }) => {
     const produto = produtos.find((p) => p.id === produtoId);
     if (!produto) throw new Error('Produto não encontrado.');
@@ -143,7 +160,8 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
     if (quantidade > produto.estoque) {
       throw new Error(`Estoque insuficiente de "${produto.nome}" (disponível: ${produto.estoque}).`);
     }
-    return { produtoId, nome: produto.nome, precoUnitario: produto.preco, quantidade };
+    const precoUnitario = aluguel ? produto.precoAluguel : produto.precoVenda;
+    return { produtoId, nome: produto.nome, precoUnitario, quantidade };
   });
 
   // Só cliente NORMAL solicita desconto; VIP já recebe 5% automático.
@@ -154,15 +172,17 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
 
   const agora = new Date();
   const vencimento = new Date(agora);
-  if (req.pagamento === 'A_PRAZO') vencimento.setDate(vencimento.getDate() + PRAZO_DIAS);
+  if (meses) vencimento.setMonth(vencimento.getMonth() + meses);
+  else if (req.pagamento === 'A_PRAZO') vencimento.setDate(vencimento.getDate() + PRAZO_DIAS);
 
   const novo: Pedido = {
     id: proximoId(pedidos),
+    tipo: req.tipo,
     clienteId: cliente.id,
     clienteNome: cliente.name,
     clienteCategoria: cliente.categoria,
-    limiteCredito: cliente.limiteCredito,
     itens,
+    meses,
     pagamento: req.pagamento,
     solicitacao,
     criadoEm: agora.toISOString(),
@@ -170,7 +190,9 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
     vencimento: vencimento.toISOString(),
   };
 
-  if (req.pagamento === 'A_PRAZO' && resumoPedido(novo).total > cliente.limiteCredito) {
+  // A prazo (venda ou aluguel): valida e desconta o total do limite de crédito do cliente.
+  const total = resumoPedido(novo).total;
+  if (req.pagamento === 'A_PRAZO' && total > cliente.limiteCredito) {
     throw new Error('Total do pedido acima do limite de crédito do cliente.');
   }
 
@@ -183,6 +205,7 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
     }),
   );
   salvar(CHAVE_PEDIDOS, [...pedidos, novo]);
+  if (req.pagamento === 'A_PRAZO') ajustarCredito(cliente.id, -total);
   return novo;
 }
 
@@ -213,6 +236,33 @@ export async function decidirDescontoLocal(
       colaboradorNome: colaborador.nome,
     },
   };
+  salvar(CHAVE_PEDIDOS, pedidos.map((p) => (p.id === pedidoId ? atualizado : p)));
+
+  // Pedido a prazo já descontou o total sem desconto: devolve a diferença ao crédito.
+  if (aprovar && pedido.pagamento === 'A_PRAZO') {
+    ajustarCredito(pedido.clienteId, resumoPedido(pedido).total - resumoPedido(atualizado).total);
+  }
+  return atualizado;
+}
+
+export async function devolverPedidoLocal(pedidoId: number): Promise<Pedido> {
+  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
+  const produtos = ler<ProdutoCriarResponse>(CHAVE_PRODUTOS);
+  const pedido = pedidos.find((p) => p.id === pedidoId);
+
+  if (!pedido || pedido.tipo !== 'ALUGUEL') throw new Error('Aluguel não encontrado.');
+  if (pedido.devolvidoEm) throw new Error('Este aluguel já foi devolvido.');
+
+  const atualizado: Pedido = { ...pedido, devolvidoEm: new Date().toISOString() };
+
+  // O estoque volta na devolução (o crédito, por enquanto, não volta).
+  salvar(
+    CHAVE_PRODUTOS,
+    produtos.map((p) => {
+      const item = pedido.itens.find((i) => i.produtoId === p.id);
+      return item ? { ...p, estoque: p.estoque + item.quantidade } : p;
+    }),
+  );
   salvar(CHAVE_PEDIDOS, pedidos.map((p) => (p.id === pedidoId ? atualizado : p)));
   return atualizado;
 }

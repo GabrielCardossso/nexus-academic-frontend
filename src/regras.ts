@@ -8,6 +8,7 @@ import type {
   ItemPedido,
   SolicitacaoDesconto,
   StatusPedido,
+  TipoPedido,
 } from './types';
 
 export const PRAZO_DIAS = 30; // vencimento do pedido "a prazo"
@@ -19,17 +20,26 @@ export const ROTULO_PAGAMENTO: Record<FormaPagamento, string> = {
   A_PRAZO: 'A prazo',
 };
 
+export const ROTULO_TIPO: Record<TipoPedido, string> = {
+  VENDA: 'Venda',
+  ALUGUEL: 'Aluguel',
+};
+
 interface DadosPedido {
   itens: ItemPedido[];
   clienteCategoria: ClienteCategoria;
   pagamento: FormaPagamento;
+  meses?: number; // só aluguel: o valor é preço por mês × meses × quantidade
   solicitacao?: SolicitacaoDesconto;
 }
 
 const arredondar = (n: number) => Math.round(n * 100) / 100;
 
 export function resumoPedido(p: DadosPedido) {
-  const subtotal = arredondar(p.itens.reduce((soma, i) => soma + i.precoUnitario * i.quantidade, 0));
+  const meses = p.meses ?? 1;
+  const subtotal = arredondar(
+    p.itens.reduce((soma, i) => soma + i.precoUnitario * i.quantidade, 0) * meses,
+  );
 
   // VIP: 5% automático. NORMAL: só depois de APROVADA.
   const percentual =

@@ -1,10 +1,12 @@
 /**
  * Tipos espelhando os DTOs do back-end (Java records).
  * ATENÇÃO: cnpj, limiteCredito, status, id nas listagens e tudo de Pedido/Desconto
- * ainda NÃO existem nos records do back — alinhar com o Lucas quando forem criados.
+ * (incluindo tipo, meses e devolução do aluguel) ainda NÃO existem nos records do back —
+ * alinhar com o Lucas quando forem criados.
  */
 
 export type ClienteCategoria = 'NORMAL' | 'VIP';
+export type TipoPedido = 'VENDA' | 'ALUGUEL';
 export type ProdutoStatus = 'DISPONIVEL' | 'INDISPONIVEL' | 'DESATIVADO';
 export type FormaPagamento = 'PIX' | 'A_VISTA' | 'A_PRAZO';
 export type StatusPedido = 'PENDENTE' | 'PAGO';
@@ -42,7 +44,8 @@ export interface ProdutoCriarRequest {
   nome: string;
   descricao: string;
   estoque: number;
-  preco: number; // BigDecimal no Java
+  precoVenda: number; // BigDecimal no Java
+  precoAluguel: number; // valor por mês
   status: ProdutoStatus;
 }
 
@@ -64,7 +67,7 @@ export interface Colaborador {
 export interface ItemPedido {
   produtoId: number;
   nome: string;
-  precoUnitario: number;
+  precoUnitario: number; // preço de venda, ou preço de aluguel por mês
   quantidade: number;
 }
 
@@ -78,21 +81,25 @@ export interface SolicitacaoDesconto {
 /** Total, desconto e status NÃO ficam salvos: são calculados em regras.ts. */
 export interface Pedido {
   id: number;
+  tipo: TipoPedido;
   clienteId: number;
   clienteNome: string;
   clienteCategoria: ClienteCategoria;
-  limiteCredito: number;
   itens: ItemPedido[];
+  meses?: number; // só aluguel: duração em meses
   pagamento: FormaPagamento;
   solicitacao?: SolicitacaoDesconto; // só cliente NORMAL que pediu desconto
   criadoEm: string; // ISO
   emissao: string; // ISO
-  vencimento: string; // ISO
+  vencimento: string; // ISO (aluguel: fim do aluguel)
+  devolvidoEm?: string; // ISO, só aluguel
 }
 
 export interface PedidoCriarRequest {
+  tipo: TipoPedido;
   clienteId: number;
   pagamento: FormaPagamento;
   itens: { produtoId: number; quantidade: number }[];
+  meses?: number; // só aluguel
   descontoSolicitado?: 5 | 10;
 }
