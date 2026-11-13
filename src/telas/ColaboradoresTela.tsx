@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { decidirDesconto, listarColaboradores, listarPedidos } from '../services/api';
-import { linhasSolicitacao, mensagemRejeicao, resumoPedido } from '../regras';
+import { linhasSolicitacao, mensagemRejeicao, resumoPedido, ROTULO_TIPO } from '../regras';
 import type { Colaborador, Pedido } from '../types';
 import { moeda, type Mensagem } from '../utils';
 
@@ -78,6 +78,7 @@ export default function ColaboradoresTela() {
                     <strong>
                       Pedido #{p.id} — {p.clienteNome}
                     </strong>
+                    <span>Tipo: {ROTULO_TIPO[p.tipo]}</span>
                     <span>Desconto solicitado: {s.percentual}%</span>
                     <span>Subtotal: {moeda.format(comDesconto.subtotal)}</span>
                     <span>Total com desconto: {moeda.format(comDesconto.total)}</span>
