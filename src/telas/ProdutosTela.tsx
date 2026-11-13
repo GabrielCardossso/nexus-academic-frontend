@@ -8,7 +8,8 @@ const FORM_VAZIO = {
   nome: '',
   descricao: '',
   estoque: '',
-  preco: '',
+  precoVenda: '',
+  precoAluguel: '',
   status: 'DISPONIVEL' as ProdutoStatus,
 };
 
@@ -43,7 +44,8 @@ export default function ProdutosTela() {
       await cadastrarProduto({
         ...form,
         estoque: Number(form.estoque),
-        preco: Number(form.preco),
+        precoVenda: Number(form.precoVenda),
+        precoAluguel: Number(form.precoAluguel),
       });
       setMsg({ tipo: 'sucesso', texto: 'Produto cadastrado!' });
       setForm(FORM_VAZIO);
@@ -74,10 +76,20 @@ export default function ProdutosTela() {
             required
           />
           <input
-            name="preco"
+            name="precoVenda"
             type="number"
-            placeholder="Preço (R$)"
-            value={form.preco}
+            placeholder="Preço de venda (R$)"
+            value={form.precoVenda}
+            onChange={onChange}
+            min={0}
+            step="0.01"
+            required
+          />
+          <input
+            name="precoAluguel"
+            type="number"
+            placeholder="Preço de aluguel por mês (R$)"
+            value={form.precoAluguel}
             onChange={onChange}
             min={0}
             step="0.01"
@@ -108,7 +120,8 @@ export default function ProdutosTela() {
               detalhes: [
                 p.descricao || 'Sem descrição',
                 `Estoque: ${p.estoque}`,
-                `Preço: ${moeda.format(Number(p.preco))}`,
+                `Preço de venda: ${moeda.format(Number(p.precoVenda))}`,
+                `Aluguel: ${moeda.format(Number(p.precoAluguel))} por mês`,
                 `Status: ${p.status}`,
               ],
             }))
