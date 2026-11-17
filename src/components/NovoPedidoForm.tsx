@@ -3,10 +3,11 @@ import { criarPedido } from '../services/api';
 import Selecao from './Selecao';
 import {
   erroDesconto,
+  erroVencimento,
   faixaDesconto,
+  hojeAAAAMMDD,
   pagoNaHora,
   resumoPedido,
-  PRAZO_DIAS,
   ROTULO_STATUS_PAGAMENTO,
 } from '../regras';
 import type {
@@ -39,6 +40,8 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
   const [meses, setMeses] = useState('1'); // só aluguel
   const [pagamento, setPagamento] = useState<FormaPagamento>('PIX');
   const [descontoSolicitado, setDescontoSolicitado] = useState(''); // '' = sem solicitação
+  const [descricao, setDescricao] = useState('');
+  const [dataVencimento, setDataVencimento] = useState(''); // AAAA-MM-DD, só a prazo
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -119,6 +122,10 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
     if (inadimplente && pagamento === 'A_PRAZO') {
       return setErro('Cliente inadimplente: não pode fazer pedido a prazo. Use PIX ou à vista.');
     }
+    if (pagamento === 'A_PRAZO') {
+      const erroData = erroVencimento(dataVencimento);
+      if (erroData) return setErro(erroData);
+    }
     if (erroDoDesconto) return setErro(erroDoDesconto);
 
     setEnviando(true);
@@ -131,6 +138,8 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
         itens: itens.map((i) => ({ produtoId: i.produtoId, quantidade: i.quantidade })),
         meses: aluguel ? quantidadeMeses : undefined,
         descontoSolicitado: solicitacao?.percentual,
+        descricao: descricao.trim() || undefined,
+        dataVencimento: pagamento === 'A_PRAZO' ? dataVencimento : undefined,
       });
       onCriado(pedido);
     } catch (err) {
@@ -292,12 +301,24 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
               {
                 valor: 'A_PRAZO',
                 rotulo: 'A prazo',
-                detalhe: inadimplente ? 'indisponível (inadimplente)' : aluguel ? 'até o fim do aluguel' : `${PRAZO_DIAS} dias`,
+                detalhe: inadimplente ? 'indisponível (inadimplente)' : 'escolha o vencimento',
                 desabilitada: inadimplente,
               },
             ]}
           />
         </label>
+        {pagamento === 'A_PRAZO' && (
+          <label className="campo">
+            <span>Vencimento</span>
+            <input
+              type="date"
+              min={hojeAAAAMMDD(1)}
+              value={dataVencimento}
+              onChange={(e) => setDataVencimento(e.target.value)}
+              required
+            />
+          </label>
+        )}
         {cliente && (
           <label className="campo">
             <span>Solicitar desconto (%)</span>
@@ -312,6 +333,16 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
             />
           </label>
         )}
+        <label className="campo inteiro">
+          <span>Descrição (opcional)</span>
+          <input
+            type="text"
+            maxLength={255}
+            placeholder="Ex.: equipamentos para a obra do centro"
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+          />
+        </label>
       </div>
       {aluguel && <p className="dica">Valor do aluguel: preço por mês × meses × quantidade.</p>}
       {erroDoDesconto && <p className="msg erro">{erroDoDesconto}</p>}

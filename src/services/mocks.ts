@@ -82,6 +82,7 @@ interface PedidoMock {
   pagamento: FormaPagamento;
   itens: Record<number, number>; // produtoId -> quantidade
   meses?: number;
+  descricao?: string;
   solicitacao?: SolicitacaoDesconto;
   diasAtras: number;
   concluido?: boolean;
@@ -98,7 +99,7 @@ const PEDIDOS_MOCK: PedidoMock[] = [
   { tipo: 'VENDA', clienteId: 5, pagamento: 'A_PRAZO', itens: { 6: 3 }, diasAtras: 50, concluido: true, pagoHaDias: 22 },
   // Venda a prazo VENCIDA e não paga: deixa a Tech Solutions (VIP) inadimplente.
   // Ela perde os 5% automáticos nos pedidos não pagos e não pode fazer pedido a prazo.
-  { tipo: 'VENDA', clienteId: 4, pagamento: 'A_PRAZO', itens: { 3: 2 }, diasAtras: 45, concluido: true },
+  { tipo: 'VENDA', clienteId: 4, pagamento: 'A_PRAZO', descricao: 'Impressoras para a filial de Tubarão', itens: { 3: 2 }, diasAtras: 45, concluido: true },
   // Aluguel concluído e em andamento: dá para testar a devolução.
   { tipo: 'ALUGUEL', clienteId: 4, pagamento: 'A_VISTA', itens: { 5: 1 }, meses: 3, diasAtras: 40, concluido: true },
   // Aluguel já devolvido.
@@ -108,7 +109,7 @@ const PEDIDOS_MOCK: PedidoMock[] = [
   // Venda a prazo concluída: pedido concluído, pagamento pendente.
   { tipo: 'VENDA', clienteId: 2, pagamento: 'A_PRAZO', itens: { 4: 6, 6: 4 }, diasAtras: 20, concluido: true },
   // Venda VIP concluída e paga.
-  { tipo: 'VENDA', clienteId: 1, pagamento: 'PIX', itens: { 1: 3, 2: 3 }, diasAtras: 12, concluido: true },
+  { tipo: 'VENDA', clienteId: 1, pagamento: 'PIX', descricao: 'Estações de trabalho do novo escritório', itens: { 1: 3, 2: 3 }, diasAtras: 12, concluido: true },
   // VIP com solicitação de 15% aprovada: substitui os 5% automáticos (não soma).
   { tipo: 'VENDA', clienteId: 1, pagamento: 'PIX', itens: { 4: 10 }, solicitacao: { percentual: 15, status: 'APROVADA', ...CARLOS }, diasAtras: 4 },
   // Desconto rejeitado: pode confirmar, sem desconto.
@@ -139,9 +140,11 @@ export function gerarMocks() {
   PEDIDOS_MOCK.forEach((m, i) => {
     const cliente = clientes.find((c) => c.id === m.clienteId)!;
     const emissao = new Date(agora - m.diasAtras * DIA);
+    // A prazo: vencimento "escolhido" no pedido (aqui, 30 dias depois). PIX/à vista: a própria emissão.
     const vencimento = new Date(emissao);
-    if (m.meses) vencimento.setMonth(vencimento.getMonth() + m.meses);
-    else if (m.pagamento === 'A_PRAZO') vencimento.setDate(vencimento.getDate() + PRAZO_DIAS);
+    if (m.pagamento === 'A_PRAZO') vencimento.setDate(vencimento.getDate() + PRAZO_DIAS);
+    const fimAluguel = m.meses ? new Date(emissao) : undefined;
+    fimAluguel?.setMonth(fimAluguel.getMonth() + m.meses!);
 
     const aluguel = m.tipo === 'ALUGUEL';
     const pedido: Pedido = {
@@ -161,10 +164,12 @@ export function gerarMocks() {
       }),
       meses: m.meses,
       pagamento: m.pagamento,
+      descricao: m.descricao,
       solicitacao: m.solicitacao,
       criadoEm: emissao.toISOString(),
       emissao: emissao.toISOString(),
       vencimento: vencimento.toISOString(),
+      fimAluguel: fimAluguel?.toISOString(),
       concluidoEm: m.concluido ? new Date(emissao.getTime() + 60 * 60 * 1000).toISOString() : undefined,
       devolvidoEm: m.devolvidoHaDias != null ? new Date(agora - m.devolvidoHaDias * DIA).toISOString() : undefined,
       pagoEm: pagoNaHora(m)

@@ -39,6 +39,7 @@ function detalhesDo(p: Pedido): Detalhe[] {
       valor: p.itens.map((i) => `${i.quantidade}× ${i.nome} (${moeda.format(i.precoUnitario)}${porMes})`).join('; '),
       largo: true,
     },
+    !!p.descricao && { rotulo: 'Descrição', valor: p.descricao, largo: true },
     !!p.solicitacao && { rotulo: 'Desconto solicitado', valor: linhasSolicitacao(p.solicitacao).join(' — '), largo: true },
     { rotulo: 'Tipo', valor: `${ROTULO_TIPO[p.tipo]}${aluguel ? ` (${p.meses} ${p.meses === 1 ? 'mês' : 'meses'})` : ''}` },
     { rotulo: 'Pagamento', valor: ROTULO_PAGAMENTO[p.pagamento] },
@@ -51,7 +52,8 @@ function detalhesDo(p: Pedido): Detalhe[] {
     },
     { rotulo: 'Criado em', valor: dataHoraBR(p.criadoEm) },
     { rotulo: aluguel ? 'Início' : 'Emissão', valor: dataBR(p.emissao) },
-    { rotulo: aluguel ? 'Fim do aluguel' : 'Vencimento', valor: dataBR(p.vencimento) },
+    aluguel && { rotulo: 'Fim do aluguel', valor: dataBR(p.fimAluguel ?? p.vencimento) },
+    p.pagamento === 'A_PRAZO' && { rotulo: 'Vencimento', valor: dataBR(p.vencimento) },
     !!p.pagoEm && { rotulo: 'Pago em', valor: dataHoraBR(p.pagoEm) },
     !!p.concluidoEm && { rotulo: 'Concluído em', valor: dataHoraBR(p.concluidoEm) },
     !!p.devolvidoEm && { rotulo: 'Devolvido em', valor: dataHoraBR(p.devolvidoEm) },
@@ -69,7 +71,8 @@ export default function PedidoCard({ pedido: p, onConfirmar, onPagar, onDevolver
 
   const condicao = [
     ROTULO_PAGAMENTO[p.pagamento],
-    aluguel ? `até ${dataBR(p.vencimento)}` : p.pagamento === 'A_PRAZO' ? `vence ${dataBR(p.vencimento)}` : '',
+    p.pagamento === 'A_PRAZO' ? `vence ${dataBR(p.vencimento)}` : '',
+    aluguel ? `aluguel até ${dataBR(p.fimAluguel ?? p.vencimento)}` : '',
     r.percentual > 0 ? `${r.percentual}% de desconto` : '',
   ]
     .filter(Boolean)
@@ -99,6 +102,7 @@ export default function PedidoCard({ pedido: p, onConfirmar, onPagar, onDevolver
         {p.clienteCategoria === 'VIP' && <span className="selo vip">VIP</span>}
         {p.clienteInadimplente && <span className="selo inadimplente">Inadimplente</span>}
       </div>
+      {p.descricao && <p className="item-info">{p.descricao}</p>}
       <p className="item-info">{p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')}</p>
       <div className="item-linha entre">
         <span className="item-info">{condicao}</span>

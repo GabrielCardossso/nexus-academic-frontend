@@ -8,10 +8,11 @@
  */
 import { CARREGAR_MOCKS } from '../config/api';
 import {
-  PRAZO_DIAS,
   aguardaDesconto,
   erroDesconto,
+  erroVencimento,
   estaInadimplente,
+  fimDoDia,
   pagoNaHora,
   podePagar,
   resumoPedido,
@@ -34,12 +35,12 @@ import type {
   SolicitacaoDesconto,
 } from '../types';
 
-// "v6": pagamento registrado, desconto por faixa e cliente inadimplente nos dados de exemplo.
+// "v7": pedido com descrição, vencimento escolhido (a prazo) e fim do aluguel separado.
 // Dados antigos de teste ficam de lado.
-const CHAVE_CLIENTES = 'nexus:v6:clientes';
-const CHAVE_PRODUTOS = 'nexus:v6:produtos';
-const CHAVE_PEDIDOS = 'nexus:v6:pedidos';
-const CHAVE_COLABORADORES = 'nexus:v6:colaboradores';
+const CHAVE_CLIENTES = 'nexus:v7:clientes';
+const CHAVE_PRODUTOS = 'nexus:v7:produtos';
+const CHAVE_PEDIDOS = 'nexus:v7:pedidos';
+const CHAVE_COLABORADORES = 'nexus:v7:colaboradores';
 
 /** Primeira execução (nada salvo ainda): grava os dados de exemplo de mocks.ts. */
 function carregarMocksSeVazio() {
@@ -246,17 +247,29 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
     solicitacao = { percentual: req.descontoSolicitado, status: 'PENDENTE' };
   }
 
+  // A prazo: o vencimento é a data escolhida no pedido (obrigatória e futura). PIX/à vista: a emissão.
   const agora = new Date();
-  const vencimento = new Date(agora);
-  if (meses) vencimento.setMonth(vencimento.getMonth() + meses);
-  else if (req.pagamento === 'A_PRAZO') vencimento.setDate(vencimento.getDate() + PRAZO_DIAS);
+  let vencimento = agora;
+  if (req.pagamento === 'A_PRAZO') {
+    const erro = erroVencimento(req.dataVencimento);
+    if (erro) throw new Error(erro);
+    vencimento = fimDoDia(req.dataVencimento!)!;
+  }
+  // Aluguel: o fim do aluguel é calculado pela quantidade de meses.
+  let fimAluguel: Date | undefined;
+  if (meses) {
+    fimAluguel = new Date(agora);
+    fimAluguel.setMonth(fimAluguel.getMonth() + meses);
+  }
 
+  const descricao = req.descricao?.trim();
   const novo: Pedido = {
     id: proximoId(pedidos),
     tipo: req.tipo,
     clienteId: cliente.id,
     clienteNome: cliente.name,
     clienteCategoria: cliente.categoria,
+    descricao: descricao || undefined,
     itens,
     meses,
     pagamento: req.pagamento,
@@ -264,6 +277,7 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
     criadoEm: agora.toISOString(),
     emissao: agora.toISOString(),
     vencimento: vencimento.toISOString(),
+    fimAluguel: fimAluguel?.toISOString(),
     pagoEm: pagoNaHora({ pagamento: req.pagamento, solicitacao }) ? agora.toISOString() : undefined,
     clienteInadimplente: inadimplente,
   };

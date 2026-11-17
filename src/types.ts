@@ -94,13 +94,16 @@ export interface Pedido {
   clienteId: number;
   clienteNome: string;
   clienteCategoria: ClienteCategoria;
+  descricao?: string;
   itens: ItemPedido[];
   meses?: number; // só aluguel: duração em meses
   pagamento: FormaPagamento;
-  solicitacao?: SolicitacaoDesconto; // só cliente NORMAL que pediu desconto
+  solicitacao?: SolicitacaoDesconto; // desconto que o cliente pediu (depende de aprovação)
   criadoEm: string; // ISO
   emissao: string; // ISO
-  vencimento: string; // ISO (aluguel: fim do aluguel)
+  /** ISO. A prazo: data escolhida no pedido para pagar. PIX/à vista: a própria emissão. */
+  vencimento: string;
+  fimAluguel?: string; // ISO, só aluguel: emissão + meses
   concluidoEm?: string; // ISO, preenchido quando o pedido é confirmado manualmente
   devolvidoEm?: string; // ISO, só aluguel
   pagoEm?: string; // ISO. PIX/à vista: na criação ou na decisão do desconto. A prazo: ao registrar o pagamento.
@@ -122,5 +125,7 @@ export interface PedidoCriarRequest {
   pagamento: FormaPagamento;
   itens: { produtoId: number; quantidade: number }[];
   meses?: number; // só aluguel
+  descricao?: string;
+  dataVencimento?: string; // AAAA-MM-DD, obrigatória e futura no pedido a prazo
   descontoSolicitado?: number; // % inteiro: NORMAL de 1 a 10, VIP de 10 a 15 (VIP inadimplente: 1 a 15)
 }
