@@ -17,13 +17,14 @@ import {
   resumoPedido,
   statusDoPedido,
 } from '../regras';
-import { gerarMocks } from './mocks';
+import { COLABORADORES_MOCK, gerarMocks } from './mocks';
 import type {
   ClienteCriarRequest,
   ClienteCriarResponse,
   ClienteListarResponse,
   ClienteSalvo,
   Colaborador,
+  ColaboradorCriarRequest,
   ItemPedido,
   Pedido,
   PedidoCriarRequest,
@@ -38,17 +39,16 @@ import type {
 const CHAVE_CLIENTES = 'nexus:v6:clientes';
 const CHAVE_PRODUTOS = 'nexus:v6:produtos';
 const CHAVE_PEDIDOS = 'nexus:v6:pedidos';
-
-/** Colaboradores fictícios (não há cadastro de colaborador ainda). */
-const COLABORADORES: Colaborador[] = [
-  { id: 1, nome: 'Ana Souza' },
-  { id: 2, nome: 'Carlos Lima' },
-  { id: 3, nome: 'Beatriz Rocha' },
-];
+const CHAVE_COLABORADORES = 'nexus:v6:colaboradores';
 
 /** Primeira execução (nada salvo ainda): grava os dados de exemplo de mocks.ts. */
 function carregarMocksSeVazio() {
   try {
+    // Colaboradores têm chave própria (vieram depois): os de exemplo entram mesmo se o resto já existir,
+    // porque as decisões de desconto dos pedidos de exemplo apontam para eles.
+    if (CARREGAR_MOCKS && localStorage.getItem(CHAVE_COLABORADORES) === null) {
+      salvar(CHAVE_COLABORADORES, COLABORADORES_MOCK);
+    }
     const vazio = [CHAVE_CLIENTES, CHAVE_PRODUTOS, CHAVE_PEDIDOS].every((c) => localStorage.getItem(c) === null);
     if (!CARREGAR_MOCKS || !vazio) return;
     const { clientes, produtos, pedidos } = gerarMocks();
@@ -117,6 +117,17 @@ function cnpjValido(cnpj: string): boolean {
   );
 }
 
+/** Valida CPF (11 dígitos e dígitos verificadores; recusa todos iguais, como 111.111.111-11). */
+function cpfValido(cpf: string): boolean {
+  if (!/^\d{11}$/.test(cpf) || /^(\d)\1{10}$/.test(cpf)) return false;
+  const digito = (tamanho: number) => {
+    const soma = [...cpf.slice(0, tamanho)].reduce((acc, d, i) => acc + Number(d) * (tamanho + 1 - i), 0);
+    const resto = (soma * 10) % 11;
+    return resto === 10 ? 0 : resto;
+  };
+  return digito(9) === Number(cpf[9]) && digito(10) === Number(cpf[10]);
+}
+
 // ---------------- Clientes ----------------
 export async function cadastrarClienteLocal(dados: ClienteCriarRequest): Promise<ClienteCriarResponse> {
   const clientes = ler<ClienteSalvo>(CHAVE_CLIENTES);
@@ -168,7 +179,25 @@ export async function listarProdutosLocal(): Promise<ProdutoListarResponse[]> {
 
 // ---------------- Colaboradores ----------------
 export async function listarColaboradoresLocal(): Promise<Colaborador[]> {
-  return COLABORADORES;
+  return ler<Colaborador>(CHAVE_COLABORADORES);
+}
+
+export async function cadastrarColaboradorLocal(dados: ColaboradorCriarRequest): Promise<Colaborador> {
+  const colaboradores = ler<Colaborador>(CHAVE_COLABORADORES);
+  const nome = dados.nome.trim();
+  const cpf = dados.cpf.replace(/\D/g, '');
+  const email = dados.email.trim();
+
+  if (nome.length < 3) throw new Error('Informe o nome do colaborador.');
+  if (!cpfValido(cpf)) throw new Error('CPF inválido.');
+  if (colaboradores.some((c) => c.cpf === cpf)) throw new Error('Já existe um colaborador com esse CPF.');
+  if (colaboradores.some((c) => c.email.toLowerCase() === email.toLowerCase())) {
+    throw new Error('Já existe um colaborador com esse e-mail.');
+  }
+
+  const novo: Colaborador = { id: proximoId(colaboradores), nome, cpf, email };
+  salvar(CHAVE_COLABORADORES, [...colaboradores, novo]);
+  return novo;
 }
 
 // ---------------- Pedidos ----------------
@@ -270,7 +299,7 @@ export async function decidirDescontoLocal(
 ): Promise<Pedido> {
   const pedidos = lerPedidos();
   const pedido = pedidos.find((p) => p.id === pedidoId);
-  const colaborador = COLABORADORES.find((c) => c.id === colaboradorId);
+  const colaborador = ler<Colaborador>(CHAVE_COLABORADORES).find((c) => c.id === colaboradorId);
 
   if (!colaborador) throw new Error('Colaborador não encontrado.');
   if (!pedido?.solicitacao || pedido.solicitacao.status !== 'PENDENTE') {

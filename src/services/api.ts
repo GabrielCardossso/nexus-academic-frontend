@@ -3,6 +3,7 @@ import type {
   ClienteCriarRequest,
   ClienteCriarResponse,
   ClienteListarResponse,
+  ColaboradorCriarRequest,
   PedidoCriarRequest,
   ProdutoCriarRequest,
   ProdutoCriarResponse,
@@ -10,6 +11,7 @@ import type {
 } from '../types';
 import {
   cadastrarClienteLocal,
+  cadastrarColaboradorLocal,
   cadastrarProdutoLocal,
   confirmarPedidoLocal,
   criarPedidoLocal,
@@ -142,4 +144,9 @@ export async function devolverPedido(pedidoId: number) {
 export async function listarColaboradores() {
   exigirModoLocal();
   return listarColaboradoresLocal();
+}
+
+export async function cadastrarColaborador(colaborador: ColaboradorCriarRequest) {
+  exigirModoLocal();
+  return cadastrarColaboradorLocal(colaborador);
 }

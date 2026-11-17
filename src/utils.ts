@@ -7,6 +7,9 @@ export const dataBR = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
 export const dataHoraBR = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
+/** 12345678909 → 123.456.789-09 */
+export const formatarCpf = (cpf: string) => cpf.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+
 /** Busca sem diferenciar maiúsculas nem acentos: true se algum dos textos contém o termo. */
 export function contem(termo: string, ...textos: (string | number | undefined)[]): boolean {
   const normalizar = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();

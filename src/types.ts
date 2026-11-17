@@ -62,9 +62,14 @@ export interface ProdutoListarResponse extends ProdutoCriarRequest {
 }
 
 // ---------------- Colaborador ----------------
-export interface Colaborador {
-  id: number;
+export interface ColaboradorCriarRequest {
   nome: string;
+  cpf: string; // só dígitos
+  email: string;
+}
+
+export interface Colaborador extends ColaboradorCriarRequest {
+  id: number;
 }
 
 // ---------------- Pedido / Desconto ----------------

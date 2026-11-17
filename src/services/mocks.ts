@@ -15,6 +15,7 @@
 import { PRAZO_DIAS, estaInadimplente, pagoNaHora, resumoPedido } from '../regras';
 import type {
   ClienteSalvo,
+  Colaborador,
   FormaPagamento,
   Pedido,
   ProdutoCriarResponse,
@@ -32,6 +33,25 @@ function cnpjDe(base: string): string {
   const d2 = digito(base + d1, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
   return `${base}${d1}${d2}`;
 }
+
+/** Monta um CPF válido a partir dos 9 primeiros dígitos (calcula os dois verificadores). */
+function cpfDe(base: string): string {
+  const digito = (digitos: string) => {
+    const peso = digitos.length + 1;
+    const soma = [...digitos].reduce((acc, d, i) => acc + Number(d) * (peso - i), 0);
+    const resto = (soma * 10) % 11;
+    return resto === 10 ? 0 : resto;
+  };
+  const d1 = digito(base);
+  return `${base}${d1}${digito(base + d1)}`;
+}
+
+/** Colaboradores iniciais (os ids 1 e 2 aparecem nas decisões de desconto dos pedidos abaixo). */
+export const COLABORADORES_MOCK: Colaborador[] = [
+  { id: 1, nome: 'Ana Souza', cpf: cpfDe('123456789'), email: 'ana.souza@nexus.com.br' },
+  { id: 2, nome: 'Carlos Lima', cpf: cpfDe('234567891'), email: 'carlos.lima@nexus.com.br' },
+  { id: 3, nome: 'Beatriz Rocha', cpf: cpfDe('345678912'), email: 'beatriz.rocha@nexus.com.br' },
+];
 
 // Limites de crédito ANTES dos pedidos a prazo (o crédito dos não pagos sai no final de gerarMocks).
 const CLIENTES_BASE: ClienteSalvo[] = [

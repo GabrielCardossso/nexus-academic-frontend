@@ -1,23 +1,35 @@
-import { useEffect, useState } from 'react';
-import { decidirDesconto, listarColaboradores, listarPedidos } from '../services/api';
-import { linhasSolicitacao, mensagemRejeicao, resumoPedido, ROTULO_TIPO } from '../regras';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import Aviso from '../components/Aviso';
+import Modal from '../components/Modal';
+import { cadastrarColaborador, listarColaboradores, listarPedidos } from '../services/api';
 import type { Colaborador, Pedido } from '../types';
-import { moeda, type Mensagem } from '../utils';
+import { campo, contem, formatarCpf, type Mensagem } from '../utils';
+
+const FORM_VAZIO = { nome: '', cpf: '', email: '' };
 
 export default function ColaboradoresTela() {
-  const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
-  const [colaboradorId, setColaboradorId] = useState('');
+  const [colaboradores, setColaboradores] = useState<Colaborador[] | null>(null); // null = carregando
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
-  const [msg, setMsg] = useState<Mensagem>(null);
+  const [erroLista, setErroLista] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
+  const [aviso, setAviso] = useState<Mensagem>(null);
+
+  const [novoAberto, setNovoAberto] = useState(false);
+  const [form, setForm] = useState(FORM_VAZIO);
+  const [erroForm, setErroForm] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  const onChange = campo(setForm);
 
   async function carregar() {
+    setErroLista(null);
     try {
       const [c, p] = await Promise.all([listarColaboradores(), listarPedidos()]);
       setColaboradores(c);
       setPedidos(p);
-      setColaboradorId((atual) => atual || String(c[0]?.id ?? ''));
     } catch (err) {
-      setMsg({ tipo: 'erro', texto: (err as Error).message });
+      setErroLista((err as Error).message);
+      setColaboradores([]);
     }
   }
 
@@ -25,101 +37,128 @@ export default function ColaboradoresTela() {
     carregar();
   }, []);
 
-  const colaborador = colaboradores.find((c) => String(c.id) === colaboradorId);
-  const pendentes = pedidos.filter((p) => p.solicitacao?.status === 'PENDENTE');
-  const decididas = pedidos.filter((p) => p.solicitacao && p.solicitacao.status !== 'PENDENTE');
+  function abrirNovo() {
+    setForm(FORM_VAZIO);
+    setErroForm(null);
+    setNovoAberto(true);
+  }
 
-  async function decidir(pedido: Pedido, aprovar: boolean) {
-    if (!colaborador) return;
-    setMsg(null);
+  const fecharNovo = useCallback(() => setNovoAberto(false), []);
+  const fecharAviso = useCallback(() => setAviso(null), []);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setEnviando(true);
+    setErroForm(null);
     try {
-      const atualizado = await decidirDesconto(pedido.id, aprovar, colaborador.id);
-      const s = atualizado.solicitacao!;
-      setMsg(
-        aprovar
-          ? {
-              tipo: 'sucesso',
-              texto: `Desconto de ${s.percentual}% do pedido #${pedido.id} aprovado por ${s.colaboradorNome} (ID ${s.colaboradorId}).`,
-            }
-          : { tipo: 'erro', texto: mensagemRejeicao(s) },
-      );
+      const novo = await cadastrarColaborador(form);
+      setAviso({ tipo: 'sucesso', texto: `Colaborador "${novo.nome}" cadastrado!` });
+      setNovoAberto(false);
       await carregar();
     } catch (err) {
-      setMsg({ tipo: 'erro', texto: (err as Error).message });
+      setErroForm((err as Error).message);
+    } finally {
+      setEnviando(false);
     }
   }
 
+  /** Quantas solicitações de desconto o colaborador já decidiu. */
+  const decisoesDe = (id: number) => pedidos.filter((p) => p.solicitacao?.colaboradorId === id).length;
+
+  const filtrados = (colaboradores ?? []).filter((c) => contem(busca, c.nome, c.email, c.cpf, formatarCpf(c.cpf)));
+
   return (
     <>
-      <h1>Colaboradores</h1>
-      <div className="tela">
-        <section className="card largura-total">
-          <h2>Colaborador atual</h2>
-          <select value={colaboradorId} onChange={(e) => setColaboradorId(e.target.value)}>
-            {colaboradores.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome} (ID {c.id})
-              </option>
-            ))}
-          </select>
-          {msg && <p className={`msg ${msg.tipo}`}>{msg.texto}</p>}
-        </section>
-
-        <section className="card">
-          <h2>Solicitações pendentes</h2>
-          {pendentes.length === 0 && <p className="vazio">Nenhuma solicitação pendente.</p>}
-          {pendentes.length > 0 && (
-            <ul className="lista alta">
-              {pendentes.map((p) => {
-                const s = p.solicitacao!;
-                const comDesconto = resumoPedido({ ...p, solicitacao: { ...s, status: 'APROVADA' } });
-                return (
-                  <li key={p.id}>
-                    <strong>
-                      Pedido #{p.id} — {p.clienteNome}
-                    </strong>
-                    <span>Tipo: {ROTULO_TIPO[p.tipo]}</span>
-                    <span>
-                      Cliente: {p.clienteCategoria}
-                      {p.clienteInadimplente && ' — inadimplente (sem desconto automático)'}
-                    </span>
-                    <span>Desconto solicitado: {s.percentual}%</span>
-                    <span>Subtotal: {moeda.format(comDesconto.subtotal)}</span>
-                    <span>Total com desconto: {moeda.format(comDesconto.total)}</span>
-                    <div className="acoes">
-                      <button type="button" disabled={!colaborador} onClick={() => decidir(p, true)}>
-                        Aprovar
-                      </button>
-                      <button type="button" className="rejeitar" disabled={!colaborador} onClick={() => decidir(p, false)}>
-                        Rejeitar
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        <section className="card">
-          <h2>Solicitações decididas</h2>
-          {decididas.length === 0 && <p className="vazio">Nenhuma solicitação decidida ainda.</p>}
-          {decididas.length > 0 && (
-            <ul className="lista alta">
-              {decididas.map((p) => (
-                <li key={p.id}>
-                  <strong>
-                    Pedido #{p.id} — {p.clienteNome}
-                  </strong>
-                  {linhasSolicitacao(p.solicitacao!).map((linha, i) => (
-                    <span key={i}>{linha}</span>
-                  ))}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+      <div className="topo">
+        <h1>Colaboradores</h1>
+        <button type="button" onClick={abrirNovo}>
+          + Novo colaborador
+        </button>
       </div>
+
+      <Aviso msg={aviso} onFechar={fecharAviso} />
+
+      <div className="filtros">
+        <input
+          type="search"
+          placeholder="Buscar por nome, CPF ou e-mail"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          aria-label="Buscar colaboradores"
+        />
+      </div>
+
+      {erroLista && <p className="msg erro">{erroLista}</p>}
+      {colaboradores === null && <p className="vazio">Carregando colaboradores...</p>}
+      {colaboradores && (
+        <p className="contagem">
+          {filtrados.length} de {colaboradores.length} {colaboradores.length === 1 ? 'colaborador' : 'colaboradores'}
+        </p>
+      )}
+      {colaboradores && filtrados.length === 0 && (
+        <p className="vazio">
+          {colaboradores.length === 0 ? 'Nenhum colaborador cadastrado ainda.' : 'Nenhum colaborador encontrado.'}
+        </p>
+      )}
+
+      <ul className="itens">
+        {filtrados.map((c) => {
+          const decisoes = decisoesDe(c.id);
+          return (
+            <li key={c.id} className="item">
+              <div className="item-topo">
+                <span className="item-titulo">{c.nome}</span>
+                <span className="item-sub">ID {c.id}</span>
+              </div>
+              <p className="item-info">
+                CPF {formatarCpf(c.cpf)} · {c.email}
+              </p>
+              <p className="item-info">
+                {decisoes === 0
+                  ? 'Ainda não decidiu solicitações de desconto'
+                  : `${decisoes} ${decisoes === 1 ? 'solicitação de desconto decidida' : 'solicitações de desconto decididas'}`}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+
+      <Modal aberto={novoAberto} titulo="Novo colaborador" onFechar={fecharNovo} bloqueado={enviando}>
+        <form className="form" onSubmit={handleSubmit}>
+          <div className="form-grade">
+            <label className="campo inteiro">
+              <span>Nome</span>
+              <input name="nome" type="text" value={form.nome} onChange={onChange} minLength={3} maxLength={60} required />
+            </label>
+            <label className="campo">
+              <span>CPF</span>
+              <input
+                name="cpf"
+                type="text"
+                inputMode="numeric"
+                placeholder="000.000.000-00"
+                value={form.cpf}
+                onChange={onChange}
+                maxLength={14}
+                required
+              />
+            </label>
+            <label className="campo">
+              <span>E-mail</span>
+              <input name="email" type="email" value={form.email} onChange={onChange} required />
+            </label>
+          </div>
+          {erroForm && <p className="msg erro">{erroForm}</p>}
+          <div className="modal-acoes">
+            <button type="button" className="secundario" onClick={fecharNovo} disabled={enviando}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={enviando}>
+              {enviando ? 'Salvando...' : 'Cadastrar colaborador'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </>
   );
 }
