@@ -449,3 +449,382 @@ button.secundario:hover:not(:disabled) {
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* ---------- Topo da tela: título + botão "Novo" ---------- */
+.topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.topo h1 {
+  margin: 0;
+}
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.filtros input[type='search'] {
+  flex: 1;
+  min-width: 220px;
+}
+
+.contagem {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: #57606a;
+}
+
+.aviso-topo {
+  margin-bottom: 12px;
+}
+
+/* ---------- Lista de registros (clientes, produtos, pedidos) ---------- */
+.itens {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid #d8dee4;
+  border-radius: 8px;
+}
+
+.item-topo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.item-titulo {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.item-sub {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #57606a;
+}
+
+.item-linha {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.item-linha.entre {
+  justify-content: space-between;
+}
+
+.item-info {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #57606a;
+}
+
+.valor {
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.item .selos {
+  margin: 0;
+}
+
+.aviso {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+}
+
+.aviso.erro {
+  color: #991b1b;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.item-rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.item-rodape .acoes {
+  margin-top: 0;
+  flex-wrap: wrap;
+}
+
+button.link {
+  padding: 4px 0;
+  font-size: 0.9rem;
+  color: #2563eb;
+  background: transparent;
+}
+
+button.link:hover:not(:disabled) {
+  color: #1d4ed8;
+  background: transparent;
+  text-decoration: underline;
+}
+
+/* Detalhes do pedido: grade rótulo/valor */
+.detalhes {
+  display: grid;
+  grid-template-columns: max-content 1fr max-content 1fr;
+  gap: 6px 14px;
+  margin: 4px 0 0;
+  padding: 12px;
+  font-size: 0.88rem;
+  background: #f6f8fa;
+  border: 1px solid #d8dee4;
+  border-radius: 6px;
+}
+
+.detalhes dt {
+  font-weight: 600;
+  color: #57606a;
+}
+
+.detalhes dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.detalhes .largo {
+  grid-column: 2 / -1;
+}
+
+@media (max-width: 640px) {
+  .detalhes {
+    grid-template-columns: max-content 1fr;
+  }
+
+  .detalhes .largo {
+    grid-column: 2;
+  }
+}
+
+/* Selos de categoria, situação e status do produto */
+.selo.vip {
+  color: #5b21b6 !important;
+  background: #ede9fe;
+  border-color: #c4b5fd;
+}
+
+.selo.neutro,
+.selo.desativado {
+  color: #3f3f46 !important;
+  background: #f4f4f5;
+  border-color: #d4d4d8;
+}
+
+.selo.em-dia,
+.selo.disponivel {
+  color: #166534 !important;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.selo.inadimplente {
+  color: #991b1b !important;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.selo.indisponivel {
+  color: #92400e !important;
+  background: #fef3c7;
+  border-color: #fcd34d;
+}
+
+/* ---------- Formulário dentro do popup ---------- */
+.modal.larga {
+  max-width: 640px;
+}
+
+.modal {
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.modal-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+button.modal-fechar {
+  padding: 2px 10px;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: #57606a;
+  background: transparent;
+}
+
+button.modal-fechar:hover:not(:disabled) {
+  color: #1f2328;
+  background: #f1f3f5;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-grade {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-grade .inteiro {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 560px) {
+  .form-grade {
+    grid-template-columns: 1fr;
+  }
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.campo > span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #3b434b;
+}
+
+.campo input,
+.campo select {
+  width: 100%;
+}
+
+.secao-titulo {
+  margin: 4px 0 0;
+  font-size: 0.95rem;
+}
+
+/* ---------- Seletor de produtos do pedido ---------- */
+.produtos-escolhidos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.produto-escolhido {
+  display: grid;
+  grid-template-columns: 1fr 90px auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  background: #f6f8fa;
+  border: 1px solid #d8dee4;
+  border-radius: 6px;
+}
+
+.produto-escolhido small {
+  color: #57606a;
+}
+
+.produto-escolhido .msg {
+  grid-column: 1 / -1;
+}
+
+button.remover {
+  padding: 4px 10px;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #b91c1c;
+  background: transparent;
+}
+
+button.remover:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.seletor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  background: #eff6ff;
+}
+
+.seletor-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.seletor-lista button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  color: #1f2328;
+  background: #fff;
+  border: 1px solid #d8dee4;
+}
+
+.seletor-lista button:hover:not(:disabled) {
+  background: #dbeafe;
+}
+
+.seletor-lista small {
+  color: #57606a;
+  white-space: nowrap;
+}
+
+button.adicionar {
+  align-self: flex-start;
+}

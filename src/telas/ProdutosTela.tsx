@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react';
-import ListaCard from '../components/ListaCard';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import Modal from '../components/Modal';
 import { cadastrarProduto, listarProdutos } from '../services/api';
 import type { ProdutoListarResponse, ProdutoStatus } from '../types';
-import { campo, moeda, type Mensagem } from '../utils';
+import { campo, contem, moeda, type Mensagem } from '../utils';
 
 const FORM_VAZIO = {
   nome: '',
@@ -13,33 +13,52 @@ const FORM_VAZIO = {
   status: 'DISPONIVEL' as ProdutoStatus,
 };
 
-export default function ProdutosTela() {
-  const [form, setForm] = useState(FORM_VAZIO);
-  const [msg, setMsg] = useState<Mensagem>(null);
-  const [enviando, setEnviando] = useState(false);
+const ROTULO_STATUS: Record<ProdutoStatus, string> = {
+  DISPONIVEL: 'Disponível',
+  INDISPONIVEL: 'Indisponível',
+  DESATIVADO: 'Desativado',
+};
 
-  const [produtos, setProdutos] = useState<ProdutoListarResponse[] | null>(null);
-  const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+export default function ProdutosTela() {
+  const [produtos, setProdutos] = useState<ProdutoListarResponse[] | null>(null); // null = carregando
+  const [erroLista, setErroLista] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState<'' | ProdutoStatus>('');
+  const [aviso, setAviso] = useState<Mensagem>(null);
+
+  const [novoAberto, setNovoAberto] = useState(false);
+  const [form, setForm] = useState(FORM_VAZIO);
+  const [erroForm, setErroForm] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
   const onChange = campo(setForm);
 
   async function carregar() {
-    setCarregando(true);
-    setErro(null);
+    setErroLista(null);
     try {
       setProdutos(await listarProdutos());
     } catch (err) {
-      setErro((err as Error).message);
-    } finally {
-      setCarregando(false);
+      setErroLista((err as Error).message);
+      setProdutos([]);
     }
   }
+
+  useEffect(() => {
+    carregar();
+  }, []);
+
+  function abrirNovo() {
+    setForm(FORM_VAZIO);
+    setErroForm(null);
+    setNovoAberto(true);
+  }
+
+  const fecharNovo = useCallback(() => setNovoAberto(false), []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setEnviando(true);
-    setMsg(null);
+    setErroForm(null);
     try {
       await cadastrarProduto({
         ...form,
@@ -47,87 +66,129 @@ export default function ProdutosTela() {
         precoVenda: Number(form.precoVenda),
         precoAluguel: Number(form.precoAluguel),
       });
-      setMsg({ tipo: 'sucesso', texto: 'Produto cadastrado!' });
-      setForm(FORM_VAZIO);
-      if (produtos !== null) carregar();
+      setAviso({ tipo: 'sucesso', texto: `Produto "${form.nome.trim()}" cadastrado!` });
+      setNovoAberto(false);
+      await carregar();
     } catch (err) {
-      setMsg({ tipo: 'erro', texto: (err as Error).message });
+      setErroForm((err as Error).message);
     } finally {
       setEnviando(false);
     }
   }
 
+  const filtrados = (produtos ?? []).filter(
+    (p) => (!filtroStatus || p.status === filtroStatus) && contem(busca, p.nome, p.descricao),
+  );
+
   return (
     <>
-      <h1>Produtos</h1>
-      <div className="tela">
-        <form className="card" onSubmit={handleSubmit}>
-          <h2>Cadastro</h2>
-          <input name="nome" type="text" placeholder="Nome do produto" value={form.nome} onChange={onChange} required />
-          <input name="descricao" type="text" placeholder="Descrição" value={form.descricao} onChange={onChange} />
-          <input
-            name="estoque"
-            type="number"
-            placeholder="Estoque"
-            value={form.estoque}
-            onChange={onChange}
-            min={0}
-            step={1}
-            required
-          />
-          <input
-            name="precoVenda"
-            type="number"
-            placeholder="Preço de venda (R$)"
-            value={form.precoVenda}
-            onChange={onChange}
-            min={0}
-            step="0.01"
-            required
-          />
-          <input
-            name="precoAluguel"
-            type="number"
-            placeholder="Preço de aluguel por mês (R$)"
-            value={form.precoAluguel}
-            onChange={onChange}
-            min={0}
-            step="0.01"
-            required
-          />
-          <select name="status" value={form.status} onChange={onChange}>
-            <option value="DISPONIVEL">Disponível</option>
-            <option value="INDISPONIVEL">Indisponível</option>
-            <option value="DESATIVADO">Desativado</option>
-          </select>
-          {msg && <p className={`msg ${msg.tipo}`}>{msg.texto}</p>}
-          <button type="submit" disabled={enviando}>
-            {enviando ? 'Enviando...' : 'Cadastrar produto'}
-          </button>
-        </form>
-
-        <ListaCard
-          titulo="Listagem"
-          textoBotao="Listar produtos"
-          carregando={carregando}
-          erro={erro}
-          onListar={carregar}
-          itens={
-            produtos &&
-            produtos.map((p) => ({
-              chave: String(p.id),
-              titulo: p.nome,
-              detalhes: [
-                p.descricao || 'Sem descrição',
-                `Estoque: ${p.estoque}`,
-                `Preço de venda: ${moeda.format(Number(p.precoVenda))}`,
-                `Aluguel: ${moeda.format(Number(p.precoAluguel))} por mês`,
-                `Status: ${p.status}`,
-              ],
-            }))
-          }
-        />
+      <div className="topo">
+        <h1>Produtos</h1>
+        <button type="button" onClick={abrirNovo}>
+          + Novo produto
+        </button>
       </div>
+
+      {aviso && <p className={`msg ${aviso.tipo} aviso-topo`}>{aviso.texto}</p>}
+
+      <div className="filtros">
+        <input
+          type="search"
+          placeholder="Buscar por nome ou descrição"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          aria-label="Buscar produtos"
+        />
+        <select
+          value={filtroStatus}
+          onChange={(e) => setFiltroStatus(e.target.value as '' | ProdutoStatus)}
+          aria-label="Filtrar por status"
+        >
+          <option value="">Todos os status</option>
+          <option value="DISPONIVEL">Disponível</option>
+          <option value="INDISPONIVEL">Indisponível</option>
+          <option value="DESATIVADO">Desativado</option>
+        </select>
+      </div>
+
+      {erroLista && <p className="msg erro">{erroLista}</p>}
+      {produtos === null && <p className="vazio">Carregando produtos...</p>}
+      {produtos && (
+        <p className="contagem">
+          {filtrados.length} de {produtos.length} {produtos.length === 1 ? 'produto' : 'produtos'}
+        </p>
+      )}
+      {produtos && filtrados.length === 0 && (
+        <p className="vazio">{produtos.length === 0 ? 'Nenhum produto cadastrado ainda.' : 'Nenhum produto encontrado.'}</p>
+      )}
+
+      <ul className="itens">
+        {filtrados.map((p) => (
+          <li key={p.id} className="item">
+            <div className="item-topo">
+              <span className="item-titulo">{p.nome}</span>
+              <span className={`selo ${p.status.toLowerCase()}`}>{ROTULO_STATUS[p.status]}</span>
+            </div>
+            {p.descricao && <p className="item-info">{p.descricao}</p>}
+            <p className="item-info">
+              Estoque: {p.estoque} · Venda: {moeda.format(Number(p.precoVenda))} · Aluguel:{' '}
+              {moeda.format(Number(p.precoAluguel))}/mês
+            </p>
+          </li>
+        ))}
+      </ul>
+
+      <Modal aberto={novoAberto} titulo="Novo produto" onFechar={fecharNovo} bloqueado={enviando}>
+        <form className="form" onSubmit={handleSubmit}>
+          <div className="form-grade">
+            <label className="campo inteiro">
+              <span>Nome do produto</span>
+              <input name="nome" type="text" value={form.nome} onChange={onChange} required />
+            </label>
+            <label className="campo inteiro">
+              <span>Descrição</span>
+              <input name="descricao" type="text" value={form.descricao} onChange={onChange} />
+            </label>
+            <label className="campo">
+              <span>Preço de venda (R$)</span>
+              <input name="precoVenda" type="number" value={form.precoVenda} onChange={onChange} min={0} step="0.01" required />
+            </label>
+            <label className="campo">
+              <span>Aluguel por mês (R$)</span>
+              <input
+                name="precoAluguel"
+                type="number"
+                value={form.precoAluguel}
+                onChange={onChange}
+                min={0}
+                step="0.01"
+                required
+              />
+            </label>
+            <label className="campo">
+              <span>Estoque</span>
+              <input name="estoque" type="number" value={form.estoque} onChange={onChange} min={0} step={1} required />
+            </label>
+            <label className="campo">
+              <span>Status</span>
+              <select name="status" value={form.status} onChange={onChange}>
+                <option value="DISPONIVEL">Disponível</option>
+                <option value="INDISPONIVEL">Indisponível</option>
+                <option value="DESATIVADO">Desativado</option>
+              </select>
+            </label>
+          </div>
+          {erroForm && <p className="msg erro">{erroForm}</p>}
+          <div className="modal-acoes">
+            <button type="button" className="secundario" onClick={fecharNovo} disabled={enviando}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={enviando}>
+              {enviando ? 'Salvando...' : 'Cadastrar produto'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </>
   );
 }

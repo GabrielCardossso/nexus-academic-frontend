@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react';
-import ListaCard from '../components/ListaCard';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import Modal from '../components/Modal';
 import { cadastrarCliente, listarClientes } from '../services/api';
 import type { ClienteCategoria, ClienteListarResponse } from '../types';
-import { campo, moeda, type Mensagem } from '../utils';
+import { campo, contem, moeda, type Mensagem } from '../utils';
 
 // Estado inicial do formulário (número vira string porque o <input> trabalha com texto)
 const FORM_VAZIO = {
@@ -15,105 +15,163 @@ const FORM_VAZIO = {
 };
 
 export default function ClientesTela() {
-  const [form, setForm] = useState(FORM_VAZIO);
-  const [msg, setMsg] = useState<Mensagem>(null);
-  const [enviando, setEnviando] = useState(false);
+  const [clientes, setClientes] = useState<ClienteListarResponse[] | null>(null); // null = carregando
+  const [erroLista, setErroLista] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
+  const [aviso, setAviso] = useState<Mensagem>(null); // mensagem de sucesso na tela
 
-  const [clientes, setClientes] = useState<ClienteListarResponse[] | null>(null);
-  const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+  const [novoAberto, setNovoAberto] = useState(false);
+  const [form, setForm] = useState(FORM_VAZIO);
+  const [erroForm, setErroForm] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
   const onChange = campo(setForm);
 
   async function carregar() {
-    setCarregando(true);
-    setErro(null);
+    setErroLista(null);
     try {
       setClientes(await listarClientes());
     } catch (err) {
-      setErro((err as Error).message);
-    } finally {
-      setCarregando(false);
+      setErroLista((err as Error).message);
+      setClientes([]);
     }
   }
+
+  useEffect(() => {
+    carregar();
+  }, []);
+
+  function abrirNovo() {
+    setForm(FORM_VAZIO);
+    setErroForm(null);
+    setNovoAberto(true);
+  }
+
+  const fecharNovo = useCallback(() => setNovoAberto(false), []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setEnviando(true);
-    setMsg(null);
+    setErroForm(null);
     try {
       await cadastrarCliente({ ...form, limiteCredito: Number(form.limiteCredito) });
-      setMsg({ tipo: 'sucesso', texto: 'Cliente cadastrado!' });
-      setForm(FORM_VAZIO);
-      if (clientes !== null) carregar(); // lista já aberta: atualiza
+      setAviso({ tipo: 'sucesso', texto: `Cliente "${form.name.trim()}" cadastrado!` });
+      setNovoAberto(false);
+      await carregar();
     } catch (err) {
-      setMsg({ tipo: 'erro', texto: (err as Error).message });
+      setErroForm((err as Error).message);
     } finally {
       setEnviando(false);
     }
   }
 
+  const filtrados = (clientes ?? []).filter((c) => contem(busca, c.name, c.email, c.telefone));
+
   return (
     <>
-      <h1>Clientes</h1>
-      <div className="tela">
-        <form className="card" onSubmit={handleSubmit}>
-          <h2>Cadastro</h2>
-          <input
-            name="name"
-            type="text"
-            placeholder="Nome ou razão social"
-            value={form.name}
-            onChange={onChange}
-            minLength={3}
-            maxLength={60}
-            required
-          />
-          <input name="cnpj" type="text" placeholder="CNPJ" value={form.cnpj} onChange={onChange} maxLength={18} required />
-          <input name="telefone" type="tel" placeholder="Telefone" value={form.telefone} onChange={onChange} />
-          <input name="email" type="email" placeholder="E-mail" value={form.email} onChange={onChange} required />
-          <select name="categoria" value={form.categoria} onChange={onChange}>
-            <option value="NORMAL">Normal</option>
-            <option value="VIP">VIP</option>
-          </select>
-          <input
-            name="limiteCredito"
-            type="number"
-            placeholder="Limite de crédito (R$)"
-            value={form.limiteCredito}
-            onChange={onChange}
-            min={0}
-            step="0.01"
-            required
-          />
-          {msg && <p className={`msg ${msg.tipo}`}>{msg.texto}</p>}
-          <button type="submit" disabled={enviando}>
-            {enviando ? 'Enviando...' : 'Cadastrar cliente'}
-          </button>
-        </form>
+      <div className="topo">
+        <h1>Clientes</h1>
+        <button type="button" onClick={abrirNovo}>
+          + Novo cliente
+        </button>
+      </div>
 
-        <ListaCard
-          titulo="Listagem"
-          textoBotao="Listar clientes"
-          carregando={carregando}
-          erro={erro}
-          onListar={carregar}
-          itens={
-            clientes &&
-            clientes.map((c) => ({
-              chave: String(c.id),
-              titulo: c.name,
-              detalhes: [
-                `Telefone: ${c.telefone || '—'}`,
-                `E-mail: ${c.email}`,
-                `Classificação: ${c.categoria}`,
-                `Situação: ${c.inadimplente ? 'Inadimplente (pedido a prazo vencido e não pago)' : 'Em dia'}`,
-                `Limite de crédito: ${moeda.format(c.limiteCredito)}`,
-              ],
-            }))
-          }
+      {aviso && <p className={`msg ${aviso.tipo} aviso-topo`}>{aviso.texto}</p>}
+
+      <div className="filtros">
+        <input
+          type="search"
+          placeholder="Buscar por nome, e-mail ou telefone"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          aria-label="Buscar clientes"
         />
       </div>
+
+      {erroLista && <p className="msg erro">{erroLista}</p>}
+      {clientes === null && <p className="vazio">Carregando clientes...</p>}
+      {clientes && (
+        <p className="contagem">
+          {filtrados.length} de {clientes.length} {clientes.length === 1 ? 'cliente' : 'clientes'}
+        </p>
+      )}
+      {clientes && filtrados.length === 0 && (
+        <p className="vazio">{clientes.length === 0 ? 'Nenhum cliente cadastrado ainda.' : 'Nenhum cliente encontrado.'}</p>
+      )}
+
+      <ul className="itens">
+        {filtrados.map((c) => (
+          <li key={c.id} className="item">
+            <div className="item-topo">
+              <span className="item-titulo">{c.name}</span>
+              <div className="selos">
+                <span className={`selo ${c.categoria === 'VIP' ? 'vip' : 'neutro'}`}>
+                  {c.categoria === 'VIP' ? 'VIP' : 'Normal'}
+                </span>
+                <span className={`selo ${c.inadimplente ? 'inadimplente' : 'em-dia'}`}>
+                  {c.inadimplente ? 'Inadimplente' : 'Em dia'}
+                </span>
+              </div>
+            </div>
+            <p className="item-info">
+              {c.email}
+              {c.telefone && ` · ${c.telefone}`}
+            </p>
+            <p className="item-info">Limite de crédito disponível: {moeda.format(c.limiteCredito)}</p>
+          </li>
+        ))}
+      </ul>
+
+      <Modal aberto={novoAberto} titulo="Novo cliente" onFechar={fecharNovo} bloqueado={enviando}>
+        <form className="form" onSubmit={handleSubmit}>
+          <div className="form-grade">
+            <label className="campo inteiro">
+              <span>Nome ou razão social</span>
+              <input name="name" type="text" value={form.name} onChange={onChange} minLength={3} maxLength={60} required />
+            </label>
+            <label className="campo">
+              <span>CNPJ</span>
+              <input name="cnpj" type="text" value={form.cnpj} onChange={onChange} maxLength={18} required />
+            </label>
+            <label className="campo">
+              <span>Telefone</span>
+              <input name="telefone" type="tel" value={form.telefone} onChange={onChange} />
+            </label>
+            <label className="campo inteiro">
+              <span>E-mail</span>
+              <input name="email" type="email" value={form.email} onChange={onChange} required />
+            </label>
+            <label className="campo">
+              <span>Categoria</span>
+              <select name="categoria" value={form.categoria} onChange={onChange}>
+                <option value="NORMAL">Normal</option>
+                <option value="VIP">VIP</option>
+              </select>
+            </label>
+            <label className="campo">
+              <span>Limite de crédito (R$)</span>
+              <input
+                name="limiteCredito"
+                type="number"
+                value={form.limiteCredito}
+                onChange={onChange}
+                min={0}
+                step="0.01"
+                required
+              />
+            </label>
+          </div>
+          {erroForm && <p className="msg erro">{erroForm}</p>}
+          <div className="modal-acoes">
+            <button type="button" className="secundario" onClick={fecharNovo} disabled={enviando}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={enviando}>
+              {enviando ? 'Salvando...' : 'Cadastrar cliente'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </>
   );
 }
