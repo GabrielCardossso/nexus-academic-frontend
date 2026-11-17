@@ -19,6 +19,7 @@ import {
   listarColaboradoresLocal,
   listarPedidosLocal,
   listarProdutosLocal,
+  pagarPedidoLocal,
 } from './dadosLocais';
 
 /**
@@ -126,6 +127,11 @@ export async function decidirDesconto(pedidoId: number, aprovar: boolean, colabo
 export async function confirmarPedido(pedidoId: number) {
   exigirModoLocal();
   return confirmarPedidoLocal(pedidoId);
+}
+
+export async function pagarPedido(pedidoId: number) {
+  exigirModoLocal();
+  return pagarPedidoLocal(pedidoId);
 }
 
 export async function devolverPedido(pedidoId: number) {

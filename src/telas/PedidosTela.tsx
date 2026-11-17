@@ -7,12 +7,15 @@ import {
   listarClientes,
   listarPedidos,
   listarProdutos,
+  pagarPedido,
 } from '../services/api';
 import {
   aguardaDesconto,
   linhasSolicitacao,
+  pagoNaHora,
   podeConfirmar,
   podeDevolver,
+  podePagar,
   resumoPedido,
   PRAZO_DIAS,
   ROTULO_PAGAMENTO,
@@ -43,11 +46,14 @@ function linhasPedido(p: Pedido): string[] {
     `Desconto aplicado: ${r.percentual}% (− ${moeda.format(r.valorDesconto)})`,
     `Total: ${moeda.format(r.total)}`,
     ...(p.solicitacao ? linhasSolicitacao(p.solicitacao) : []),
-    ...(p.pagamento === 'A_PRAZO' ? [`Crédito utilizado: ${moeda.format(r.total)}`] : []),
+    ...(p.pagamento === 'A_PRAZO'
+      ? [`Crédito utilizado: ${moeda.format(p.creditoUsado ?? r.total)}${p.pagoEm ? ' (já devolvido ao limite)' : ''}`]
+      : []),
     `Criado em ${dataHoraBR(p.criadoEm)}`,
     aluguel
       ? `Início: ${dataBR(p.emissao)} · Fim do aluguel: ${dataBR(p.vencimento)}`
       : `Emissão: ${dataBR(p.emissao)} · Vencimento: ${dataBR(p.vencimento)}`,
+    ...(p.pagoEm ? [`Pago em ${dataHoraBR(p.pagoEm)}`] : []),
     ...(p.concluidoEm ? [`Concluído em ${dataHoraBR(p.concluidoEm)}`] : []),
     ...(p.devolvidoEm ? [`Devolvido em ${dataHoraBR(p.devolvidoEm)}`] : []),
   ];
@@ -109,6 +115,7 @@ export default function PedidosTela() {
     pagamento,
     meses: aluguel ? quantidadeMeses : undefined,
     solicitacao,
+    pagoEm: pagoNaHora({ pagamento, solicitacao }) ? new Date().toISOString() : undefined, // prévia
   });
   const acimaDoLimite = !!cliente && pagamento === 'A_PRAZO' && resumo.total > cliente.limiteCredito;
 
@@ -150,6 +157,20 @@ export default function PedidosTela() {
     try {
       await confirmarPedido(pedidoId);
       setMsg({ tipo: 'sucesso', texto: `Pedido #${pedidoId} confirmado e concluído.` });
+      await carregar();
+    } catch (err) {
+      setMsg({ tipo: 'erro', texto: (err as Error).message });
+    }
+  }
+
+  async function pagar(pedidoId: number) {
+    setMsg(null);
+    try {
+      const pedido = await pagarPedido(pedidoId);
+      setMsg({
+        tipo: 'sucesso',
+        texto: `Pagamento do pedido #${pedidoId} registrado. ${moeda.format(pedido.creditoUsado ?? 0)} voltaram ao limite de crédito.`,
+      });
       await carregar();
     } catch (err) {
       setMsg({ tipo: 'erro', texto: (err as Error).message });
@@ -297,7 +318,7 @@ export default function PedidosTela() {
                     {linhasPedido(p).map((linha, i) => (
                       <span key={i}>{linha}</span>
                     ))}
-                    {(podeConfirmar(p) || aguardaDesconto(p) || podeDevolver(p)) && (
+                    {(podeConfirmar(p) || aguardaDesconto(p) || podeDevolver(p) || podePagar(p)) && (
                       <div className="acoes">
                         {(podeConfirmar(p) || aguardaDesconto(p)) && (
                           <button
@@ -307,6 +328,11 @@ export default function PedidosTela() {
                             onClick={() => confirmar(p.id)}
                           >
                             Confirmar pedido
+                          </button>
+                        )}
+                        {podePagar(p) && (
+                          <button type="button" className="confirmar" onClick={() => pagar(p.id)}>
+                            Registrar pagamento
                           </button>
                         )}
                         {aguardaDesconto(p) && (

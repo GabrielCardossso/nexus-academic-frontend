@@ -7,7 +7,7 @@
  * Para limpar os dados: F12 > Application > Local Storage > apagar "nexus:*".
  */
 import { CARREGAR_MOCKS } from '../config/api';
-import { PRAZO_DIAS, aguardaDesconto, resumoPedido, statusDoPedido } from '../regras';
+import { PRAZO_DIAS, aguardaDesconto, pagoNaHora, podePagar, resumoPedido, statusDoPedido } from '../regras';
 import { gerarMocks } from './mocks';
 import type {
   ClienteCriarRequest,
@@ -24,10 +24,10 @@ import type {
   SolicitacaoDesconto,
 } from '../types';
 
-// "v4": pedido com status próprio (concluidoEm) e dados de exemplo. Dados antigos de teste ficam de lado.
-const CHAVE_CLIENTES = 'nexus:v4:clientes';
-const CHAVE_PRODUTOS = 'nexus:v4:produtos';
-const CHAVE_PEDIDOS = 'nexus:v4:pedidos';
+// "v5": pagamento registrado (pagoEm) e crédito usado no pedido. Dados antigos de teste ficam de lado.
+const CHAVE_CLIENTES = 'nexus:v5:clientes';
+const CHAVE_PRODUTOS = 'nexus:v5:produtos';
+const CHAVE_PEDIDOS = 'nexus:v5:pedidos';
 
 /** Colaboradores fictícios (não há cadastro de colaborador ainda). */
 const COLABORADORES: Colaborador[] = [
@@ -203,12 +203,14 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
     criadoEm: agora.toISOString(),
     emissao: agora.toISOString(),
     vencimento: vencimento.toISOString(),
+    pagoEm: pagoNaHora({ pagamento: req.pagamento, solicitacao }) ? agora.toISOString() : undefined,
   };
 
   // A prazo (venda ou aluguel): valida e desconta o total do limite de crédito do cliente.
   const total = resumoPedido(novo).total;
-  if (req.pagamento === 'A_PRAZO' && total > cliente.limiteCredito) {
-    throw new Error('Total do pedido acima do limite de crédito do cliente.');
+  if (req.pagamento === 'A_PRAZO') {
+    if (total > cliente.limiteCredito) throw new Error('Total do pedido acima do limite de crédito do cliente.');
+    novo.creditoUsado = total;
   }
 
   // Baixa de estoque (como o baixarEstoque() do Produto no back)
@@ -251,12 +253,19 @@ export async function decidirDescontoLocal(
       colaboradorNome: colaborador.nome,
     },
   };
-  salvar(CHAVE_PEDIDOS, pedidos.map((p) => (p.id === pedidoId ? atualizado : p)));
+  // PIX/à vista esperava só a decisão do desconto para ser pago.
+  if (pagoNaHora(atualizado)) atualizado.pagoEm = new Date().toISOString();
 
   // Pedido a prazo já descontou o total sem desconto: devolve a diferença ao crédito.
+  let devolver = 0;
   if (aprovar && pedido.pagamento === 'A_PRAZO') {
-    ajustarCredito(pedido.clienteId, resumoPedido(pedido).total - resumoPedido(atualizado).total);
+    const usado = pedido.creditoUsado ?? resumoPedido(pedido).total;
+    devolver = Math.max(0, Math.round((usado - resumoPedido(atualizado).total) * 100) / 100);
+    atualizado.creditoUsado = Math.round((usado - devolver) * 100) / 100;
   }
+
+  salvar(CHAVE_PEDIDOS, pedidos.map((p) => (p.id === pedidoId ? atualizado : p)));
+  if (devolver > 0) ajustarCredito(pedido.clienteId, devolver);
   return atualizado;
 }
 
@@ -273,6 +282,24 @@ export async function confirmarPedidoLocal(pedidoId: number): Promise<Pedido> {
 
   const atualizado: Pedido = { ...pedido, concluidoEm: new Date().toISOString() };
   salvar(CHAVE_PEDIDOS, pedidos.map((p) => (p.id === pedidoId ? atualizado : p)));
+  return atualizado;
+}
+
+/** Registra o pagamento de um pedido a prazo: o crédito reservado volta ao limite do cliente. */
+export async function pagarPedidoLocal(pedidoId: number): Promise<Pedido> {
+  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
+  const pedido = pedidos.find((p) => p.id === pedidoId);
+
+  if (!pedido) throw new Error('Pedido não encontrado.');
+  if (pedido.pagamento !== 'A_PRAZO') throw new Error('Só pedidos a prazo têm pagamento a registrar.');
+  if (pedido.pagoEm) throw new Error('O pagamento deste pedido já foi registrado.');
+  if (!podePagar(pedido)) {
+    throw new Error('Aguarde a decisão sobre o desconto solicitado antes de registrar o pagamento.');
+  }
+
+  const atualizado: Pedido = { ...pedido, pagoEm: new Date().toISOString() };
+  salvar(CHAVE_PEDIDOS, pedidos.map((p) => (p.id === pedidoId ? atualizado : p)));
+  ajustarCredito(pedido.clienteId, pedido.creditoUsado ?? resumoPedido(pedido).total);
   return atualizado;
 }
 

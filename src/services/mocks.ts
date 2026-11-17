@@ -7,9 +7,10 @@
  *  - pendente com desconto aprovado/rejeitado e pendente de cliente VIP (botão Confirmar liberado)
  *  - concluído (pago e com pagamento pendente a prazo)
  *  - aluguel concluído (pode devolver) e aluguel devolvido
+ *  - venda a prazo já paga (crédito devolvido) e pedidos a prazo aguardando pagamento
  * Estoque e limite de crédito já nascem coerentes com esses pedidos.
  */
-import { PRAZO_DIAS, resumoPedido } from '../regras';
+import { PRAZO_DIAS, pagoNaHora, resumoPedido } from '../regras';
 import type {
   ClienteSalvo,
   FormaPagamento,
@@ -30,7 +31,7 @@ function cnpjDe(base: string): string {
   return `${base}${d1}${d2}`;
 }
 
-// Limites de crédito ANTES dos pedidos a prazo (o desconto sai no final de gerarMocks).
+// Limites de crédito ANTES dos pedidos a prazo (o crédito dos não pagos sai no final de gerarMocks).
 const CLIENTES_BASE: ClienteSalvo[] = [
   { id: 1, name: 'Construtora Horizonte Ltda', telefone: '(11) 3456-7890', cnpj: cnpjDe('112223330001'), email: 'compras@horizonte.com.br', categoria: 'VIP', limiteCredito: 50000 },
   { id: 2, name: 'Mercado Bom Preço Ltda', telefone: '(11) 98765-4321', cnpj: cnpjDe('223334440001'), email: 'financeiro@bompreco.com.br', categoria: 'NORMAL', limiteCredito: 15000 },
@@ -63,6 +64,7 @@ interface PedidoMock {
   diasAtras: number;
   concluido?: boolean;
   devolvidoHaDias?: number;
+  pagoHaDias?: number; // só a prazo: pagamento registrado
 }
 
 const ANA = { colaboradorId: 1, colaboradorNome: 'Ana Souza' };
@@ -70,6 +72,8 @@ const CARLOS = { colaboradorId: 2, colaboradorNome: 'Carlos Lima' };
 
 // Do mais antigo para o mais novo (a tela lista os mais recentes primeiro).
 const PEDIDOS_MOCK: PedidoMock[] = [
+  // Venda a prazo concluída e já paga: o crédito voltou ao limite.
+  { tipo: 'VENDA', clienteId: 5, pagamento: 'A_PRAZO', itens: { 6: 3 }, diasAtras: 50, concluido: true, pagoHaDias: 22 },
   // Aluguel concluído e em andamento: dá para testar a devolução.
   { tipo: 'ALUGUEL', clienteId: 4, pagamento: 'A_VISTA', itens: { 5: 1 }, meses: 3, diasAtras: 40, concluido: true },
   // Aluguel já devolvido.
@@ -131,6 +135,11 @@ export function gerarMocks() {
       vencimento: vencimento.toISOString(),
       concluidoEm: m.concluido ? new Date(emissao.getTime() + 60 * 60 * 1000).toISOString() : undefined,
       devolvidoEm: m.devolvidoHaDias != null ? new Date(agora - m.devolvidoHaDias * DIA).toISOString() : undefined,
+      pagoEm: pagoNaHora(m)
+        ? emissao.toISOString()
+        : m.pagoHaDias != null
+          ? new Date(agora - m.pagoHaDias * DIA).toISOString()
+          : undefined,
     };
 
     // Mesmas regras de criarPedidoLocal: baixa de estoque (volta se devolvido) e crédito usado a prazo.
@@ -139,8 +148,12 @@ export function gerarMocks() {
         produtos.find((p) => p.id === item.produtoId)!.estoque -= item.quantidade;
       }
     }
+    // Crédito a prazo: fica reservado até o pagamento (se já foi pago, voltou ao limite).
     if (pedido.pagamento === 'A_PRAZO') {
-      cliente.limiteCredito = Math.round((cliente.limiteCredito - resumoPedido(pedido).total) * 100) / 100;
+      pedido.creditoUsado = resumoPedido(pedido).total;
+      if (!pedido.pagoEm) {
+        cliente.limiteCredito = Math.round((cliente.limiteCredito - pedido.creditoUsado) * 100) / 100;
+      }
     }
     return pedido;
   });

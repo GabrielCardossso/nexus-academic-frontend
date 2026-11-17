@@ -97,6 +97,8 @@ export interface Pedido {
   vencimento: string; // ISO (aluguel: fim do aluguel)
   concluidoEm?: string; // ISO, preenchido quando o pedido é confirmado manualmente
   devolvidoEm?: string; // ISO, só aluguel
+  pagoEm?: string; // ISO. PIX/à vista: na criação ou na decisão do desconto. A prazo: ao registrar o pagamento.
+  creditoUsado?: number; // só a prazo: quanto foi descontado do limite (volta ao registrar o pagamento)
 }
 
 /** Cliente como fica guardado (como a tabela do banco): tem id e cnpj. */

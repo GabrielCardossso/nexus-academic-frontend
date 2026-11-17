@@ -45,6 +45,7 @@ interface DadosPedido {
   solicitacao?: SolicitacaoDesconto;
   concluidoEm?: string;
   devolvidoEm?: string;
+  pagoEm?: string;
 }
 
 type EstadoPedido = Pick<DadosPedido, 'solicitacao' | 'concluidoEm' | 'devolvidoEm'>;
@@ -68,9 +69,7 @@ export function resumoPedido(p: DadosPedido) {
   const valorDesconto = arredondar((subtotal * percentual) / 100);
   const total = arredondar(subtotal - valorDesconto);
 
-  // Pagamento: pago na hora (PIX/à vista), exceto se ainda aguarda aprovação de desconto.
-  const statusPagamento: StatusPagamento =
-    p.pagamento === 'A_PRAZO' || p.solicitacao?.status === 'PENDENTE' ? 'PENDENTE' : 'PAGO';
+  const statusPagamento: StatusPagamento = p.pagoEm ? 'PAGO' : 'PENDENTE';
 
   return { subtotal, percentual, valorDesconto, total, statusPagamento, statusPedido: statusDoPedido(p) };
 }
@@ -87,6 +86,14 @@ export const aguardaDesconto = (p: Pick<DadosPedido, 'solicitacao'>) => p.solici
 
 /** Pode confirmar: está pendente e não depende de aprovação de desconto. */
 export const podeConfirmar = (p: EstadoPedido) => statusDoPedido(p) === 'PENDENTE' && !aguardaDesconto(p);
+
+/** PIX/à vista é pago na hora, exceto se ainda aguarda aprovação de desconto (aí é pago na decisão). */
+export const pagoNaHora = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao'>) =>
+  p.pagamento !== 'A_PRAZO' && !aguardaDesconto(p);
+
+/** Pedido a prazo ainda não pago e sem desconto aguardando decisão pode ter o pagamento registrado. */
+export const podePagar = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao' | 'pagoEm'>) =>
+  p.pagamento === 'A_PRAZO' && !p.pagoEm && !aguardaDesconto(p);
 
 /** Só aluguel já concluído e ainda não devolvido pode ser devolvido. */
 export const podeDevolver = (p: EstadoPedido & { tipo: TipoPedido }) =>
