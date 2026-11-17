@@ -31,3 +31,9 @@ export const ENDPOINTS = {
  * false = usa o back-end real (API_BASE_URL + ENDPOINTS acima).
  */
 export const USAR_DADOS_LOCAIS = true;
+
+/**
+ * true  = na primeira vez (localStorage vazio) carrega clientes, produtos e pedidos de exemplo.
+ * Para recomeçar do zero: apague as chaves "nexus:*" no localStorage e recarregue a página.
+ */
+export const CARREGAR_MOCKS = true;

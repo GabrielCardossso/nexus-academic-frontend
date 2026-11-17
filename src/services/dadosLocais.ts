@@ -6,11 +6,14 @@
  * Para usar o back-end real: USAR_DADOS_LOCAIS = false em config/api.ts.
  * Para limpar os dados: F12 > Application > Local Storage > apagar "nexus:*".
  */
-import { PRAZO_DIAS, resumoPedido } from '../regras';
+import { CARREGAR_MOCKS } from '../config/api';
+import { PRAZO_DIAS, aguardaDesconto, resumoPedido, statusDoPedido } from '../regras';
+import { gerarMocks } from './mocks';
 import type {
   ClienteCriarRequest,
   ClienteCriarResponse,
   ClienteListarResponse,
+  ClienteSalvo,
   Colaborador,
   ItemPedido,
   Pedido,
@@ -21,13 +24,10 @@ import type {
   SolicitacaoDesconto,
 } from '../types';
 
-// "v3": formato novo (preço de venda e de aluguel, pedido com tipo). Dados antigos de teste ficam de lado.
-const CHAVE_CLIENTES = 'nexus:v3:clientes';
-const CHAVE_PRODUTOS = 'nexus:v3:produtos';
-const CHAVE_PEDIDOS = 'nexus:v3:pedidos';
-
-// O que fica guardado (como a tabela do banco): tem id e cnpj.
-type ClienteSalvo = ClienteCriarRequest & { id: number };
+// "v4": pedido com status próprio (concluidoEm) e dados de exemplo. Dados antigos de teste ficam de lado.
+const CHAVE_CLIENTES = 'nexus:v4:clientes';
+const CHAVE_PRODUTOS = 'nexus:v4:produtos';
+const CHAVE_PEDIDOS = 'nexus:v4:pedidos';
 
 /** Colaboradores fictícios (não há cadastro de colaborador ainda). */
 const COLABORADORES: Colaborador[] = [
@@ -36,7 +36,22 @@ const COLABORADORES: Colaborador[] = [
   { id: 3, nome: 'Beatriz Rocha' },
 ];
 
+/** Primeira execução (nada salvo ainda): grava os dados de exemplo de mocks.ts. */
+function carregarMocksSeVazio() {
+  try {
+    const vazio = [CHAVE_CLIENTES, CHAVE_PRODUTOS, CHAVE_PEDIDOS].every((c) => localStorage.getItem(c) === null);
+    if (!CARREGAR_MOCKS || !vazio) return;
+    const { clientes, produtos, pedidos } = gerarMocks();
+    salvar(CHAVE_CLIENTES, clientes);
+    salvar(CHAVE_PRODUTOS, produtos);
+    salvar(CHAVE_PEDIDOS, pedidos);
+  } catch {
+    // localStorage indisponível: segue sem mocks
+  }
+}
+
 function ler<T>(chave: string): T[] {
+  carregarMocksSeVazio();
   try {
     const bruto = localStorage.getItem(chave);
     return bruto ? (JSON.parse(bruto) as T[]) : [];
@@ -245,6 +260,22 @@ export async function decidirDescontoLocal(
   return atualizado;
 }
 
+/** Conclusão manual: nenhum pedido (nem VIP, nem com desconto aprovado) conclui sozinho. */
+export async function confirmarPedidoLocal(pedidoId: number): Promise<Pedido> {
+  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
+  const pedido = pedidos.find((p) => p.id === pedidoId);
+
+  if (!pedido) throw new Error('Pedido não encontrado.');
+  if (statusDoPedido(pedido) !== 'PENDENTE') throw new Error('Este pedido já foi concluído ou devolvido.');
+  if (aguardaDesconto(pedido)) {
+    throw new Error('Aguarde a decisão sobre o desconto solicitado antes de confirmar o pedido.');
+  }
+
+  const atualizado: Pedido = { ...pedido, concluidoEm: new Date().toISOString() };
+  salvar(CHAVE_PEDIDOS, pedidos.map((p) => (p.id === pedidoId ? atualizado : p)));
+  return atualizado;
+}
+
 export async function devolverPedidoLocal(pedidoId: number): Promise<Pedido> {
   const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
   const produtos = ler<ProdutoCriarResponse>(CHAVE_PRODUTOS);
@@ -252,6 +283,7 @@ export async function devolverPedidoLocal(pedidoId: number): Promise<Pedido> {
 
   if (!pedido || pedido.tipo !== 'ALUGUEL') throw new Error('Aluguel não encontrado.');
   if (pedido.devolvidoEm) throw new Error('Este aluguel já foi devolvido.');
+  if (statusDoPedido(pedido) !== 'CONCLUIDO') throw new Error('Confirme o pedido antes de registrar a devolução.');
 
   const atualizado: Pedido = { ...pedido, devolvidoEm: new Date().toISOString() };
 

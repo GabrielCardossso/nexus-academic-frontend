@@ -11,6 +11,7 @@ import type {
 import {
   cadastrarClienteLocal,
   cadastrarProdutoLocal,
+  confirmarPedidoLocal,
   criarPedidoLocal,
   decidirDescontoLocal,
   devolverPedidoLocal,
@@ -120,6 +121,11 @@ export async function listarPedidos() {
 export async function decidirDesconto(pedidoId: number, aprovar: boolean, colaboradorId: number) {
   exigirModoLocal();
   return decidirDescontoLocal(pedidoId, aprovar, colaboradorId);
+}
+
+export async function confirmarPedido(pedidoId: number) {
+  exigirModoLocal();
+  return confirmarPedidoLocal(pedidoId);
 }
 
 export async function devolverPedido(pedidoId: number) {

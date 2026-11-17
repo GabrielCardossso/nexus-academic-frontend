@@ -1,6 +1,25 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { criarPedido, devolverPedido, listarClientes, listarPedidos, listarProdutos } from '../services/api';
-import { linhasSolicitacao, resumoPedido, ROTULO_PAGAMENTO, ROTULO_TIPO, PRAZO_DIAS } from '../regras';
+import ConfirmarModal from '../components/ConfirmarModal';
+import {
+  confirmarPedido,
+  criarPedido,
+  devolverPedido,
+  listarClientes,
+  listarPedidos,
+  listarProdutos,
+} from '../services/api';
+import {
+  aguardaDesconto,
+  linhasSolicitacao,
+  podeConfirmar,
+  podeDevolver,
+  resumoPedido,
+  PRAZO_DIAS,
+  ROTULO_PAGAMENTO,
+  ROTULO_STATUS_PAGAMENTO,
+  ROTULO_STATUS_PEDIDO,
+  ROTULO_TIPO,
+} from '../regras';
 import type {
   ClienteListarResponse,
   FormaPagamento,
@@ -23,13 +42,13 @@ function linhasPedido(p: Pedido): string[] {
     `Subtotal: ${moeda.format(r.subtotal)}`,
     `Desconto aplicado: ${r.percentual}% (− ${moeda.format(r.valorDesconto)})`,
     `Total: ${moeda.format(r.total)}`,
-    `Status do pedido: ${r.status}`,
     ...(p.solicitacao ? linhasSolicitacao(p.solicitacao) : []),
     ...(p.pagamento === 'A_PRAZO' ? [`Crédito utilizado: ${moeda.format(r.total)}`] : []),
     `Criado em ${dataHoraBR(p.criadoEm)}`,
     aluguel
       ? `Início: ${dataBR(p.emissao)} · Fim do aluguel: ${dataBR(p.vencimento)}`
       : `Emissão: ${dataBR(p.emissao)} · Vencimento: ${dataBR(p.vencimento)}`,
+    ...(p.concluidoEm ? [`Concluído em ${dataHoraBR(p.concluidoEm)}`] : []),
     ...(p.devolvidoEm ? [`Devolvido em ${dataHoraBR(p.devolvidoEm)}`] : []),
   ];
 }
@@ -47,6 +66,8 @@ export default function PedidosTela() {
   const [descontoSolicitado, setDescontoSolicitado] = useState(''); // '' | '5' | '10'
   const [msg, setMsg] = useState<Mensagem>(null);
   const [enviando, setEnviando] = useState(false);
+  const [devolvendo, setDevolvendo] = useState<Pedido | null>(null); // pedido no popup de devolução
+  const [processando, setProcessando] = useState(false);
 
   async function carregar() {
     try {
@@ -124,14 +145,31 @@ export default function PedidosTela() {
     }
   }
 
-  async function devolver(pedidoId: number) {
+  async function confirmar(pedidoId: number) {
     setMsg(null);
+    try {
+      await confirmarPedido(pedidoId);
+      setMsg({ tipo: 'sucesso', texto: `Pedido #${pedidoId} confirmado e concluído.` });
+      await carregar();
+    } catch (err) {
+      setMsg({ tipo: 'erro', texto: (err as Error).message });
+    }
+  }
+
+  async function confirmarDevolucao() {
+    if (!devolvendo) return;
+    const pedidoId = devolvendo.id;
+    setMsg(null);
+    setProcessando(true);
     try {
       await devolverPedido(pedidoId);
       setMsg({ tipo: 'sucesso', texto: `Aluguel #${pedidoId} devolvido. Estoque atualizado.` });
       await carregar();
     } catch (err) {
       setMsg({ tipo: 'erro', texto: (err as Error).message });
+    } finally {
+      setProcessando(false);
+      setDevolvendo(null);
     }
   }
 
@@ -221,7 +259,10 @@ export default function PedidosTela() {
               Desconto: {resumo.percentual}% (− {moeda.format(resumo.valorDesconto)})
             </span>
             <strong>Total: {moeda.format(resumo.total)}</strong>
-            <span>Status do pedido: {resumo.status}</span>
+            <span>
+              Status do pedido: {ROTULO_STATUS_PEDIDO[resumo.statusPedido]} (conclui só ao confirmar)
+            </span>
+            <span>Status do pagamento: {ROTULO_STATUS_PAGAMENTO[resumo.statusPagamento]}</span>
           </div>
           {solicitacao && (
             <p className="dica">O desconto solicitado só é aplicado depois da aprovação de um colaborador.</p>
@@ -240,25 +281,70 @@ export default function PedidosTela() {
           {pedidos.length === 0 && <p className="vazio">Nenhum pedido ainda.</p>}
           {pedidos.length > 0 && (
             <ul className="lista alta">
-              {pedidos.map((p) => (
-                <li key={p.id}>
-                  <strong>Pedido #{p.id}</strong>
-                  {linhasPedido(p).map((linha, i) => (
-                    <span key={i}>{linha}</span>
-                  ))}
-                  {p.tipo === 'ALUGUEL' && !p.devolvidoEm && (
-                    <div className="acoes">
-                      <button type="button" onClick={() => devolver(p.id)}>
-                        Devolver
-                      </button>
+              {pedidos.map((p) => {
+                const r = resumoPedido(p);
+                return (
+                  <li key={p.id}>
+                    <strong>Pedido #{p.id}</strong>
+                    <div className="selos">
+                      <span className={`selo ${r.statusPedido.toLowerCase()}`}>
+                        Pedido: {ROTULO_STATUS_PEDIDO[r.statusPedido]}
+                      </span>
+                      <span className={`selo ${r.statusPagamento.toLowerCase()}`}>
+                        Pagamento: {ROTULO_STATUS_PAGAMENTO[r.statusPagamento]}
+                      </span>
                     </div>
-                  )}
-                </li>
-              ))}
+                    {linhasPedido(p).map((linha, i) => (
+                      <span key={i}>{linha}</span>
+                    ))}
+                    {(podeConfirmar(p) || aguardaDesconto(p) || podeDevolver(p)) && (
+                      <div className="acoes">
+                        {(podeConfirmar(p) || aguardaDesconto(p)) && (
+                          <button
+                            type="button"
+                            className="confirmar"
+                            disabled={!podeConfirmar(p)}
+                            onClick={() => confirmar(p.id)}
+                          >
+                            Confirmar pedido
+                          </button>
+                        )}
+                        {aguardaDesconto(p) && (
+                          <span className="dica">Aguardando aprovação do desconto.</span>
+                        )}
+                        {podeDevolver(p) && (
+                          <button type="button" onClick={() => setDevolvendo(p)}>
+                            Devolver
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
       </div>
+    
+      <ConfirmarModal
+        aberto={devolvendo !== null}
+        titulo="Confirmar devolução?"
+        textoConfirmar="Confirmar devolução"
+        carregando={processando}
+        onConfirmar={confirmarDevolucao}
+        onCancelar={() => setDevolvendo(null)}
+      >
+        {devolvendo && (
+          <>
+            <p>
+              <strong>Aluguel #{devolvendo.id}</strong> — {devolvendo.clienteNome}
+            </p>
+            <p>{devolvendo.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')}</p>
+            <p>Os itens voltam ao estoque e o pedido passa para "Devolvido". Essa ação não pode ser desfeita.</p>
+          </>
+        )}
+      </ConfirmarModal>
     </>
   );
 }

@@ -7,6 +7,7 @@ import type {
   FormaPagamento,
   ItemPedido,
   SolicitacaoDesconto,
+  StatusPagamento,
   StatusPedido,
   TipoPedido,
 } from './types';
@@ -25,13 +26,28 @@ export const ROTULO_TIPO: Record<TipoPedido, string> = {
   ALUGUEL: 'Aluguel',
 };
 
+export const ROTULO_STATUS_PEDIDO: Record<StatusPedido, string> = {
+  PENDENTE: 'Pendente',
+  CONCLUIDO: 'Concluído',
+  DEVOLVIDO: 'Devolvido',
+};
+
+export const ROTULO_STATUS_PAGAMENTO: Record<StatusPagamento, string> = {
+  PENDENTE: 'Pendente',
+  PAGO: 'Pago',
+};
+
 interface DadosPedido {
   itens: ItemPedido[];
   clienteCategoria: ClienteCategoria;
   pagamento: FormaPagamento;
   meses?: number; // só aluguel: o valor é preço por mês × meses × quantidade
   solicitacao?: SolicitacaoDesconto;
+  concluidoEm?: string;
+  devolvidoEm?: string;
 }
+
+type EstadoPedido = Pick<DadosPedido, 'solicitacao' | 'concluidoEm' | 'devolvidoEm'>;
 
 const arredondar = (n: number) => Math.round(n * 100) / 100;
 
@@ -52,12 +68,29 @@ export function resumoPedido(p: DadosPedido) {
   const valorDesconto = arredondar((subtotal * percentual) / 100);
   const total = arredondar(subtotal - valorDesconto);
 
-  // Pago na hora (PIX/à vista), exceto se ainda aguarda aprovação de desconto.
-  const status: StatusPedido =
+  // Pagamento: pago na hora (PIX/à vista), exceto se ainda aguarda aprovação de desconto.
+  const statusPagamento: StatusPagamento =
     p.pagamento === 'A_PRAZO' || p.solicitacao?.status === 'PENDENTE' ? 'PENDENTE' : 'PAGO';
 
-  return { subtotal, percentual, valorDesconto, total, status };
+  return { subtotal, percentual, valorDesconto, total, statusPagamento, statusPedido: statusDoPedido(p) };
 }
+
+/** O pedido nunca conclui sozinho: só com `concluidoEm` (botão "Confirmar pedido"). */
+export function statusDoPedido(p: EstadoPedido): StatusPedido {
+  if (p.devolvidoEm) return 'DEVOLVIDO';
+  if (p.concluidoEm) return 'CONCLUIDO';
+  return 'PENDENTE';
+}
+
+/** Desconto solicitado ainda sem decisão de um colaborador. */
+export const aguardaDesconto = (p: Pick<DadosPedido, 'solicitacao'>) => p.solicitacao?.status === 'PENDENTE';
+
+/** Pode confirmar: está pendente e não depende de aprovação de desconto. */
+export const podeConfirmar = (p: EstadoPedido) => statusDoPedido(p) === 'PENDENTE' && !aguardaDesconto(p);
+
+/** Só aluguel já concluído e ainda não devolvido pode ser devolvido. */
+export const podeDevolver = (p: EstadoPedido & { tipo: TipoPedido }) =>
+  p.tipo === 'ALUGUEL' && statusDoPedido(p) === 'CONCLUIDO';
 
 export function mensagemRejeicao(s: SolicitacaoDesconto): string {
   return `Solicitação de desconto de ${s.percentual}% rejeitada por ${s.colaboradorNome} (ID ${s.colaboradorId}).`;

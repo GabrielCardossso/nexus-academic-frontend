@@ -9,7 +9,10 @@ export type ClienteCategoria = 'NORMAL' | 'VIP';
 export type TipoPedido = 'VENDA' | 'ALUGUEL';
 export type ProdutoStatus = 'DISPONIVEL' | 'INDISPONIVEL' | 'DESATIVADO';
 export type FormaPagamento = 'PIX' | 'A_VISTA' | 'A_PRAZO';
-export type StatusPedido = 'PENDENTE' | 'PAGO';
+/** Andamento do pedido: nasce PENDENTE, vira CONCLUIDO só quando alguém confirma, DEVOLVIDO após a devolução (aluguel). */
+export type StatusPedido = 'PENDENTE' | 'CONCLUIDO' | 'DEVOLVIDO';
+/** Situação financeira, independente do status do pedido. */
+export type StatusPagamento = 'PENDENTE' | 'PAGO';
 export type StatusDesconto = 'PENDENTE' | 'APROVADA' | 'REJEITADA';
 
 // ---------------- Cliente ----------------
@@ -92,8 +95,12 @@ export interface Pedido {
   criadoEm: string; // ISO
   emissao: string; // ISO
   vencimento: string; // ISO (aluguel: fim do aluguel)
+  concluidoEm?: string; // ISO, preenchido quando o pedido é confirmado manualmente
   devolvidoEm?: string; // ISO, só aluguel
 }
+
+/** Cliente como fica guardado (como a tabela do banco): tem id e cnpj. */
+export type ClienteSalvo = ClienteCriarRequest & { id: number };
 
 export interface PedidoCriarRequest {
   tipo: TipoPedido;
