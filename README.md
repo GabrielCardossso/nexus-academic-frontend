@@ -14,13 +14,15 @@ Este repositório guarda **apenas a parte do front**. O sistema completo é divi
 
 ## O que o front faz hoje
 
-Aplicação com **menu lateral** (que pode ser recolhido para mostrar só os ícones) e quatro telas:
+Aplicação com **menu lateral** (que pode ser recolhido para mostrar só os ícones) e quatro telas.
+
+Em **Clientes**, **Produtos** e **Pedidos**, a lista ocupa a tela e carrega sozinha. Cada uma tem um campo de **busca**; Produtos e Pedidos também têm um **filtro**, por status. O botão **+ Novo** no topo abre o formulário de cadastro num **popup**, que fecha com Esc, com o "×" ou clicando fora. Mensagens de sucesso e erro aparecem num aviso no canto da tela, que some sozinho.
 
 | Grupo | Tela | O que faz |
 |---|---|---|
 | Cadastros | **Clientes** | Cadastra cliente (nome ou razão social, CNPJ, telefone, e-mail, categoria **Normal** ou **VIP** e limite de crédito) e lista os clientes cadastrados, com a situação (**em dia** ou **inadimplente**). |
 | Cadastros | **Produtos** | Cadastra produto (nome, descrição, estoque, preço de venda, preço de aluguel por mês e status **Disponível**, **Indisponível** ou **Desativado**) e lista os produtos cadastrados. |
-| Vendas | **Pedidos** | Monta um pedido de **venda** ou de **aluguel** (cliente, produtos e quantidades, forma de pagamento), mostra a prévia com subtotal, desconto e total, lista os pedidos realizados com o status do pedido e do pagamento, permite **confirmar** o pedido, **registrar o pagamento** dos pedidos a prazo e **devolver** os aluguéis. |
+| Vendas | **Pedidos** | Monta um pedido de **venda** ou de **aluguel** (cliente, produtos e quantidades, forma de pagamento) e mostra a prévia com subtotal, desconto e total. Os produtos entram um por vez: **+ Selecionar produto** abre uma lista com busca; depois de escolher e informar a quantidade, o botão aparece de novo para o próximo. A lista de pedidos mostra um resumo de cada um (cliente, itens, total, status do pedido e do pagamento), e **Ver detalhes** abre todos os dados em grade. Permite **confirmar** o pedido, **registrar o pagamento** dos pedidos a prazo e **devolver** os aluguéis. |
 | Gestão | **Colaboradores** | Escolhe o colaborador atual e **aprova ou rejeita** as solicitações de desconto pendentes. |
 
 ### Regras de negócio dos pedidos
@@ -197,7 +199,7 @@ src/
 ├── App.css             # estilos
 ├── types.ts            # tipos dos DTOs (Cliente, Produto, Pedido, Desconto...)
 ├── regras.ts           # regras de pedido e desconto (funções puras)
-├── utils.ts            # formatação de moeda e datas, helper de formulário
+├── utils.ts            # formatação de moeda e datas, busca sem acento, helper de formulário
 ├── config/
 │   └── api.ts          # URL base, caminhos dos endpoints e flags USAR_DADOS_LOCAIS e CARREGAR_MOCKS
 ├── services/
@@ -205,8 +207,11 @@ src/
 │   ├── dadosLocais.ts  # back-end "de mentira" no localStorage
 │   └── mocks.ts        # dados de exemplo carregados na primeira execução
 ├── components/
-│   ├── ListaCard.tsx       # card de listagem reutilizado
-│   └── ConfirmarModal.tsx  # popup de confirmação (usado na devolução)
+│   ├── Modal.tsx           # popup genérico (formulários de cadastro e novo pedido)
+│   ├── ConfirmarModal.tsx  # popup de confirmação (usado na devolução)
+│   ├── Aviso.tsx           # aviso flutuante de sucesso/erro
+│   ├── NovoPedidoForm.tsx  # formulário de novo pedido com o seletor de produtos
+│   └── PedidoCard.tsx      # card do pedido (resumo + detalhes)
 └── telas/
     ├── ClientesTela.tsx
     ├── ProdutosTela.tsx
