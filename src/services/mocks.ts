@@ -8,9 +8,11 @@
  *  - concluído (pago e com pagamento pendente a prazo)
  *  - aluguel concluído (pode devolver) e aluguel devolvido
  *  - venda a prazo já paga (crédito devolvido) e pedidos a prazo aguardando pagamento
+ *  - cliente VIP inadimplente (venda a prazo vencida e não paga), sem os 5% automáticos
+ *  - VIP solicitando desconto de 10% a 15% (aprovado e pendente)
  * Estoque e limite de crédito já nascem coerentes com esses pedidos.
  */
-import { PRAZO_DIAS, pagoNaHora, resumoPedido } from '../regras';
+import { PRAZO_DIAS, estaInadimplente, pagoNaHora, resumoPedido } from '../regras';
 import type {
   ClienteSalvo,
   FormaPagamento,
@@ -74,6 +76,9 @@ const CARLOS = { colaboradorId: 2, colaboradorNome: 'Carlos Lima' };
 const PEDIDOS_MOCK: PedidoMock[] = [
   // Venda a prazo concluída e já paga: o crédito voltou ao limite.
   { tipo: 'VENDA', clienteId: 5, pagamento: 'A_PRAZO', itens: { 6: 3 }, diasAtras: 50, concluido: true, pagoHaDias: 22 },
+  // Venda a prazo VENCIDA e não paga: deixa a Tech Solutions (VIP) inadimplente.
+  // Ela perde os 5% automáticos nos pedidos não pagos e não pode fazer pedido a prazo.
+  { tipo: 'VENDA', clienteId: 4, pagamento: 'A_PRAZO', itens: { 3: 2 }, diasAtras: 45, concluido: true },
   // Aluguel concluído e em andamento: dá para testar a devolução.
   { tipo: 'ALUGUEL', clienteId: 4, pagamento: 'A_VISTA', itens: { 5: 1 }, meses: 3, diasAtras: 40, concluido: true },
   // Aluguel já devolvido.
@@ -96,8 +101,10 @@ const PEDIDOS_MOCK: PedidoMock[] = [
   { tipo: 'VENDA', clienteId: 1, pagamento: 'PIX', itens: { 7: 1 }, diasAtras: 1 },
   // Aluguel a prazo aguardando aprovação de desconto.
   { tipo: 'ALUGUEL', clienteId: 6, pagamento: 'A_PRAZO', itens: { 2: 1 }, meses: 4, solicitacao: { percentual: 5, status: 'PENDENTE' }, diasAtras: 0 },
-  // VIP pedindo 12% (fica com os 5% até a decisão).
-  { tipo: 'VENDA', clienteId: 4, pagamento: 'A_VISTA', itens: { 2: 5 }, solicitacao: { percentual: 12, status: 'PENDENTE' }, diasAtras: 0 },
+  // VIP em dia pedindo 12% (fica com os 5% até a decisão).
+  { tipo: 'VENDA', clienteId: 1, pagamento: 'A_VISTA', itens: { 2: 5 }, solicitacao: { percentual: 12, status: 'PENDENTE' }, diasAtras: 0 },
+  // VIP inadimplente: sem os 5% automáticos, pede 3% (faixa de 1% a 15%, só com aprovação).
+  { tipo: 'VENDA', clienteId: 4, pagamento: 'PIX', itens: { 6: 2 }, solicitacao: { percentual: 3, status: 'PENDENTE' }, diasAtras: 0 },
 ];
 
 const DIA = 24 * 60 * 60 * 1000;
@@ -108,7 +115,8 @@ export function gerarMocks() {
   const clientes = CLIENTES_BASE.map((c) => ({ ...c }));
   const produtos = PRODUTOS_BASE.map((p) => ({ ...p }));
 
-  const pedidos: Pedido[] = PEDIDOS_MOCK.map((m, i) => {
+  const pedidos: Pedido[] = [];
+  PEDIDOS_MOCK.forEach((m, i) => {
     const cliente = clientes.find((c) => c.id === m.clienteId)!;
     const emissao = new Date(agora - m.diasAtras * DIA);
     const vencimento = new Date(emissao);
@@ -144,6 +152,8 @@ export function gerarMocks() {
         : m.pagoHaDias != null
           ? new Date(agora - m.pagoHaDias * DIA).toISOString()
           : undefined,
+      // Situação do cliente na data do pedido (os anteriores podem ter vencido sem pagamento).
+      clienteInadimplente: estaInadimplente(cliente.id, pedidos, emissao),
     };
 
     // Mesmas regras de criarPedidoLocal: baixa de estoque (volta se devolvido) e crédito usado a prazo.
@@ -159,7 +169,11 @@ export function gerarMocks() {
         cliente.limiteCredito = Math.round((cliente.limiteCredito - pedido.creditoUsado) * 100) / 100;
       }
     }
-    return pedido;
+    // Pago depois da emissão: grava a situação do cliente no dia do pagamento.
+    if (pedido.pagoEm && pedido.pagoEm !== pedido.emissao) {
+      pedido.clienteInadimplente = estaInadimplente(cliente.id, [...pedidos, pedido], new Date(pedido.pagoEm));
+    }
+    pedidos.push(pedido);
   });
 
   return { clientes, produtos, pedidos };

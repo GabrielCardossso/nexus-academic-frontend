@@ -46,18 +46,37 @@ interface DadosPedido {
   concluidoEm?: string;
   devolvidoEm?: string;
   pagoEm?: string;
+  clienteInadimplente?: boolean; // inadimplente perde os 5% automáticos de VIP
 }
 
 type EstadoPedido = Pick<DadosPedido, 'solicitacao' | 'concluidoEm' | 'devolvidoEm'>;
 
-/** Faixa (em %, inteiros) que o cliente pode solicitar. VIP já tem 5% garantido e pede 10–15% para substituir. */
-export function faixaDesconto(categoria: ClienteCategoria): { min: number; max: number } {
-  return categoria === 'VIP' ? { min: 10, max: 15 } : { min: 1, max: 10 };
+type PedidoComPrazo = Pick<DadosPedido, 'pagamento' | 'pagoEm'> & { clienteId: number; vencimento: string };
+
+/** Pedido a prazo que passou do vencimento sem pagamento (na data `em`, padrão: agora). */
+export function estaVencido(p: PedidoComPrazo, em: Date = new Date()): boolean {
+  const pagoAte = p.pagoEm != null && new Date(p.pagoEm) <= em;
+  return p.pagamento === 'A_PRAZO' && !pagoAte && new Date(p.vencimento) < em;
+}
+
+/** Inadimplente: tem pelo menos um pedido a prazo vencido e não pago. */
+export function estaInadimplente(clienteId: number, pedidos: PedidoComPrazo[], em: Date = new Date()): boolean {
+  return pedidos.some((p) => p.clienteId === clienteId && estaVencido(p, em));
+}
+
+/**
+ * Faixa (em %, inteiros) que o cliente pode solicitar.
+ * NORMAL: 1–10. VIP em dia: 10–15 (já tem 5% garantido; se aprovado, substitui).
+ * VIP inadimplente: 1–15 (perdeu os 5% automáticos).
+ */
+export function faixaDesconto(categoria: ClienteCategoria, inadimplente = false): { min: number; max: number } {
+  if (categoria === 'NORMAL') return { min: 1, max: 10 };
+  return inadimplente ? { min: 1, max: 15 } : { min: 10, max: 15 };
 }
 
 /** Mensagem de erro se o percentual estiver fora da faixa; null se for válido. */
-export function erroDesconto(percentual: number, categoria: ClienteCategoria): string | null {
-  const { min, max } = faixaDesconto(categoria);
+export function erroDesconto(percentual: number, categoria: ClienteCategoria, inadimplente = false): string | null {
+  const { min, max } = faixaDesconto(categoria, inadimplente);
   if (!Number.isInteger(percentual) || percentual < min || percentual > max) {
     return `O desconto solicitado deve ser um número inteiro de ${min}% a ${max}%.`;
   }
@@ -73,11 +92,11 @@ export function resumoPedido(p: DadosPedido) {
   );
 
   // Solicitação APROVADA vale o percentual pedido (no VIP substitui os 5%, não soma).
-  // Sem aprovação: VIP fica com os 5% automáticos e NORMAL sem desconto.
+  // Sem aprovação: VIP em dia fica com os 5% automáticos; NORMAL e inadimplente ficam sem desconto.
   const percentual =
     p.solicitacao?.status === 'APROVADA'
       ? p.solicitacao.percentual
-      : p.clienteCategoria === 'VIP'
+      : p.clienteCategoria === 'VIP' && !p.clienteInadimplente
         ? DESCONTO_VIP
         : 0;
 

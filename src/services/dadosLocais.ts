@@ -7,7 +7,16 @@
  * Para limpar os dados: F12 > Application > Local Storage > apagar "nexus:*".
  */
 import { CARREGAR_MOCKS } from '../config/api';
-import { PRAZO_DIAS, aguardaDesconto, erroDesconto, pagoNaHora, podePagar, resumoPedido, statusDoPedido } from '../regras';
+import {
+  PRAZO_DIAS,
+  aguardaDesconto,
+  erroDesconto,
+  estaInadimplente,
+  pagoNaHora,
+  podePagar,
+  resumoPedido,
+  statusDoPedido,
+} from '../regras';
 import { gerarMocks } from './mocks';
 import type {
   ClienteCriarRequest,
@@ -24,10 +33,11 @@ import type {
   SolicitacaoDesconto,
 } from '../types';
 
-// "v5": pagamento registrado (pagoEm) e crédito usado no pedido. Dados antigos de teste ficam de lado.
-const CHAVE_CLIENTES = 'nexus:v5:clientes';
-const CHAVE_PRODUTOS = 'nexus:v5:produtos';
-const CHAVE_PEDIDOS = 'nexus:v5:pedidos';
+// "v6": pagamento registrado, desconto por faixa e cliente inadimplente nos dados de exemplo.
+// Dados antigos de teste ficam de lado.
+const CHAVE_CLIENTES = 'nexus:v6:clientes';
+const CHAVE_PRODUTOS = 'nexus:v6:produtos';
+const CHAVE_PEDIDOS = 'nexus:v6:pedidos';
 
 /** Colaboradores fictícios (não há cadastro de colaborador ainda). */
 const COLABORADORES: Colaborador[] = [
@@ -62,6 +72,17 @@ function ler<T>(chave: string): T[] {
 
 function salvar<T>(chave: string, itens: T[]) {
   localStorage.setItem(chave, JSON.stringify(itens));
+}
+
+/**
+ * Lê os pedidos com a situação do cliente preenchida: nos ainda não pagos, a situação atual
+ * (inadimplente ou em dia); nos pagos, fica a situação gravada no momento do pagamento.
+ */
+function lerPedidos(): Pedido[] {
+  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
+  return pedidos.map((p) =>
+    p.pagoEm ? p : { ...p, clienteInadimplente: estaInadimplente(p.clienteId, pedidos) },
+  );
 }
 
 /** Simula o @GeneratedValue(IDENTITY): maior id atual + 1. */
@@ -119,6 +140,7 @@ export async function cadastrarClienteLocal(dados: ClienteCriarRequest): Promise
 }
 
 export async function listarClientesLocal(): Promise<ClienteListarResponse[]> {
+  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
   return ler<ClienteSalvo>(CHAVE_CLIENTES).map(
     ({ id, name, telefone, email, categoria, limiteCredito }) => ({
       id,
@@ -127,6 +149,7 @@ export async function listarClientesLocal(): Promise<ClienteListarResponse[]> {
       email,
       categoria,
       limiteCredito,
+      inadimplente: estaInadimplente(id, pedidos),
     }),
   );
 }
@@ -158,6 +181,12 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
   if (!cliente) throw new Error('Cliente não encontrado.');
   if (req.itens.length === 0) throw new Error('O pedido precisa de pelo menos um produto.');
 
+  // Inadimplente (pedido a prazo vencido e não pago): só PIX ou à vista.
+  const inadimplente = estaInadimplente(cliente.id, pedidos);
+  if (inadimplente && req.pagamento === 'A_PRAZO') {
+    throw new Error('Cliente inadimplente: não pode fazer pedido a prazo. Use PIX ou à vista.');
+  }
+
   // Aluguel: o fim do aluguel é calculado pela quantidade de meses.
   const aluguel = req.tipo === 'ALUGUEL';
   const meses = aluguel ? req.meses : undefined;
@@ -179,10 +208,11 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
     return { produtoId, nome: produto.nome, precoUnitario, quantidade };
   });
 
-  // NORMAL solicita de 1% a 10%; VIP (que já tem 5%) solicita de 10% a 15% para substituir os 5%.
+  // NORMAL solicita de 1% a 10%; VIP (que já tem 5%) solicita de 10% a 15% para substituir os 5%;
+  // VIP inadimplente (sem os 5%) solicita de 1% a 15%. Sempre depende de aprovação.
   let solicitacao: SolicitacaoDesconto | undefined;
   if (req.descontoSolicitado != null) {
-    const erro = erroDesconto(req.descontoSolicitado, cliente.categoria);
+    const erro = erroDesconto(req.descontoSolicitado, cliente.categoria, inadimplente);
     if (erro) throw new Error(erro);
     solicitacao = { percentual: req.descontoSolicitado, status: 'PENDENTE' };
   }
@@ -206,6 +236,7 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
     emissao: agora.toISOString(),
     vencimento: vencimento.toISOString(),
     pagoEm: pagoNaHora({ pagamento: req.pagamento, solicitacao }) ? agora.toISOString() : undefined,
+    clienteInadimplente: inadimplente,
   };
 
   // A prazo (venda ou aluguel): valida e desconta o total do limite de crédito do cliente.
@@ -229,7 +260,7 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
 }
 
 export async function listarPedidosLocal(): Promise<Pedido[]> {
-  return ler<Pedido>(CHAVE_PEDIDOS).reverse(); // mais recentes primeiro
+  return lerPedidos().reverse(); // mais recentes primeiro
 }
 
 export async function decidirDescontoLocal(
@@ -237,7 +268,7 @@ export async function decidirDescontoLocal(
   aprovar: boolean,
   colaboradorId: number,
 ): Promise<Pedido> {
-  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
+  const pedidos = lerPedidos();
   const pedido = pedidos.find((p) => p.id === pedidoId);
   const colaborador = COLABORADORES.find((c) => c.id === colaboradorId);
 
@@ -289,7 +320,8 @@ export async function confirmarPedidoLocal(pedidoId: number): Promise<Pedido> {
 
 /** Registra o pagamento de um pedido a prazo: o crédito reservado volta ao limite do cliente. */
 export async function pagarPedidoLocal(pedidoId: number): Promise<Pedido> {
-  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
+  // A situação do cliente (inadimplente ou não) fica gravada no pedido no momento do pagamento.
+  const pedidos = lerPedidos();
   const pedido = pedidos.find((p) => p.id === pedidoId);
 
   if (!pedido) throw new Error('Pedido não encontrado.');

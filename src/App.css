@@ -376,6 +376,12 @@ button.rejeitar:hover:not(:disabled) {
   border-color: #a1a1aa;
 }
 
+.selo.vencido {
+  color: #991b1b !important;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
 button.confirmar {
   background: #15803d;
 }

@@ -40,6 +40,7 @@ export interface ClienteListarResponse {
   email: string;
   categoria: ClienteCategoria;
   limiteCredito: number;
+  inadimplente?: boolean; // calculado: tem pedido a prazo vencido e não pago
 }
 
 // ---------------- Produto ----------------
@@ -99,6 +100,12 @@ export interface Pedido {
   devolvidoEm?: string; // ISO, só aluguel
   pagoEm?: string; // ISO. PIX/à vista: na criação ou na decisão do desconto. A prazo: ao registrar o pagamento.
   creditoUsado?: number; // só a prazo: quanto foi descontado do limite (volta ao registrar o pagamento)
+  /**
+   * Cliente inadimplente (pedido a prazo vencido e não pago): perde os 5% automáticos de VIP.
+   * Pedido ainda não pago: calculado na listagem com a situação atual do cliente.
+   * Pedido pago: fica a situação do momento do pagamento.
+   */
+  clienteInadimplente?: boolean;
 }
 
 /** Cliente como fica guardado (como a tabela do banco): tem id e cnpj. */
@@ -110,5 +117,5 @@ export interface PedidoCriarRequest {
   pagamento: FormaPagamento;
   itens: { produtoId: number; quantidade: number }[];
   meses?: number; // só aluguel
-  descontoSolicitado?: number; // % inteiro: NORMAL de 1 a 10, VIP de 10 a 15
+  descontoSolicitado?: number; // % inteiro: NORMAL de 1 a 10, VIP de 10 a 15 (VIP inadimplente: 1 a 15)
 }

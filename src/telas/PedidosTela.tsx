@@ -12,6 +12,7 @@ import {
 import {
   aguardaDesconto,
   erroDesconto,
+  estaVencido,
   faixaDesconto,
   linhasSolicitacao,
   pagoNaHora,
@@ -41,7 +42,10 @@ function linhasPedido(p: Pedido): string[] {
   const aluguel = p.tipo === 'ALUGUEL';
   return [
     `Tipo: ${ROTULO_TIPO[p.tipo]}${aluguel ? ` (${p.meses} ${p.meses === 1 ? 'mês' : 'meses'})` : ''}`,
-    `Cliente: ${p.clienteNome} (${p.clienteCategoria})`,
+    `Cliente: ${p.clienteNome} (${p.clienteCategoria}${p.clienteInadimplente ? ', inadimplente' : ''})`,
+    ...(p.clienteInadimplente && p.clienteCategoria === 'VIP' && p.solicitacao?.status !== 'APROVADA'
+      ? ['Sem os 5% automáticos de VIP: cliente inadimplente.']
+      : []),
     `Itens: ${p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')}`,
     `Pagamento: ${ROTULO_PAGAMENTO[p.pagamento]}`,
     `Subtotal: ${moeda.format(r.subtotal)}`,
@@ -106,22 +110,26 @@ export default function PedidosTela() {
       : [];
   });
 
-  const faixa = faixaDesconto(cliente?.categoria ?? 'NORMAL');
+  const inadimplente = !!cliente?.inadimplente;
+  const faixa = faixaDesconto(cliente?.categoria ?? 'NORMAL', inadimplente);
   const solicitacao: SolicitacaoDesconto | undefined =
     cliente && descontoSolicitado.trim() !== ''
       ? { percentual: Number(descontoSolicitado), status: 'PENDENTE' }
       : undefined;
-  const erroDoDesconto = cliente && solicitacao ? erroDesconto(solicitacao.percentual, cliente.categoria) : null;
+  const erroDoDesconto =
+    cliente && solicitacao ? erroDesconto(solicitacao.percentual, cliente.categoria, inadimplente) : null;
 
   const resumo = resumoPedido({
     itens,
     clienteCategoria: cliente?.categoria ?? 'NORMAL',
+    clienteInadimplente: inadimplente,
     pagamento,
     meses: aluguel ? quantidadeMeses : undefined,
     solicitacao,
     pagoEm: pagoNaHora({ pagamento, solicitacao }) ? new Date().toISOString() : undefined, // prévia
   });
   const acimaDoLimite = !!cliente && pagamento === 'A_PRAZO' && resumo.total > cliente.limiteCredito;
+  const prazoBloqueado = inadimplente && pagamento === 'A_PRAZO';
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -132,6 +140,9 @@ export default function PedidosTela() {
     }
     if (aluguel && (!Number.isInteger(quantidadeMeses) || quantidadeMeses <= 0)) {
       return setMsg({ tipo: 'erro', texto: 'Informe a duração do aluguel em meses.' });
+    }
+    if (prazoBloqueado) {
+      return setMsg({ tipo: 'erro', texto: 'Cliente inadimplente: não pode fazer pedido a prazo. Use PIX ou à vista.' });
     }
     if (erroDoDesconto) return setMsg({ tipo: 'erro', texto: erroDoDesconto });
 
@@ -216,13 +227,17 @@ export default function PedidosTela() {
             onChange={(e) => {
               setClienteId(e.target.value);
               setDescontoSolicitado(''); // a faixa muda conforme a categoria do cliente
+              // Inadimplente não compra a prazo: volta para PIX.
+              const escolhido = clientes.find((c) => String(c.id) === e.target.value);
+              if (escolhido?.inadimplente) setPagamento((atual) => (atual === 'A_PRAZO' ? 'PIX' : atual));
             }}
             required
           >
             <option value="">Selecione o cliente</option>
             {clientes.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name} ({c.categoria})
+                {c.name} ({c.categoria}
+                {c.inadimplente ? ', inadimplente' : ''})
               </option>
             ))}
           </select>
@@ -231,7 +246,14 @@ export default function PedidosTela() {
           {cliente && (
             <>
               <p className="dica">Limite de crédito do cliente: {moeda.format(cliente.limiteCredito)}</p>
-              {cliente.categoria === 'VIP' && (
+              {inadimplente && (
+                <p className="msg erro">
+                  Cliente inadimplente: tem pedido a prazo vencido e não pago. Só pode comprar com PIX ou à
+                  vista{cliente.categoria === 'VIP' && ' e perde os 5% automáticos de VIP'}; desconto só com
+                  aprovação de um colaborador.
+                </p>
+              )}
+              {cliente.categoria === 'VIP' && !inadimplente && (
                 <p className="dica">
                   Cliente VIP: 5% de desconto automático em qualquer forma de pagamento. Pode solicitar de{' '}
                   {faixa.min}% a {faixa.max}%; se aprovado, substitui os 5% (não soma).
@@ -297,7 +319,10 @@ export default function PedidosTela() {
           <select value={pagamento} onChange={(e) => setPagamento(e.target.value as FormaPagamento)}>
             <option value="PIX">PIX</option>
             <option value="A_VISTA">À vista</option>
-            <option value="A_PRAZO">{aluguel ? 'A prazo' : `A prazo (${PRAZO_DIAS} dias)`}</option>
+            <option value="A_PRAZO" disabled={inadimplente}>
+              {aluguel ? 'A prazo' : `A prazo (${PRAZO_DIAS} dias)`}
+              {inadimplente && ' — indisponível (inadimplente)'}
+            </option>
           </select>
 
           <div className="resumo">
@@ -337,6 +362,7 @@ export default function PedidosTela() {
                       <span className={`selo ${r.statusPedido.toLowerCase()}`}>
                         Pedido: {ROTULO_STATUS_PEDIDO[r.statusPedido]}
                       </span>
+                      {estaVencido(p) && <span className="selo vencido">Vencido</span>}
                       <span className={`selo ${r.statusPagamento.toLowerCase()}`}>
                         Pagamento: {ROTULO_STATUS_PAGAMENTO[r.statusPagamento]}
                       </span>

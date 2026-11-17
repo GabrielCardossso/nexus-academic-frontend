@@ -79,10 +79,15 @@ export default function ColaboradoresTela() {
                       Pedido #{p.id} — {p.clienteNome}
                     </strong>
                     <span>Tipo: {ROTULO_TIPO[p.tipo]}</span>
-                    <span>Cliente: {p.clienteCategoria}</span>
+                    <span>
+                      Cliente: {p.clienteCategoria}
+                      {p.clienteInadimplente && ' — inadimplente (sem desconto automático)'}
+                    </span>
                     <span>
                       Desconto solicitado: {s.percentual}%
-                      {p.clienteCategoria === 'VIP' && ` (substitui os ${DESCONTO_VIP}% automáticos, não soma)`}
+                      {p.clienteCategoria === 'VIP' &&
+                        !p.clienteInadimplente &&
+                        ` (substitui os ${DESCONTO_VIP}% automáticos, não soma)`}
                     </span>
                     <span>Subtotal: {moeda.format(comDesconto.subtotal)}</span>
                     <span>Total com desconto: {moeda.format(comDesconto.total)}</span>

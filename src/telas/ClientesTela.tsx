@@ -107,6 +107,7 @@ export default function ClientesTela() {
                 `Telefone: ${c.telefone || '—'}`,
                 `E-mail: ${c.email}`,
                 `Classificação: ${c.categoria}`,
+                `Situação: ${c.inadimplente ? 'Inadimplente (pedido a prazo vencido e não pago)' : 'Em dia'}`,
                 `Limite de crédito: ${moeda.format(c.limiteCredito)}`,
               ],
             }))
