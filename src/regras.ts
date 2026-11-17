@@ -50,6 +50,20 @@ interface DadosPedido {
 
 type EstadoPedido = Pick<DadosPedido, 'solicitacao' | 'concluidoEm' | 'devolvidoEm'>;
 
+/** Faixa (em %, inteiros) que o cliente pode solicitar. VIP já tem 5% garantido e pede 10–15% para substituir. */
+export function faixaDesconto(categoria: ClienteCategoria): { min: number; max: number } {
+  return categoria === 'VIP' ? { min: 10, max: 15 } : { min: 1, max: 10 };
+}
+
+/** Mensagem de erro se o percentual estiver fora da faixa; null se for válido. */
+export function erroDesconto(percentual: number, categoria: ClienteCategoria): string | null {
+  const { min, max } = faixaDesconto(categoria);
+  if (!Number.isInteger(percentual) || percentual < min || percentual > max) {
+    return `O desconto solicitado deve ser um número inteiro de ${min}% a ${max}%.`;
+  }
+  return null;
+}
+
 const arredondar = (n: number) => Math.round(n * 100) / 100;
 
 export function resumoPedido(p: DadosPedido) {
@@ -58,12 +72,13 @@ export function resumoPedido(p: DadosPedido) {
     p.itens.reduce((soma, i) => soma + i.precoUnitario * i.quantidade, 0) * meses,
   );
 
-  // VIP: 5% automático. NORMAL: só depois de APROVADA.
+  // Solicitação APROVADA vale o percentual pedido (no VIP substitui os 5%, não soma).
+  // Sem aprovação: VIP fica com os 5% automáticos e NORMAL sem desconto.
   const percentual =
-    p.clienteCategoria === 'VIP'
-      ? DESCONTO_VIP
-      : p.solicitacao?.status === 'APROVADA'
-        ? p.solicitacao.percentual
+    p.solicitacao?.status === 'APROVADA'
+      ? p.solicitacao.percentual
+      : p.clienteCategoria === 'VIP'
+        ? DESCONTO_VIP
         : 0;
 
   const valorDesconto = arredondar((subtotal * percentual) / 100);

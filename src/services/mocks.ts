@@ -84,16 +84,20 @@ const PEDIDOS_MOCK: PedidoMock[] = [
   { tipo: 'VENDA', clienteId: 2, pagamento: 'A_PRAZO', itens: { 4: 6, 6: 4 }, diasAtras: 20, concluido: true },
   // Venda VIP concluída e paga.
   { tipo: 'VENDA', clienteId: 1, pagamento: 'PIX', itens: { 1: 3, 2: 3 }, diasAtras: 12, concluido: true },
+  // VIP com solicitação de 15% aprovada: substitui os 5% automáticos (não soma).
+  { tipo: 'VENDA', clienteId: 1, pagamento: 'PIX', itens: { 4: 10 }, solicitacao: { percentual: 15, status: 'APROVADA', ...CARLOS }, diasAtras: 4 },
   // Desconto rejeitado: pode confirmar, sem desconto.
   { tipo: 'VENDA', clienteId: 6, pagamento: 'A_PRAZO', itens: { 3: 1, 4: 2 }, solicitacao: { percentual: 10, status: 'REJEITADA', ...CARLOS }, diasAtras: 3 },
   // Desconto aprovado: pedido segue pendente até alguém confirmar.
-  { tipo: 'VENDA', clienteId: 3, pagamento: 'A_VISTA', itens: { 1: 2 }, solicitacao: { percentual: 5, status: 'APROVADA', ...ANA }, diasAtras: 2 },
+  { tipo: 'VENDA', clienteId: 3, pagamento: 'A_VISTA', itens: { 1: 2 }, solicitacao: { percentual: 7, status: 'APROVADA', ...ANA }, diasAtras: 2 },
   // Desconto aguardando aprovação: confirmação bloqueada.
   { tipo: 'VENDA', clienteId: 5, pagamento: 'PIX', itens: { 3: 2 }, solicitacao: { percentual: 10, status: 'PENDENTE' }, diasAtras: 1 },
   // Cliente VIP: 5% automático, mas o pedido só conclui quando confirmado.
   { tipo: 'VENDA', clienteId: 1, pagamento: 'PIX', itens: { 7: 1 }, diasAtras: 1 },
   // Aluguel a prazo aguardando aprovação de desconto.
   { tipo: 'ALUGUEL', clienteId: 6, pagamento: 'A_PRAZO', itens: { 2: 1 }, meses: 4, solicitacao: { percentual: 5, status: 'PENDENTE' }, diasAtras: 0 },
+  // VIP pedindo 12% (fica com os 5% até a decisão).
+  { tipo: 'VENDA', clienteId: 4, pagamento: 'A_VISTA', itens: { 2: 5 }, solicitacao: { percentual: 12, status: 'PENDENTE' }, diasAtras: 0 },
 ];
 
 const DIA = 24 * 60 * 60 * 1000;

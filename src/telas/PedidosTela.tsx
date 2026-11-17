@@ -11,6 +11,8 @@ import {
 } from '../services/api';
 import {
   aguardaDesconto,
+  erroDesconto,
+  faixaDesconto,
   linhasSolicitacao,
   pagoNaHora,
   podeConfirmar,
@@ -69,7 +71,7 @@ export default function PedidosTela() {
   const [quantidades, setQuantidades] = useState<Record<number, string>>({});
   const [meses, setMeses] = useState('1'); // só aluguel
   const [pagamento, setPagamento] = useState<FormaPagamento>('PIX');
-  const [descontoSolicitado, setDescontoSolicitado] = useState(''); // '' | '5' | '10'
+  const [descontoSolicitado, setDescontoSolicitado] = useState(''); // '' = sem solicitação; senão % inteiro da faixa
   const [msg, setMsg] = useState<Mensagem>(null);
   const [enviando, setEnviando] = useState(false);
   const [devolvendo, setDevolvendo] = useState<Pedido | null>(null); // pedido no popup de devolução
@@ -104,10 +106,12 @@ export default function PedidosTela() {
       : [];
   });
 
+  const faixa = faixaDesconto(cliente?.categoria ?? 'NORMAL');
   const solicitacao: SolicitacaoDesconto | undefined =
-    cliente?.categoria === 'NORMAL' && descontoSolicitado
-      ? { percentual: Number(descontoSolicitado) as 5 | 10, status: 'PENDENTE' }
+    cliente && descontoSolicitado.trim() !== ''
+      ? { percentual: Number(descontoSolicitado), status: 'PENDENTE' }
       : undefined;
+  const erroDoDesconto = cliente && solicitacao ? erroDesconto(solicitacao.percentual, cliente.categoria) : null;
 
   const resumo = resumoPedido({
     itens,
@@ -129,6 +133,7 @@ export default function PedidosTela() {
     if (aluguel && (!Number.isInteger(quantidadeMeses) || quantidadeMeses <= 0)) {
       return setMsg({ tipo: 'erro', texto: 'Informe a duração do aluguel em meses.' });
     }
+    if (erroDoDesconto) return setMsg({ tipo: 'erro', texto: erroDoDesconto });
 
     setEnviando(true);
     try {
@@ -206,7 +211,14 @@ export default function PedidosTela() {
             <option value="ALUGUEL">Aluguel</option>
           </select>
 
-          <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} required>
+          <select
+            value={clienteId}
+            onChange={(e) => {
+              setClienteId(e.target.value);
+              setDescontoSolicitado(''); // a faixa muda conforme a categoria do cliente
+            }}
+            required
+          >
             <option value="">Selecione o cliente</option>
             {clientes.map((c) => (
               <option key={c.id} value={c.id}>
@@ -219,15 +231,29 @@ export default function PedidosTela() {
           {cliente && (
             <>
               <p className="dica">Limite de crédito do cliente: {moeda.format(cliente.limiteCredito)}</p>
-              {cliente.categoria === 'VIP' ? (
-                <p className="dica">Cliente VIP: 5% de desconto automático em qualquer forma de pagamento.</p>
-              ) : (
-                <select value={descontoSolicitado} onChange={(e) => setDescontoSolicitado(e.target.value)}>
-                  <option value="">Sem solicitação de desconto</option>
-                  <option value="5">Solicitar desconto de 5%</option>
-                  <option value="10">Solicitar desconto de 10%</option>
-                </select>
+              {cliente.categoria === 'VIP' && (
+                <p className="dica">
+                  Cliente VIP: 5% de desconto automático em qualquer forma de pagamento. Pode solicitar de{' '}
+                  {faixa.min}% a {faixa.max}%; se aprovado, substitui os 5% (não soma).
+                </p>
               )}
+              <label className="linha-produto">
+                <span>
+                  Solicitar desconto (%)
+                  <br />
+                  <small>Opcional · de {faixa.min} a {faixa.max} · depende de aprovação</small>
+                </span>
+                <input
+                  type="number"
+                  placeholder={`${faixa.min}–${faixa.max}`}
+                  min={faixa.min}
+                  max={faixa.max}
+                  step={1}
+                  value={descontoSolicitado}
+                  onChange={(e) => setDescontoSolicitado(e.target.value)}
+                />
+              </label>
+              {erroDoDesconto && <p className="msg erro">{erroDoDesconto}</p>}
             </>
           )}
 

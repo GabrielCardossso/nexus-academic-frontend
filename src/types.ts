@@ -75,7 +75,7 @@ export interface ItemPedido {
 }
 
 export interface SolicitacaoDesconto {
-  percentual: 5 | 10;
+  percentual: number; // inteiro dentro da faixa da categoria (ver faixaDesconto em regras.ts)
   status: StatusDesconto;
   colaboradorId?: number; // quem aprovou/rejeitou
   colaboradorNome?: string;
@@ -110,5 +110,5 @@ export interface PedidoCriarRequest {
   pagamento: FormaPagamento;
   itens: { produtoId: number; quantidade: number }[];
   meses?: number; // só aluguel
-  descontoSolicitado?: 5 | 10;
+  descontoSolicitado?: number; // % inteiro: NORMAL de 1 a 10, VIP de 10 a 15
 }

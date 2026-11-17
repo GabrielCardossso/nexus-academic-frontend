@@ -7,7 +7,7 @@
  * Para limpar os dados: F12 > Application > Local Storage > apagar "nexus:*".
  */
 import { CARREGAR_MOCKS } from '../config/api';
-import { PRAZO_DIAS, aguardaDesconto, pagoNaHora, podePagar, resumoPedido, statusDoPedido } from '../regras';
+import { PRAZO_DIAS, aguardaDesconto, erroDesconto, pagoNaHora, podePagar, resumoPedido, statusDoPedido } from '../regras';
 import { gerarMocks } from './mocks';
 import type {
   ClienteCriarRequest,
@@ -179,11 +179,13 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
     return { produtoId, nome: produto.nome, precoUnitario, quantidade };
   });
 
-  // Só cliente NORMAL solicita desconto; VIP já recebe 5% automático.
-  const solicitacao: SolicitacaoDesconto | undefined =
-    cliente.categoria === 'NORMAL' && req.descontoSolicitado
-      ? { percentual: req.descontoSolicitado, status: 'PENDENTE' }
-      : undefined;
+  // NORMAL solicita de 1% a 10%; VIP (que já tem 5%) solicita de 10% a 15% para substituir os 5%.
+  let solicitacao: SolicitacaoDesconto | undefined;
+  if (req.descontoSolicitado != null) {
+    const erro = erroDesconto(req.descontoSolicitado, cliente.categoria);
+    if (erro) throw new Error(erro);
+    solicitacao = { percentual: req.descontoSolicitado, status: 'PENDENTE' };
+  }
 
   const agora = new Date();
   const vencimento = new Date(agora);
