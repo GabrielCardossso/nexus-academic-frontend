@@ -4,7 +4,6 @@ import ConfirmarModal from '../components/ConfirmarModal';
 import Modal from '../components/Modal';
 import NovoPedidoForm from '../components/NovoPedidoForm';
 import PedidoCard from '../components/PedidoCard';
-import Selecao from '../components/Selecao';
 import {
   confirmarPedido,
   devolverPedido,
@@ -13,28 +12,13 @@ import {
   listarProdutos,
   pagarPedido,
 } from '../services/api';
-import { aguardaDesconto, estaVencido, resumoPedido, statusDoPedido } from '../regras';
 import type { ClienteListarResponse, Pedido, ProdutoListarResponse } from '../types';
-import { contem, moeda, type Mensagem } from '../utils';
-
-type Filtro = '' | 'PENDENTE' | 'CONCLUIDO' | 'DEVOLVIDO' | 'PAGAMENTO_PENDENTE' | 'VENCIDO' | 'DESCONTO';
-
-const FILTROS: Record<Filtro, { rotulo: string; aceita: (p: Pedido) => boolean }> = {
-  '': { rotulo: 'Todos os pedidos', aceita: () => true },
-  PENDENTE: { rotulo: 'Pedido pendente', aceita: (p) => statusDoPedido(p) === 'PENDENTE' },
-  CONCLUIDO: { rotulo: 'Concluídos', aceita: (p) => statusDoPedido(p) === 'CONCLUIDO' },
-  DEVOLVIDO: { rotulo: 'Devolvidos', aceita: (p) => statusDoPedido(p) === 'DEVOLVIDO' },
-  PAGAMENTO_PENDENTE: { rotulo: 'Pagamento pendente', aceita: (p) => resumoPedido(p).statusPagamento === 'PENDENTE' },
-  VENCIDO: { rotulo: 'Vencidos', aceita: (p) => estaVencido(p) },
-  DESCONTO: { rotulo: 'Aguardando desconto', aceita: (p) => aguardaDesconto(p) },
-};
+import { moeda, type Mensagem } from '../utils';
 
 export default function PedidosTela() {
   const [clientes, setClientes] = useState<ClienteListarResponse[]>([]);
   const [produtos, setProdutos] = useState<ProdutoListarResponse[]>([]);
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null); // null = carregando
-  const [busca, setBusca] = useState('');
-  const [filtro, setFiltro] = useState<Filtro>('');
   const [aviso, setAviso] = useState<Mensagem>(null);
 
   const [novoAberto, setNovoAberto] = useState(false);
@@ -87,12 +71,6 @@ export default function PedidosTela() {
     setDevolvendo(null);
   }
 
-  const filtrados = (pedidos ?? []).filter(
-    (p) =>
-      FILTROS[filtro].aceita(p) &&
-      contem(busca, `#${p.id}`, p.clienteNome, ...p.itens.map((i) => i.nome)),
-  );
-
   return (
     <>
       <div className="topo">
@@ -104,38 +82,16 @@ export default function PedidosTela() {
 
       <Aviso msg={aviso} onFechar={fecharAviso} />
 
-      <div className="filtros">
-        <input
-          type="search"
-          placeholder="Buscar por nº do pedido, cliente ou produto"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          aria-label="Buscar pedidos"
-        />
-        <Selecao<Filtro>
-          value={filtro}
-          onChange={setFiltro}
-          aria-label="Filtrar pedidos"
-          opcoes={(Object.keys(FILTROS) as Filtro[]).map((f) => ({
-            valor: f,
-            rotulo: FILTROS[f].rotulo,
-            detalhe: pedidos ? String(pedidos.filter(FILTROS[f].aceita).length) : undefined,
-          }))}
-        />
-      </div>
-
       {pedidos === null && <p className="vazio">Carregando pedidos...</p>}
-      {pedidos && (
+      {pedidos && pedidos.length > 0 && (
         <p className="contagem">
-          {filtrados.length} de {pedidos.length} {pedidos.length === 1 ? 'pedido' : 'pedidos'}
+          {pedidos.length} {pedidos.length === 1 ? 'pedido' : 'pedidos'}
         </p>
       )}
-      {pedidos && filtrados.length === 0 && (
-        <p className="vazio">{pedidos.length === 0 ? 'Nenhum pedido ainda.' : 'Nenhum pedido encontrado.'}</p>
-      )}
+      {pedidos && pedidos.length === 0 && <p className="vazio">Nenhum pedido ainda.</p>}
 
       <ul className="itens">
-        {filtrados.map((p) => (
+        {(pedidos ?? []).map((p) => (
           <PedidoCard
             key={p.id}
             pedido={p}

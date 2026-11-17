@@ -18,7 +18,7 @@ import type {
   SolicitacaoDesconto,
   TipoPedido,
 } from '../types';
-import { contem, moeda } from '../utils';
+import { moeda } from '../utils';
 
 interface NovoPedidoFormProps {
   clientes: ClienteListarResponse[];
@@ -36,7 +36,6 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
   const [clienteId, setClienteId] = useState('');
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [escolhendo, setEscolhendo] = useState(false); // lista de produtos aberta
-  const [buscaProduto, setBuscaProduto] = useState('');
   const [meses, setMeses] = useState('1'); // só aluguel
   const [pagamento, setPagamento] = useState<FormaPagamento>('PIX');
   const [descontoSolicitado, setDescontoSolicitado] = useState(''); // '' = sem solicitação
@@ -58,7 +57,6 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
     return !!p && l.quantidade !== '' && Number.isInteger(q) && q > 0 && q <= p.estoque;
   };
   const restantes = disponiveis.filter((p) => !linhas.some((l) => l.produtoId === p.id));
-  const encontrados = restantes.filter((p) => contem(buscaProduto, p.nome, p.descricao));
   const todasValidas = linhas.every(quantidadeValida);
   // Só libera escolher outro produto quando o anterior já tem quantidade válida.
   const podeAdicionar = !escolhendo && restantes.length > 0 && todasValidas;
@@ -73,7 +71,6 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
   function adicionar(produtoId: number) {
     setLinhas((ls) => [...ls, { produtoId, quantidade: '' }]);
     setEscolhendo(false);
-    setBuscaProduto('');
   }
 
   function fecharSeletorComEsc(e: KeyboardEvent) {
@@ -244,33 +241,20 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
       )}
 
       {escolhendo && (
-        <div className="seletor">
-          <input
-            type="search"
-            placeholder="Buscar produto"
-            aria-label="Buscar produto"
-            autoFocus
-            value={buscaProduto}
-            onChange={(e) => setBuscaProduto(e.target.value)}
-            onKeyDown={fecharSeletorComEsc}
-          />
-          {encontrados.length === 0 ? (
-            <p className="vazio">Nenhum produto encontrado.</p>
-          ) : (
-            <ul className="seletor-lista">
-              {encontrados.map((p) => (
-                <li key={p.id}>
-                  <button type="button" onClick={() => adicionar(p.id)}>
-                    <span>{p.nome}</span>
-                    <small>
-                      {moeda.format(precoDe(p))}
-                      {aluguel && '/mês'} · Estoque: {p.estoque}
-                    </small>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="seletor" onKeyDown={fecharSeletorComEsc}>
+          <ul className="seletor-lista" aria-label="Produtos disponíveis">
+            {restantes.map((p, i) => (
+              <li key={p.id}>
+                <button type="button" autoFocus={i === 0} onClick={() => adicionar(p.id)}>
+                  <span>{p.nome}</span>
+                  <small>
+                    {moeda.format(precoDe(p))}
+                    {aluguel && '/mês'} · Estoque: {p.estoque}
+                  </small>
+                </button>
+              </li>
+            ))}
+          </ul>
           <button type="button" className="secundario adicionar" onClick={() => setEscolhendo(false)}>
             Cancelar
           </button>
@@ -281,10 +265,7 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
         <button
           type="button"
           className="secundario adicionar"
-          onClick={() => {
-            setBuscaProduto('');
-            setEscolhendo(true);
-          }}
+          onClick={() => setEscolhendo(true)}
         >
           + Selecionar produto
         </button>

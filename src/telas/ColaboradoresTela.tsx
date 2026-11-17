@@ -3,7 +3,7 @@ import Aviso from '../components/Aviso';
 import Modal from '../components/Modal';
 import { cadastrarColaborador, listarColaboradores, listarPedidos } from '../services/api';
 import type { Colaborador, Pedido } from '../types';
-import { campo, contem, formatarCpf, type Mensagem } from '../utils';
+import { campo, formatarCpf, type Mensagem } from '../utils';
 
 const FORM_VAZIO = { nome: '', cpf: '', email: '' };
 
@@ -11,7 +11,6 @@ export default function ColaboradoresTela() {
   const [colaboradores, setColaboradores] = useState<Colaborador[] | null>(null); // null = carregando
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [erroLista, setErroLista] = useState<string | null>(null);
-  const [busca, setBusca] = useState('');
   const [aviso, setAviso] = useState<Mensagem>(null);
 
   const [novoAberto, setNovoAberto] = useState(false);
@@ -65,8 +64,6 @@ export default function ColaboradoresTela() {
   /** Quantas solicitações de desconto o colaborador já decidiu. */
   const decisoesDe = (id: number) => pedidos.filter((p) => p.solicitacao?.colaboradorId === id).length;
 
-  const filtrados = (colaboradores ?? []).filter((c) => contem(busca, c.nome, c.email, c.cpf, formatarCpf(c.cpf)));
-
   return (
     <>
       <div className="topo">
@@ -78,31 +75,17 @@ export default function ColaboradoresTela() {
 
       <Aviso msg={aviso} onFechar={fecharAviso} />
 
-      <div className="filtros">
-        <input
-          type="search"
-          placeholder="Buscar por nome, CPF ou e-mail"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          aria-label="Buscar colaboradores"
-        />
-      </div>
-
       {erroLista && <p className="msg erro">{erroLista}</p>}
       {colaboradores === null && <p className="vazio">Carregando colaboradores...</p>}
-      {colaboradores && (
+      {colaboradores && colaboradores.length > 0 && (
         <p className="contagem">
-          {filtrados.length} de {colaboradores.length} {colaboradores.length === 1 ? 'colaborador' : 'colaboradores'}
+          {colaboradores.length} {colaboradores.length === 1 ? 'colaborador' : 'colaboradores'}
         </p>
       )}
-      {colaboradores && filtrados.length === 0 && (
-        <p className="vazio">
-          {colaboradores.length === 0 ? 'Nenhum colaborador cadastrado ainda.' : 'Nenhum colaborador encontrado.'}
-        </p>
-      )}
+      {colaboradores && colaboradores.length === 0 && <p className="vazio">Nenhum colaborador cadastrado ainda.</p>}
 
       <ul className="itens">
-        {filtrados.map((c) => {
+        {(colaboradores ?? []).map((c) => {
           const decisoes = decisoesDe(c.id);
           return (
             <li key={c.id} className="item">

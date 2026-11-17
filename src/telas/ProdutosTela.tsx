@@ -4,7 +4,7 @@ import Modal from '../components/Modal';
 import Selecao, { type Opcao } from '../components/Selecao';
 import { cadastrarProduto, listarProdutos } from '../services/api';
 import type { ProdutoListarResponse, ProdutoStatus } from '../types';
-import { campo, contem, moeda, type Mensagem } from '../utils';
+import { campo, moeda, type Mensagem } from '../utils';
 
 const FORM_VAZIO = {
   nome: '',
@@ -29,8 +29,6 @@ const OPCOES_STATUS: Opcao<ProdutoStatus>[] = (Object.keys(ROTULO_STATUS) as Pro
 export default function ProdutosTela() {
   const [produtos, setProdutos] = useState<ProdutoListarResponse[] | null>(null); // null = carregando
   const [erroLista, setErroLista] = useState<string | null>(null);
-  const [busca, setBusca] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState<'' | ProdutoStatus>('');
   const [aviso, setAviso] = useState<Mensagem>(null);
 
   const [novoAberto, setNovoAberto] = useState(false);
@@ -84,10 +82,6 @@ export default function ProdutosTela() {
     }
   }
 
-  const filtrados = (produtos ?? []).filter(
-    (p) => (!filtroStatus || p.status === filtroStatus) && contem(busca, p.nome, p.descricao),
-  );
-
   return (
     <>
       <div className="topo">
@@ -99,35 +93,17 @@ export default function ProdutosTela() {
 
       <Aviso msg={aviso} onFechar={fecharAviso} />
 
-      <div className="filtros">
-        <input
-          type="search"
-          placeholder="Buscar por nome ou descrição"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          aria-label="Buscar produtos"
-        />
-        <Selecao<'' | ProdutoStatus>
-          value={filtroStatus}
-          onChange={setFiltroStatus}
-          aria-label="Filtrar por status"
-          opcoes={[{ valor: '', rotulo: 'Todos os status' }, ...OPCOES_STATUS]}
-        />
-      </div>
-
       {erroLista && <p className="msg erro">{erroLista}</p>}
       {produtos === null && <p className="vazio">Carregando produtos...</p>}
-      {produtos && (
+      {produtos && produtos.length > 0 && (
         <p className="contagem">
-          {filtrados.length} de {produtos.length} {produtos.length === 1 ? 'produto' : 'produtos'}
+          {produtos.length} {produtos.length === 1 ? 'produto' : 'produtos'}
         </p>
       )}
-      {produtos && filtrados.length === 0 && (
-        <p className="vazio">{produtos.length === 0 ? 'Nenhum produto cadastrado ainda.' : 'Nenhum produto encontrado.'}</p>
-      )}
+      {produtos && produtos.length === 0 && <p className="vazio">Nenhum produto cadastrado ainda.</p>}
 
       <ul className="itens">
-        {filtrados.map((p) => (
+        {(produtos ?? []).map((p) => (
           <li key={p.id} className="item">
             <div className="item-topo">
               <span className="item-titulo">{p.nome}</span>

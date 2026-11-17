@@ -4,7 +4,7 @@ import Modal from '../components/Modal';
 import Selecao from '../components/Selecao';
 import { cadastrarCliente, listarClientes } from '../services/api';
 import type { ClienteCategoria, ClienteListarResponse } from '../types';
-import { campo, contem, moeda, type Mensagem } from '../utils';
+import { campo, moeda, type Mensagem } from '../utils';
 
 // Estado inicial do formulário (número vira string porque o <input> trabalha com texto)
 const FORM_VAZIO = {
@@ -19,7 +19,6 @@ const FORM_VAZIO = {
 export default function ClientesTela() {
   const [clientes, setClientes] = useState<ClienteListarResponse[] | null>(null); // null = carregando
   const [erroLista, setErroLista] = useState<string | null>(null);
-  const [busca, setBusca] = useState('');
   const [aviso, setAviso] = useState<Mensagem>(null); // mensagem de sucesso na tela
 
   const [novoAberto, setNovoAberto] = useState(false);
@@ -68,8 +67,6 @@ export default function ClientesTela() {
     }
   }
 
-  const filtrados = (clientes ?? []).filter((c) => contem(busca, c.name, c.email, c.telefone));
-
   return (
     <>
       <div className="topo">
@@ -81,29 +78,17 @@ export default function ClientesTela() {
 
       <Aviso msg={aviso} onFechar={fecharAviso} />
 
-      <div className="filtros">
-        <input
-          type="search"
-          placeholder="Buscar por nome, e-mail ou telefone"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          aria-label="Buscar clientes"
-        />
-      </div>
-
       {erroLista && <p className="msg erro">{erroLista}</p>}
       {clientes === null && <p className="vazio">Carregando clientes...</p>}
-      {clientes && (
+      {clientes && clientes.length > 0 && (
         <p className="contagem">
-          {filtrados.length} de {clientes.length} {clientes.length === 1 ? 'cliente' : 'clientes'}
+          {clientes.length} {clientes.length === 1 ? 'cliente' : 'clientes'}
         </p>
       )}
-      {clientes && filtrados.length === 0 && (
-        <p className="vazio">{clientes.length === 0 ? 'Nenhum cliente cadastrado ainda.' : 'Nenhum cliente encontrado.'}</p>
-      )}
+      {clientes && clientes.length === 0 && <p className="vazio">Nenhum cliente cadastrado ainda.</p>}
 
       <ul className="itens">
-        {filtrados.map((c) => (
+        {(clientes ?? []).map((c) => (
           <li key={c.id} className="item">
             <div className="item-topo">
               <span className="item-titulo">{c.name}</span>

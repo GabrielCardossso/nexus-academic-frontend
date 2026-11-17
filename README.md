@@ -16,13 +16,13 @@ Este repositório guarda **apenas a parte do front**. O sistema completo é divi
 
 Aplicação com **menu lateral** (que pode ser recolhido para mostrar só os ícones) e cinco telas.
 
-Em **Clientes**, **Produtos**, **Pedidos** e **Colaboradores**, a lista ocupa a tela e carrega sozinha. Cada uma tem um campo de **busca**; Produtos e Pedidos também têm um **filtro**, por status. O botão **+ Novo** no topo abre o formulário de cadastro num **popup**, que fecha com Esc, com o "×" ou clicando fora. Mensagens de sucesso e erro aparecem num aviso no canto da tela, que some sozinho. As caixas de seleção são um componente próprio (`Selecao`), com a lista estilizada e funcionando por teclado (setas, Enter, Esc e a letra inicial da opção).
+Em **Clientes**, **Produtos**, **Pedidos** e **Colaboradores**, a lista ocupa a tela e carrega sozinha. Não há busca nem filtro: o back-end ainda não oferece isso, então o front mostra a lista completa que a API devolve. O botão **+ Novo** no topo abre o formulário de cadastro num **popup**, que fecha com Esc, com o "×" ou clicando fora. Mensagens de sucesso e erro aparecem num aviso no canto da tela, que some sozinho. As caixas de seleção são um componente próprio (`Selecao`), com a lista estilizada e funcionando por teclado (setas, Enter, Esc e a letra inicial da opção).
 
 | Grupo | Tela | O que faz |
 |---|---|---|
 | Cadastros | **Clientes** | Cadastra cliente (nome ou razão social, CNPJ, telefone, e-mail, categoria **Normal** ou **VIP** e limite de crédito) e lista os clientes cadastrados, com a situação (**em dia** ou **inadimplente**). |
 | Cadastros | **Produtos** | Cadastra produto (nome, descrição, estoque, preço de venda, preço de aluguel por mês e status **Disponível**, **Indisponível** ou **Desativado**) e lista os produtos cadastrados. |
-| Vendas | **Pedidos** | Monta um pedido de **venda** ou de **aluguel** (cliente, produtos e quantidades, forma de pagamento) e mostra a prévia com subtotal, desconto e total. Os produtos entram um por vez: **+ Selecionar produto** abre uma lista com busca; depois de escolher e informar a quantidade, o botão aparece de novo para o próximo. A lista de pedidos mostra um resumo de cada um (cliente, itens, total, status do pedido e do pagamento), e **Ver detalhes** abre todos os dados em grade. Permite **confirmar** o pedido, **registrar o pagamento** dos pedidos a prazo e **devolver** os aluguéis. |
+| Vendas | **Pedidos** | Monta um pedido de **venda** ou de **aluguel** (cliente, produtos e quantidades, forma de pagamento) e mostra a prévia com subtotal, desconto e total. Os produtos entram um por vez: **+ Selecionar produto** abre a lista de produtos disponíveis; depois de escolher e informar a quantidade, o botão aparece de novo para o próximo. A lista de pedidos mostra um resumo de cada um (cliente, itens, total, status do pedido e do pagamento), e **Ver detalhes** abre todos os dados em grade. Permite **confirmar** o pedido, **registrar o pagamento** dos pedidos a prazo e **devolver** os aluguéis. |
 | Gestão | **Colaboradores** | Cadastra colaborador (nome, **CPF** e e-mail) e lista os colaboradores, com quantas solicitações de desconto cada um já decidiu. O CPF é validado, e CPF e e-mail não podem se repetir. |
 | Gestão | **Descontos** | Escolhe quem está aprovando (**Aprovando como**) e mostra as solicitações de desconto em duas abas: **Pendentes**, com os botões **Aprovar** e **Rejeitar** e o total antes e depois do desconto, e **Decididas**, com quem aprovou ou rejeitou. O menu mostra quantas estão pendentes. |
 
@@ -202,7 +202,7 @@ src/
 ├── App.css             # estilos
 ├── types.ts            # tipos dos DTOs (Cliente, Produto, Pedido, Desconto...)
 ├── regras.ts           # regras de pedido e desconto (funções puras)
-├── utils.ts            # formatação de moeda e datas, busca sem acento, helper de formulário
+├── utils.ts            # formatação de moeda, datas e CPF, helper de formulário
 ├── config/
 │   └── api.ts          # URL base, caminhos dos endpoints e flags USAR_DADOS_LOCAIS e CARREGAR_MOCKS
 ├── services/

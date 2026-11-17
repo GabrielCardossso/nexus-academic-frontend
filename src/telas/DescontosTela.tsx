@@ -4,7 +4,7 @@ import Selecao from '../components/Selecao';
 import { decidirDesconto, listarColaboradores, listarPedidos } from '../services/api';
 import { mensagemRejeicao, resumoPedido, ROTULO_PAGAMENTO, ROTULO_TIPO } from '../regras';
 import type { Colaborador, Pedido } from '../types';
-import { contem, dataBR, moeda, type Mensagem } from '../utils';
+import { dataBR, moeda, type Mensagem } from '../utils';
 
 type Aba = 'PENDENTES' | 'DECIDIDAS';
 
@@ -18,7 +18,6 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
   const [colaboradorId, setColaboradorId] = useState('');
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null); // null = carregando
   const [aba, setAba] = useState<Aba>('PENDENTES');
-  const [busca, setBusca] = useState('');
   const [aviso, setAviso] = useState<Mensagem>(null);
   const [decidindo, setDecidindo] = useState<number | null>(null); // id do pedido em decisão
 
@@ -41,7 +40,7 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
   const fecharAviso = useCallback(() => setAviso(null), []);
 
   const colaborador = colaboradores.find((c) => String(c.id) === colaboradorId);
-  const comSolicitacao = (pedidos ?? []).filter((p) => p.solicitacao && contem(busca, `#${p.id}`, p.clienteNome));
+  const comSolicitacao = (pedidos ?? []).filter((p) => p.solicitacao);
   const pendentes = comSolicitacao.filter((p) => p.solicitacao!.status === 'PENDENTE');
   const decididas = comSolicitacao.filter((p) => p.solicitacao!.status !== 'PENDENTE');
   const lista = aba === 'PENDENTES' ? pendentes : decididas;
@@ -98,15 +97,6 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
         </button>
       </div>
 
-      <div className="filtros">
-        <input
-          type="search"
-          placeholder="Buscar por nº do pedido ou cliente"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          aria-label="Buscar solicitações"
-        />
-      </div>
 
       {pedidos === null && <p className="vazio">Carregando solicitações...</p>}
       {pedidos && lista.length === 0 && (

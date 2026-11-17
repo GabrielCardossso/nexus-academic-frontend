@@ -424,17 +424,6 @@ button.secundario:hover:not(:disabled) {
   margin: 0;
 }
 
-.filtros {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.filtros input[type='search'] {
-  flex: 1;
-  min-width: 220px;
-}
 
 .contagem {
   margin: 0 0 10px;
@@ -991,8 +980,4 @@ button.selecao-botao:disabled {
 .selecao-opcao[aria-disabled='true'] {
   color: #8c959f;
   cursor: not-allowed;
-}
-
-.filtros .selecao {
-  min-width: 200px;
 }
