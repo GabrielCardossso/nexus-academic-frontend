@@ -21,7 +21,7 @@ Em **Clientes**, **Produtos**, **Pedidos** e **Colaboradores**, a lista ocupa a 
 | Grupo | Tela | O que faz |
 |---|---|---|
 | Cadastros | **Clientes** | Cadastra cliente (nome ou razão social, CNPJ, telefone, e-mail, categoria **Normal** ou **VIP** e limite de crédito) e lista os clientes cadastrados, com a situação (**em dia** ou **inadimplente**). |
-| Cadastros | **Produtos** | Cadastra produto (nome, descrição, estoque, preço de venda, preço de aluguel por mês e status **Disponível**, **Indisponível** ou **Desativado**) e lista os produtos cadastrados. |
+| Cadastros | **Produtos** | Cadastra produto (nome, descrição, estoque, preço de venda e preço de aluguel por mês) e lista os produtos cadastrados com o status (**Disponível**, **Indisponível** ou **Desativado**). O cadastro não pede status, igual ao back: produto novo entra como disponível. |
 | Vendas | **Pedidos** | Monta um pedido de **venda** ou de **aluguel** (cliente, produtos e quantidades, forma de pagamento) e mostra a prévia com subtotal, desconto e total. Os produtos entram um por vez: **+ Selecionar produto** abre a lista de produtos disponíveis; depois de escolher e informar a quantidade, o botão aparece de novo para o próximo. A lista de pedidos mostra um resumo de cada um (cliente, itens, total, status do pedido e do pagamento), e **Ver detalhes** abre todos os dados em grade. Permite **confirmar** o pedido, **registrar o pagamento** dos pedidos a prazo e **devolver** os aluguéis. |
 | Gestão | **Colaboradores** | Cadastra colaborador (nome, **CPF** e e-mail) e lista os colaboradores, com quantas solicitações de desconto cada um já decidiu. O CPF é validado, e CPF e e-mail não podem se repetir. |
 | Gestão | **Descontos** | Escolhe quem está aprovando (**Aprovando como**) e mostra as solicitações de desconto em duas abas: **Pendentes**, com os botões **Aprovar** e **Rejeitar** e o total antes e depois do desconto, e **Decididas**, com quem aprovou ou rejeitou. O menu mostra quantas estão pendentes. |
@@ -37,7 +37,7 @@ As regras ficam em funções puras no arquivo `src/regras.ts`, usadas tanto pela
 - **Aluguel:** o cliente informa a duração em **meses**. O início é a data do pedido e o fim do aluguel é calculado pela quantidade de meses. O valor é **preço por mês × meses × quantidade**.
 - **Formas de pagamento:** PIX, à vista ou a prazo (valem para venda e aluguel).
   - PIX e à vista: o pagamento já fica **Pago**, a não ser que exista uma solicitação de desconto ainda pendente (aí fica pago quando o colaborador decide).
-  - A prazo: o pagamento fica **Pendente** até alguém clicar em **Registrar pagamento**, e o total não pode ultrapassar o **limite de crédito** do cliente. Na venda o vencimento é em **30 dias**; no aluguel, é o fim do aluguel.
+  - A prazo: o pagamento fica **Pendente** até alguém clicar em **Registrar pagamento**, e o total não pode ultrapassar o **limite de crédito** do cliente. A **data de vencimento** é escolhida no pedido: obrigatória e precisa ser depois de hoje (igual ao `@Future` do back). O pedido também tem um campo opcional de **descrição**.
 - **Limite de crédito:** todo pedido a prazo (venda ou aluguel) **reserva o total no limite do cliente** assim que é criado. Se o desconto de um pedido a prazo for aprovado, a diferença volta para o limite. Ao **registrar o pagamento**, o valor reservado volta inteiro para o limite. Na devolução do aluguel o crédito não volta (só o estoque).
 
 #### Descontos
@@ -86,10 +86,10 @@ Por enquanto o front funciona sozinho. Em `src/config/api.ts` a constante `USAR_
 - Gera os IDs sozinho (maior ID atual + 1).
 - Valida o **CNPJ** (dígitos verificadores, aceitando também o CNPJ alfanumérico) e não deixa cadastrar dois clientes com o mesmo e-mail.
 - Valida o **CPF** do colaborador e não deixa repetir CPF nem e-mail.
-- Guarda os dados nas chaves `nexus:v6:clientes`, `nexus:v6:produtos`, `nexus:v6:pedidos` e `nexus:v6:colaboradores`. Para limpar, abra o navegador em **F12 > Application > Local Storage** e apague as chaves `nexus:*`.
+- Guarda os dados nas chaves `nexus:v7:clientes`, `nexus:v7:produtos`, `nexus:v7:pedidos` e `nexus:v7:colaboradores`. Para limpar, abra o navegador em **F12 > Application > Local Storage** e apague as chaves `nexus:*`.
 - **Dados de exemplo:** com `CARREGAR_MOCKS = true` (em `src/config/api.ts`), na primeira vez que o app abre com o localStorage vazio ele grava os dados de `src/services/mocks.ts`: 6 clientes, 9 produtos, 3 colaboradores (Ana Souza, Carlos Lima e Beatriz Rocha) e 15 pedidos que cobrem todos os cenários da tela (desconto pendente, aprovado e rejeitado, VIP pedindo de 10% a 15%, venda e aluguel a prazo, pedido a prazo já pago, aluguel para devolver e aluguel já devolvido). A **Tech Solutions Informática** (VIP) vem **inadimplente**, por uma venda a prazo vencida e não paga. Estoque e limite de crédito já vêm coerentes com esses pedidos. Para recomeçar do zero, apague as chaves `nexus:*` e recarregue a página.
 
-Para usar o back-end real, troque para `USAR_DADOS_LOCAIS = false` em `src/config/api.ts`. Nesse modo, **clientes e produtos** (cadastro e listagem) chamam a API. **Pedidos (venda e aluguel), descontos, pagamento, devolução, situação do cliente (inadimplente) e colaboradores** ainda não têm endpoint no back-end e **só funcionam no modo local**: com a flag desligada essas telas mostram o erro "ainda não têm endpoint no back-end".
+Para usar o back-end real, troque para `USAR_DADOS_LOCAIS = false` em `src/config/api.ts`. Nesse modo, **clientes, produtos e colaboradores** (cadastro e listagem) chamam a API. **Pedidos, descontos, pagamento e devolução** continuam **só no modo local**: o back já tem essas rotas, mas as regras ainda estão sendo alinhadas (o Lucas está terminando inadimplente e faixas de desconto). Com a flag desligada, essas telas mostram o erro "ainda não estão ligados ao back-end".
 
 ## Tecnologias
 
@@ -137,59 +137,66 @@ Se o `.env` não existir, o front usa `http://localhost:8080` (porta padrão do 
 
 > Nunca suba o `.env` para o repositório. Ele já está no `.gitignore`.
 
-### Endpoints esperados
+### Endpoints usados
 
-Os caminhos ficam centralizados em `src/config/api.ts`:
+O back usa o prefixo **`/api/v1`** (context-path no `application.yml`). Os caminhos ficam em `src/config/api.ts`:
 
 | Ação | Método | Caminho |
 |---|---|---|
-| Cadastrar cliente | `POST` | `/api/clientes` |
-| Listar clientes | `GET` | `/api/clientes` |
-| Cadastrar produto | `POST` | `/api/produtos` |
-| Listar produtos | `GET` | `/api/produtos` |
+| Cadastrar / listar clientes | `POST` / `GET` | `/api/v1/clientes` |
+| Cadastrar / listar produtos | `POST` / `GET` | `/api/v1/produtos` |
+| Cadastrar / listar colaboradores | `POST` / `GET` | `/api/v1/colaboradores` |
 
-Pedidos (venda e aluguel), descontos, pagamento, devolução, situação do cliente (inadimplente) e colaboradores ainda não têm endpoint definido.
+O back também já tem rotas de pedido (`/api/v1/pedidos`, `/{id}`, `/vencidosEmAberto`, `/solicitacoesDescontoEmAberto`, `/cliente`, `/{id}/desconto`, `/{id}/finalizar`, `/{id}/devolucao`) e `/api/v1/produtos/listarAlugados`. O front ainda não usa essas rotas porque as regras de pedido estão sendo alinhadas.
 
-Formato dos dados enviados (os tipos completos, de envio e de resposta, estão em `src/types.ts`):
+O front usa nomes próprios por dentro (`categoria`, `limiteCredito`, `nome`), e `src/services/api.ts` converte para os nomes do back ao enviar e receber:
 
 ```json
-// POST /api/clientes
+// POST /api/v1/clientes
 {
   "name": "Maria Souza",
   "telefone": "11999999999",
   "cnpj": "11222333000181",
   "email": "maria@email.com",
-  "categoria": "NORMAL",
-  "limiteCredito": 5000
+  "limiteDeCredito": 5000,
+  "classificacao": "NORMAL"
 }
 
-// POST /api/produtos
+// POST /api/v1/produtos (sem status: o back não recebe)
 {
-  "nome": "Cera automotiva",
-  "descricao": "Cera líquida 500 ml",
-  "estoque": 20,
-  "precoVenda": 39.9,
-  "precoAluguel": 12.5,
-  "status": "DISPONIVEL"
+  "nome": "Furadeira de Impacto 650W",
+  "descricao": "Furadeira profissional com maleta",
+  "estoque": 25,
+  "precoVenda": 389.9,
+  "precoAluguel": 45.0
+}
+
+// POST /api/v1/colaboradores
+{
+  "name": "Ana Souza",
+  "cpf": "12345678909",
+  "email": "ana.souza@nexus.com.br"
 }
 ```
 
-Valores aceitos: `categoria` = `NORMAL` ou `VIP`; `status` do produto = `DISPONIVEL`, `INDISPONIVEL` ou `DESATIVADO`.
+Os erros do back vêm no formato `ProblemDetail` do Spring (`detail` e `errors`), e o front mostra essas mensagens no aviso.
 
-Na listagem, o front aceita tanto uma lista simples (`[ {...} ]`) quanto a paginação do Spring (`{ "content": [ {...} ] }`). O `id` de cada item é necessário, porque é por ele que cliente e produto são escolhidos no pedido.
-
-> **Atenção:** os nomes dos campos acima seguem o que o front espera, mas podem não bater com os DTOs do back-end. Os campos `cnpj`, `limiteCredito` e `status`, o `id` nas listagens e tudo de pedido, desconto e aluguel (tipo, meses e devolução) ainda não existem nos records do back e precisam ser alinhados quando forem criados.
+> **Ainda falta no back para a integração completa:**
+> - As listagens de clientes, produtos e colaboradores não devolvem o `id`, e a de clientes também não devolve o `cnpj`. O pedido precisa do `id` do produto e do `cnpj` do cliente, e a aprovação de desconto precisa do `idColaborador`. Enquanto isso, o front usa um id provisório (negativo) só para mostrar a lista.
+> - A listagem de produtos devolve um campo `preco` que não existe na entidade, e não devolve `precoVenda`, `precoAluguel` nem o status.
+> - O cadastro de produto não define o status (fica nulo).
+> - Não há liberação de CORS para `http://localhost:5173`.
 
 ## Integração com o back-end
 
-Para casar o front com a API real, ajuste:
+Para casar o front com a API real:
 
 1. **`USAR_DADOS_LOCAIS = false`** em `src/config/api.ts`, para o front parar de usar o localStorage.
-2. **Caminhos dos endpoints** em `src/config/api.ts` (confira no Swagger do back: `http://localhost:8080/swagger-ui/index.html`).
-3. **Nomes dos campos** em `src/types.ts` (`ClienteCriarRequest`, `ClienteCriarResponse`, `ClienteListarResponse`, `ProdutoCriarRequest` e os demais) para bater com os DTOs do Java.
-4. **Autenticação**, se o Spring Security exigir token, na função `getAuthHeaders()` em `src/services/api.ts`.
-5. **Pedidos, descontos, devolução e colaboradores:** quando o back criar os endpoints, trocar `exigirModoLocal()` pelo mesmo padrão de clientes e produtos (`post`/`get` + `ENDPOINTS`) em `src/services/api.ts`.
-6. **CORS:** o back-end precisa liberar a origem `http://localhost:5173`. Se aparecer `Failed to fetch` no front e erro de CORS no console do navegador (F12), o ajuste é feito no Spring.
+2. **Caminhos** em `src/config/api.ts` (Swagger do back: `http://localhost:8080/api/v1/swagger-ui/index.html`).
+3. **Conversão de campos** em `src/services/api.ts` (tipos `ClienteBack*`, `ProdutoBack*` e `ColaboradorBack`), se o back mudar algum nome.
+4. **Autenticação:** hoje o back libera tudo (`permitAll`). Se passar a exigir token, ajustar `getAuthHeaders()` em `src/services/api.ts`.
+5. **Pedidos e descontos:** quando as regras estiverem iguais nos dois lados, trocar `exigirModoLocal()` pelas chamadas às rotas de `/pedidos` em `src/services/api.ts`.
+6. **CORS:** o back precisa liberar a origem `http://localhost:5173`. Se aparecer `Failed to fetch` no front e erro de CORS no console do navegador (F12), o ajuste é feito no Spring.
 
 ## Estrutura do projeto
 
@@ -226,10 +233,11 @@ src/
 
 ## Próximos passos
 
-- [ ] Integrar com o back-end real e validar os campos
-- [ ] Endpoints de pedidos (venda e aluguel), descontos, devolução e colaboradores no back-end
+- [x] Caminhos `/api/v1` e nomes de campos do back (clientes, produtos e colaboradores)
 - [x] Função de pagar o pedido (devolver o crédito ao cliente)
-- [ ] Endpoints de pagamento e da situação do cliente (inadimplente) no back-end
+- [ ] Back: devolver `id` (e `cnpj` do cliente) nas listagens, preços e status na listagem de produtos, liberar CORS
+- [ ] Back: inadimplente e faixas de desconto (em andamento com o Lucas)
+- [ ] Ligar pedidos e descontos às rotas `/pedidos` do back quando as regras estiverem iguais
 - [ ] Editar e excluir registros
 - [ ] Validação de formulário campo a campo
 - [ ] Autenticação (se exigida pelo back)
