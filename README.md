@@ -18,9 +18,9 @@ Aplicação com **menu lateral** (que pode ser recolhido para mostrar só os íc
 
 | Grupo | Tela | O que faz |
 |---|---|---|
-| Cadastros | **Clientes** | Cadastra cliente (nome ou razão social, CNPJ, telefone, e-mail, categoria **Normal** ou **VIP** e limite de crédito) e lista os clientes cadastrados. |
+| Cadastros | **Clientes** | Cadastra cliente (nome ou razão social, CNPJ, telefone, e-mail, categoria **Normal** ou **VIP** e limite de crédito) e lista os clientes cadastrados, com a situação (**em dia** ou **inadimplente**). |
 | Cadastros | **Produtos** | Cadastra produto (nome, descrição, estoque, preço de venda, preço de aluguel por mês e status **Disponível**, **Indisponível** ou **Desativado**) e lista os produtos cadastrados. |
-| Vendas | **Pedidos** | Monta um pedido de **venda** ou de **aluguel** (cliente, produtos e quantidades, forma de pagamento), mostra a prévia com subtotal, desconto e total, lista os pedidos realizados com o status do pedido e do pagamento, permite **confirmar** o pedido e **devolver** os aluguéis. |
+| Vendas | **Pedidos** | Monta um pedido de **venda** ou de **aluguel** (cliente, produtos e quantidades, forma de pagamento), mostra a prévia com subtotal, desconto e total, lista os pedidos realizados com o status do pedido e do pagamento, permite **confirmar** o pedido, **registrar o pagamento** dos pedidos a prazo e **devolver** os aluguéis. |
 | Gestão | **Colaboradores** | Escolhe o colaborador atual e **aprova ou rejeita** as solicitações de desconto pendentes. |
 
 ### Regras de negócio dos pedidos
@@ -30,12 +30,29 @@ As regras ficam em funções puras no arquivo `src/regras.ts`, usadas tanto pela
 - **Produtos:** só entram no pedido produtos com status *Disponível* e estoque maior que zero. A quantidade não pode passar do estoque, e o estoque é baixado quando o pedido é feito (venda ou aluguel).
 - **Tipo do pedido:** *Venda* usa o preço de venda do produto. *Aluguel* usa o preço de aluguel **por mês**.
 - **Aluguel:** o cliente informa a duração em **meses**. O início é a data do pedido e o fim do aluguel é calculado pela quantidade de meses. O valor é **preço por mês × meses × quantidade**.
-- **Cliente VIP:** recebe **5% de desconto automático**, em qualquer forma de pagamento.
-- **Cliente Normal:** pode **solicitar** 5% ou 10% de desconto. O desconto só é aplicado depois que um colaborador **aprova** a solicitação; se for rejeitada, o pedido segue sem desconto.
 - **Formas de pagamento:** PIX, à vista ou a prazo (valem para venda e aluguel).
-  - PIX e à vista: o pagamento já fica **Pago**, a não ser que exista uma solicitação de desconto ainda pendente.
-  - A prazo: o pagamento fica **Pendente** e o total não pode ultrapassar o **limite de crédito** do cliente. Na venda o vencimento é em **30 dias**; no aluguel, é o fim do aluguel.
-- **Limite de crédito:** todo pedido a prazo (venda ou aluguel) **desconta o total do limite do cliente** assim que é criado. Se o desconto de um pedido a prazo for aprovado, a diferença volta para o limite. O crédito **não volta** na devolução nem existe ainda a função de pagar o pedido.
+  - PIX e à vista: o pagamento já fica **Pago**, a não ser que exista uma solicitação de desconto ainda pendente (aí fica pago quando o colaborador decide).
+  - A prazo: o pagamento fica **Pendente** até alguém clicar em **Registrar pagamento**, e o total não pode ultrapassar o **limite de crédito** do cliente. Na venda o vencimento é em **30 dias**; no aluguel, é o fim do aluguel.
+- **Limite de crédito:** todo pedido a prazo (venda ou aluguel) **reserva o total no limite do cliente** assim que é criado. Se o desconto de um pedido a prazo for aprovado, a diferença volta para o limite. Ao **registrar o pagamento**, o valor reservado volta inteiro para o limite. Na devolução do aluguel o crédito não volta (só o estoque).
+
+#### Descontos
+
+O cliente digita o percentual (número inteiro) que quer solicitar. Toda solicitação depende de um colaborador **aprovar**; se for rejeitada, vale o desconto que o cliente já teria sem ela.
+
+| Cliente | Desconto automático | Pode solicitar |
+|---|---|---|
+| **Normal** | — | de **1% a 10%** |
+| **VIP** em dia | **5%**, em qualquer forma de pagamento | de **10% a 15%**. Se aprovado, **substitui** os 5% (não soma): passa de 5% para 12%, por exemplo. |
+| **VIP inadimplente** | — (perde os 5%) | de **1% a 15%** |
+| **Normal inadimplente** | — | de **1% a 10%** |
+
+#### Cliente inadimplente
+
+- O cliente é **inadimplente** quando tem pelo menos um **pedido a prazo vencido e não pago**. Não é um campo do cadastro: é calculado a partir dos pedidos. Ao registrar o pagamento dos pedidos vencidos, ele volta a ficar em dia.
+- Inadimplente **não pode fazer pedido a prazo**, só **PIX** ou **à vista**.
+- Inadimplente **VIP perde os 5% automáticos**. O desconto só vem por solicitação aprovada por um colaborador (veja a tabela acima).
+- A perda dos 5% vale para os pedidos do cliente **ainda não pagos**, inclusive os antigos. Os pedidos já pagos ficam com o valor do momento do pagamento.
+- Na tela de pedidos, o inadimplente aparece marcado na lista de clientes e a opção *A prazo* fica bloqueada. Pedido a prazo vencido ganha o selo **Vencido**.
 
 #### Status do pedido e status do pagamento
 
@@ -49,11 +66,13 @@ Cada pedido tem **dois status independentes**, mostrados como selos na lista:
 
 | Status do pagamento | Quando |
 |---|---|
-| **Pago** | PIX ou à vista, sem desconto aguardando aprovação. |
-| **Pendente** | A prazo, ou com desconto aguardando aprovação. |
+| **Pago** | PIX ou à vista sem desconto aguardando aprovação, ou a prazo depois de **Registrar pagamento**. |
+| **Pendente** | A prazo ainda não pago, ou PIX/à vista com desconto aguardando aprovação. |
+
+- **Registrar pagamento:** aparece nos pedidos a prazo ainda não pagos (bloqueado enquanto houver desconto aguardando decisão). Marca o pagamento como *Pago* e devolve ao limite o crédito reservado.
 
 - **Devolução:** só um aluguel **Concluído** pode ser devolvido. O botão **Devolver** abre um popup de confirmação; ao confirmar, os itens voltam ao estoque e o pedido passa para *Devolvido* (não dá para desfazer).
-- Subtotal, desconto, total e os dois status **não são salvos**: são sempre calculados a partir dos itens, da categoria do cliente, da forma de pagamento, da duração (aluguel), da solicitação e das datas de confirmação (`concluidoEm`) e devolução (`devolvidoEm`).
+- Subtotal, desconto, total e os dois status **não são salvos**: são sempre calculados a partir dos itens, da categoria e da situação do cliente, da forma de pagamento, da duração (aluguel), da solicitação e das datas de confirmação (`concluidoEm`), pagamento (`pagoEm`) e devolução (`devolvidoEm`).
 
 ### Dados locais (sem back-end)
 
@@ -62,10 +81,10 @@ Por enquanto o front funciona sozinho. Em `src/config/api.ts` a constante `USAR_
 - Gera os IDs sozinho (maior ID atual + 1).
 - Valida o **CNPJ** (dígitos verificadores, aceitando também o CNPJ alfanumérico) e não deixa cadastrar dois clientes com o mesmo e-mail.
 - Usa **3 colaboradores fictícios** (Ana Souza, Carlos Lima e Beatriz Rocha), porque ainda não existe cadastro de colaborador.
-- Guarda os dados nas chaves `nexus:v4:clientes`, `nexus:v4:produtos` e `nexus:v4:pedidos`. Para limpar, abra o navegador em **F12 > Application > Local Storage** e apague as chaves `nexus:*`.
-- **Dados de exemplo:** com `CARREGAR_MOCKS = true` (em `src/config/api.ts`), na primeira vez que o app abre com o localStorage vazio ele grava os dados de `src/services/mocks.ts`: 6 clientes, 9 produtos e 10 pedidos que cobrem todos os cenários da tela (desconto pendente, aprovado e rejeitado, cliente VIP, venda e aluguel a prazo, aluguel para devolver e aluguel já devolvido). Estoque e limite de crédito já vêm coerentes com esses pedidos. Para recomeçar do zero, apague as chaves `nexus:*` e recarregue a página.
+- Guarda os dados nas chaves `nexus:v6:clientes`, `nexus:v6:produtos` e `nexus:v6:pedidos`. Para limpar, abra o navegador em **F12 > Application > Local Storage** e apague as chaves `nexus:*`.
+- **Dados de exemplo:** com `CARREGAR_MOCKS = true` (em `src/config/api.ts`), na primeira vez que o app abre com o localStorage vazio ele grava os dados de `src/services/mocks.ts`: 6 clientes, 9 produtos e 15 pedidos que cobrem todos os cenários da tela (desconto pendente, aprovado e rejeitado, VIP pedindo de 10% a 15%, venda e aluguel a prazo, pedido a prazo já pago, aluguel para devolver e aluguel já devolvido). A **Tech Solutions Informática** (VIP) vem **inadimplente**, por uma venda a prazo vencida e não paga. Estoque e limite de crédito já vêm coerentes com esses pedidos. Para recomeçar do zero, apague as chaves `nexus:*` e recarregue a página.
 
-Para usar o back-end real, troque para `USAR_DADOS_LOCAIS = false` em `src/config/api.ts`. Nesse modo, **clientes e produtos** (cadastro e listagem) chamam a API. **Pedidos (venda e aluguel), descontos, devolução e colaboradores** ainda não têm endpoint no back-end e **só funcionam no modo local**: com a flag desligada essas telas mostram o erro "ainda não têm endpoint no back-end".
+Para usar o back-end real, troque para `USAR_DADOS_LOCAIS = false` em `src/config/api.ts`. Nesse modo, **clientes e produtos** (cadastro e listagem) chamam a API. **Pedidos (venda e aluguel), descontos, pagamento, devolução, situação do cliente (inadimplente) e colaboradores** ainda não têm endpoint no back-end e **só funcionam no modo local**: com a flag desligada essas telas mostram o erro "ainda não têm endpoint no back-end".
 
 ## Tecnologias
 
@@ -124,7 +143,7 @@ Os caminhos ficam centralizados em `src/config/api.ts`:
 | Cadastrar produto | `POST` | `/api/produtos` |
 | Listar produtos | `GET` | `/api/produtos` |
 
-Pedidos (venda e aluguel), descontos, devolução e colaboradores ainda não têm endpoint definido.
+Pedidos (venda e aluguel), descontos, pagamento, devolução, situação do cliente (inadimplente) e colaboradores ainda não têm endpoint definido.
 
 Formato dos dados enviados (os tipos completos, de envio e de resposta, estão em `src/types.ts`):
 
@@ -199,7 +218,8 @@ src/
 
 - [ ] Integrar com o back-end real e validar os campos
 - [ ] Endpoints de pedidos (venda e aluguel), descontos, devolução e colaboradores no back-end
-- [ ] Função de pagar o pedido (devolver o crédito ao cliente)
+- [x] Função de pagar o pedido (devolver o crédito ao cliente)
+- [ ] Endpoints de pagamento e da situação do cliente (inadimplente) no back-end
 - [ ] Editar e excluir registros
 - [ ] Validação de formulário campo a campo
 - [ ] Autenticação (se exigida pelo back)
