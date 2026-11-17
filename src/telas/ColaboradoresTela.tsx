@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { decidirDesconto, listarColaboradores, listarPedidos } from '../services/api';
-import { DESCONTO_VIP, linhasSolicitacao, mensagemRejeicao, resumoPedido, ROTULO_TIPO } from '../regras';
+import { linhasSolicitacao, mensagemRejeicao, resumoPedido, ROTULO_TIPO } from '../regras';
 import type { Colaborador, Pedido } from '../types';
 import { moeda, type Mensagem } from '../utils';
 
@@ -83,12 +83,7 @@ export default function ColaboradoresTela() {
                       Cliente: {p.clienteCategoria}
                       {p.clienteInadimplente && ' — inadimplente (sem desconto automático)'}
                     </span>
-                    <span>
-                      Desconto solicitado: {s.percentual}%
-                      {p.clienteCategoria === 'VIP' &&
-                        !p.clienteInadimplente &&
-                        ` (substitui os ${DESCONTO_VIP}% automáticos, não soma)`}
-                    </span>
+                    <span>Desconto solicitado: {s.percentual}%</span>
                     <span>Subtotal: {moeda.format(comDesconto.subtotal)}</span>
                     <span>Total com desconto: {moeda.format(comDesconto.total)}</span>
                     <div className="acoes">

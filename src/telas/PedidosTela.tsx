@@ -256,7 +256,7 @@ export default function PedidosTela() {
               {cliente.categoria === 'VIP' && !inadimplente && (
                 <p className="dica">
                   Cliente VIP: 5% de desconto automático em qualquer forma de pagamento. Pode solicitar de{' '}
-                  {faixa.min}% a {faixa.max}%; se aprovado, substitui os 5% (não soma).
+                  {faixa.min}% a {faixa.max}%.
                 </p>
               )}
               <label className="linha-produto">
