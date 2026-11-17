@@ -259,56 +259,10 @@ button:disabled {
   color: #57606a;
 }
 
-.lista {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 320px;
-  overflow-y: auto;
-}
-
-.lista.alta {
-  max-height: 560px;
-}
-
-.lista li {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
-  background: #f6f8fa;
-  border: 1px solid #d8dee4;
-  border-radius: 6px;
-}
-
-.lista li span {
-  font-size: 0.9rem;
-  color: #57606a;
-}
-
 .vazio {
   margin: 0;
   font-size: 0.9rem;
   color: #57606a;
-}
-
-.linha-produto {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 0.9rem;
-}
-
-.linha-produto small {
-  color: #57606a;
-}
-
-.linha-produto input {
-  width: 90px;
 }
 
 .resumo {
@@ -486,10 +440,6 @@ button.secundario:hover:not(:disabled) {
   margin: 0 0 10px;
   font-size: 0.85rem;
   color: #57606a;
-}
-
-.aviso-topo {
-  margin-bottom: 12px;
 }
 
 /* ---------- Lista de registros (clientes, produtos, pedidos) ---------- */
@@ -857,4 +807,67 @@ button.adicionar {
   display: flex;
   justify-content: space-between;
   font-size: 1rem;
+}
+
+/* ---------- Contador no menu (descontos pendentes) ---------- */
+.sidebar .contador {
+  margin-left: auto;
+  min-width: 22px;
+  padding: 1px 7px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+  color: #fff;
+  background: #b45309;
+  border-radius: 999px;
+}
+
+/* Menu recolhido: o contador vira um ponto sobre o ícone */
+.sidebar.recolhida button {
+  position: relative;
+}
+
+.sidebar.recolhida .contador {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  min-width: 18px;
+  padding: 0 5px;
+  font-size: 0.68rem;
+}
+
+/* ---------- Abas (Descontos: Pendentes / Decididas) ---------- */
+.abas {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #d8dee4;
+}
+
+.abas button {
+  padding: 10px 16px;
+  margin-bottom: -1px;
+  font-size: 0.95rem;
+  color: #57606a;
+  background: transparent;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+}
+
+.abas button:hover:not(:disabled) {
+  color: #1f2328;
+  background: transparent;
+}
+
+.abas button[aria-selected='true'] {
+  color: #1f2328;
+  border-bottom-color: #2563eb;
+}
+
+.campo.aprovando {
+  min-width: 240px;
+}
+
+.item-rodape.fim {
+  justify-content: flex-end;
 }

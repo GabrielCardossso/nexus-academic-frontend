@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { listarPedidos } from './services/api';
 import ClientesTela from './telas/ClientesTela';
 import ColaboradoresTela from './telas/ColaboradoresTela';
+import DescontosTela from './telas/DescontosTela';
 import PedidosTela from './telas/PedidosTela';
 import ProdutosTela from './telas/ProdutosTela';
 
-type AbaId = 'clientes' | 'produtos' | 'pedidos' | 'colaboradores';
+type AbaId = 'clientes' | 'produtos' | 'pedidos' | 'colaboradores' | 'descontos';
 
 // Menu lateral: grupos com seus itens
 const MENU: { grupo: string; itens: { id: AbaId; rotulo: string; icone: string }[] }[] = [
@@ -16,12 +18,33 @@ const MENU: { grupo: string; itens: { id: AbaId; rotulo: string; icone: string }
     ],
   },
   { grupo: 'Vendas', itens: [{ id: 'pedidos', rotulo: 'Pedidos', icone: 'shopping-cart.svg' }] },
-  { grupo: 'Gestão', itens: [{ id: 'colaboradores', rotulo: 'Colaboradores', icone: 'user-check.svg' }] },
+  {
+    grupo: 'Gestão',
+    itens: [
+      { id: 'colaboradores', rotulo: 'Colaboradores', icone: 'user-check.svg' },
+      { id: 'descontos', rotulo: 'Descontos', icone: 'percent.svg' },
+    ],
+  },
 ];
 
 export default function App() {
   const [aba, setAba] = useState<AbaId>('clientes');
   const [recolhida, setRecolhida] = useState(false); // menu lateral só com ícones
+  const [descontosPendentes, setDescontosPendentes] = useState(0); // contador no menu
+
+  const atualizarContador = useCallback(async () => {
+    try {
+      const pedidos = await listarPedidos();
+      setDescontosPendentes(pedidos.filter((p) => p.solicitacao?.status === 'PENDENTE').length);
+    } catch {
+      setDescontosPendentes(0); // sem endpoint no back-end: não mostra contador
+    }
+  }, []);
+
+  // Pedidos novos (com solicitação) podem ter sido criados em outra tela.
+  useEffect(() => {
+    atualizarContador();
+  }, [aba, atualizarContador]);
 
   return (
     <div className="layout">
@@ -44,6 +67,11 @@ export default function App() {
                 >
                   <img src={`/icons/${item.icone}`} alt="" width={18} height={18} />
                   <span className="texto">{item.rotulo}</span>
+                  {item.id === 'descontos' && descontosPendentes > 0 && (
+                    <span className="contador" aria-label={`${descontosPendentes} pendentes`}>
+                      {descontosPendentes}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -70,6 +98,7 @@ export default function App() {
         {aba === 'produtos' && <ProdutosTela />}
         {aba === 'pedidos' && <PedidosTela />}
         {aba === 'colaboradores' && <ColaboradoresTela />}
+        {aba === 'descontos' && <DescontosTela onPendentesMudou={atualizarContador} />}
       </main>
     </div>
   );
