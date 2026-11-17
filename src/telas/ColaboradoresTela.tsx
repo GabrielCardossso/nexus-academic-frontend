@@ -23,7 +23,8 @@ export default function ColaboradoresTela() {
   async function carregar() {
     setErroLista(null);
     try {
-      const [c, p] = await Promise.all([listarColaboradores(), listarPedidos()]);
+      // Pedidos só servem para contar as decisões; se não estiverem disponíveis (back), a lista aparece igual.
+      const [c, p] = await Promise.all([listarColaboradores(), listarPedidos().catch((): Pedido[] => [])]);
       setColaboradores(c);
       setPedidos(p);
     } catch (err) {
