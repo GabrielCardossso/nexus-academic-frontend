@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Aviso from '../components/Aviso';
 import Modal from '../components/Modal';
+import Selecao, { type Opcao } from '../components/Selecao';
 import { cadastrarProduto, listarProdutos } from '../services/api';
 import type { ProdutoListarResponse, ProdutoStatus } from '../types';
 import { campo, contem, moeda, type Mensagem } from '../utils';
@@ -19,6 +20,11 @@ const ROTULO_STATUS: Record<ProdutoStatus, string> = {
   INDISPONIVEL: 'Indisponível',
   DESATIVADO: 'Desativado',
 };
+
+const OPCOES_STATUS: Opcao<ProdutoStatus>[] = (Object.keys(ROTULO_STATUS) as ProdutoStatus[]).map((s) => ({
+  valor: s,
+  rotulo: ROTULO_STATUS[s],
+}));
 
 export default function ProdutosTela() {
   const [produtos, setProdutos] = useState<ProdutoListarResponse[] | null>(null); // null = carregando
@@ -101,16 +107,12 @@ export default function ProdutosTela() {
           onChange={(e) => setBusca(e.target.value)}
           aria-label="Buscar produtos"
         />
-        <select
+        <Selecao<'' | ProdutoStatus>
           value={filtroStatus}
-          onChange={(e) => setFiltroStatus(e.target.value as '' | ProdutoStatus)}
+          onChange={setFiltroStatus}
           aria-label="Filtrar por status"
-        >
-          <option value="">Todos os status</option>
-          <option value="DISPONIVEL">Disponível</option>
-          <option value="INDISPONIVEL">Indisponível</option>
-          <option value="DESATIVADO">Desativado</option>
-        </select>
+          opcoes={[{ valor: '', rotulo: 'Todos os status' }, ...OPCOES_STATUS]}
+        />
       </div>
 
       {erroLista && <p className="msg erro">{erroLista}</p>}
@@ -173,11 +175,11 @@ export default function ProdutosTela() {
             </label>
             <label className="campo">
               <span>Status</span>
-              <select name="status" value={form.status} onChange={onChange}>
-                <option value="DISPONIVEL">Disponível</option>
-                <option value="INDISPONIVEL">Indisponível</option>
-                <option value="DESATIVADO">Desativado</option>
-              </select>
+              <Selecao
+                value={form.status}
+                onChange={(status) => setForm((f) => ({ ...f, status }))}
+                opcoes={OPCOES_STATUS}
+              />
             </label>
           </div>
           {erroForm && <p className="msg erro">{erroForm}</p>}

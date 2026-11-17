@@ -4,6 +4,7 @@ import ConfirmarModal from '../components/ConfirmarModal';
 import Modal from '../components/Modal';
 import NovoPedidoForm from '../components/NovoPedidoForm';
 import PedidoCard from '../components/PedidoCard';
+import Selecao from '../components/Selecao';
 import {
   confirmarPedido,
   devolverPedido,
@@ -111,13 +112,16 @@ export default function PedidosTela() {
           onChange={(e) => setBusca(e.target.value)}
           aria-label="Buscar pedidos"
         />
-        <select value={filtro} onChange={(e) => setFiltro(e.target.value as Filtro)} aria-label="Filtrar pedidos">
-          {(Object.keys(FILTROS) as Filtro[]).map((f) => (
-            <option key={f} value={f}>
-              {FILTROS[f].rotulo}
-            </option>
-          ))}
-        </select>
+        <Selecao<Filtro>
+          value={filtro}
+          onChange={setFiltro}
+          aria-label="Filtrar pedidos"
+          opcoes={(Object.keys(FILTROS) as Filtro[]).map((f) => ({
+            valor: f,
+            rotulo: FILTROS[f].rotulo,
+            detalhe: pedidos ? String(pedidos.filter(FILTROS[f].aceita).length) : undefined,
+          }))}
+        />
       </div>
 
       {pedidos === null && <p className="vazio">Carregando pedidos...</p>}

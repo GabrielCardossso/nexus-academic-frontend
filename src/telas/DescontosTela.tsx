@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import Aviso from '../components/Aviso';
+import Selecao from '../components/Selecao';
 import { decidirDesconto, listarColaboradores, listarPedidos } from '../services/api';
 import { mensagemRejeicao, resumoPedido, ROTULO_PAGAMENTO, ROTULO_TIPO } from '../regras';
 import type { Colaborador, Pedido } from '../types';
@@ -72,14 +73,13 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
         <h1>Descontos</h1>
         <label className="campo aprovando">
           <span>Aprovando como</span>
-          <select value={colaboradorId} onChange={(e) => setColaboradorId(e.target.value)} disabled={colaboradores.length === 0}>
-            {colaboradores.length === 0 && <option value="">Nenhum colaborador</option>}
-            {colaboradores.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome} (ID {c.id})
-              </option>
-            ))}
-          </select>
+          <Selecao
+            value={colaboradorId}
+            onChange={setColaboradorId}
+            disabled={colaboradores.length === 0}
+            placeholder="Nenhum colaborador"
+            opcoes={colaboradores.map((c) => ({ valor: String(c.id), rotulo: c.nome, detalhe: `ID ${c.id}` }))}
+          />
         </label>
       </div>
 

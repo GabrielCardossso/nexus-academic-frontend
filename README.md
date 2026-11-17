@@ -16,7 +16,7 @@ Este repositório guarda **apenas a parte do front**. O sistema completo é divi
 
 Aplicação com **menu lateral** (que pode ser recolhido para mostrar só os ícones) e cinco telas.
 
-Em **Clientes**, **Produtos**, **Pedidos** e **Colaboradores**, a lista ocupa a tela e carrega sozinha. Cada uma tem um campo de **busca**; Produtos e Pedidos também têm um **filtro**, por status. O botão **+ Novo** no topo abre o formulário de cadastro num **popup**, que fecha com Esc, com o "×" ou clicando fora. Mensagens de sucesso e erro aparecem num aviso no canto da tela, que some sozinho.
+Em **Clientes**, **Produtos**, **Pedidos** e **Colaboradores**, a lista ocupa a tela e carrega sozinha. Cada uma tem um campo de **busca**; Produtos e Pedidos também têm um **filtro**, por status. O botão **+ Novo** no topo abre o formulário de cadastro num **popup**, que fecha com Esc, com o "×" ou clicando fora. Mensagens de sucesso e erro aparecem num aviso no canto da tela, que some sozinho. As caixas de seleção são um componente próprio (`Selecao`), com a lista estilizada e funcionando por teclado (setas, Enter, Esc e a letra inicial da opção).
 
 | Grupo | Tela | O que faz |
 |---|---|---|
@@ -213,6 +213,7 @@ src/
 │   ├── Modal.tsx           # popup genérico (formulários de cadastro e novo pedido)
 │   ├── ConfirmarModal.tsx  # popup de confirmação (usado na devolução)
 │   ├── Aviso.tsx           # aviso flutuante de sucesso/erro
+│   ├── Selecao.tsx         # caixa de seleção própria (substitui o <select> nativo)
 │   ├── NovoPedidoForm.tsx  # formulário de novo pedido com o seletor de produtos
 │   └── PedidoCard.tsx      # card do pedido (resumo + detalhes)
 └── telas/

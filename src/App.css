@@ -871,3 +871,128 @@ button.adicionar {
 .item-rodape.fim {
   justify-content: flex-end;
 }
+
+/* ---------- Caixa de seleção própria (components/Selecao.tsx) ---------- */
+.selecao {
+  position: relative;
+  min-width: 0;
+}
+
+button.selecao-botao {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 1rem;
+  font-weight: 400;
+  text-align: left;
+  color: #1f2328;
+  background: #fff;
+  border: 1px solid #c4cad1;
+  border-radius: 6px;
+}
+
+button.selecao-botao:hover:not(:disabled) {
+  background: #fff;
+  border-color: #8c959f;
+}
+
+button.selecao-botao:focus-visible,
+.selecao.aberta button.selecao-botao {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  border-color: #2563eb;
+}
+
+button.selecao-botao:disabled {
+  color: #8c959f;
+  background: #f4f5f7;
+}
+
+.selecao-valor,
+.selecao-placeholder {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selecao-placeholder {
+  color: #8c959f;
+}
+
+.selecao-seta {
+  flex-shrink: 0;
+  color: #57606a;
+  transition: transform 0.15s;
+}
+
+.selecao.aberta .selecao-seta {
+  transform: rotate(180deg);
+}
+
+.selecao-lista {
+  position: fixed;
+  z-index: 300;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #c4cad1;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+}
+
+.selecao-opcao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  font-size: 0.95rem;
+  color: #1f2328;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.selecao-opcao span {
+  flex: 1;
+  min-width: 0;
+}
+
+.selecao-opcao small {
+  font-size: 0.8rem;
+  color: #57606a;
+}
+
+.selecao-opcao.ativa {
+  background: #e5e7eb;
+}
+
+.selecao-opcao.escolhida {
+  font-weight: 600;
+  color: #fff;
+  background: #2563eb;
+}
+
+.selecao-opcao.escolhida small {
+  color: #fff;
+}
+
+.selecao-opcao.escolhida.ativa {
+  background: #1d4ed8;
+}
+
+.selecao-check {
+  flex-shrink: 0;
+}
+
+.selecao-opcao[aria-disabled='true'] {
+  color: #8c959f;
+  cursor: not-allowed;
+}
+
+.filtros .selecao {
+  min-width: 200px;
+}

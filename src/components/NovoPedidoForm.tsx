@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import { criarPedido } from '../services/api';
+import Selecao from './Selecao';
 import {
   erroDesconto,
   faixaDesconto,
@@ -148,22 +149,27 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
       <div className="form-grade">
         <label className="campo">
           <span>Tipo</span>
-          <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoPedido)}>
-            <option value="VENDA">Venda</option>
-            <option value="ALUGUEL">Aluguel</option>
-          </select>
+          <Selecao<TipoPedido>
+            value={tipo}
+            onChange={setTipo}
+            opcoes={[
+              { valor: 'VENDA', rotulo: 'Venda' },
+              { valor: 'ALUGUEL', rotulo: 'Aluguel', detalhe: 'por mês' },
+            ]}
+          />
         </label>
         <label className="campo">
           <span>Cliente</span>
-          <select value={clienteId} onChange={(e) => escolherCliente(e.target.value)} required>
-            <option value="">Selecione o cliente</option>
-            {clientes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.categoria}
-                {c.inadimplente ? ', inadimplente' : ''})
-              </option>
-            ))}
-          </select>
+          <Selecao
+            value={clienteId}
+            onChange={escolherCliente}
+            placeholder="Selecione o cliente"
+            opcoes={clientes.map((c) => ({
+              valor: String(c.id),
+              rotulo: c.name,
+              detalhe: c.inadimplente ? `${c.categoria === 'VIP' ? 'VIP · ' : ''}inadimplente` : c.categoria === 'VIP' ? 'VIP' : undefined,
+            }))}
+          />
         </label>
       </div>
       {clientes.length === 0 && <p className="dica">Nenhum cliente cadastrado ainda.</p>}
@@ -296,14 +302,20 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
         )}
         <label className="campo">
           <span>Pagamento</span>
-          <select value={pagamento} onChange={(e) => setPagamento(e.target.value as FormaPagamento)}>
-            <option value="PIX">PIX</option>
-            <option value="A_VISTA">À vista</option>
-            <option value="A_PRAZO" disabled={inadimplente}>
-              {aluguel ? 'A prazo' : `A prazo (${PRAZO_DIAS} dias)`}
-              {inadimplente && ' — indisponível (inadimplente)'}
-            </option>
-          </select>
+          <Selecao<FormaPagamento>
+            value={pagamento}
+            onChange={setPagamento}
+            opcoes={[
+              { valor: 'PIX', rotulo: 'PIX' },
+              { valor: 'A_VISTA', rotulo: 'À vista' },
+              {
+                valor: 'A_PRAZO',
+                rotulo: 'A prazo',
+                detalhe: inadimplente ? 'indisponível (inadimplente)' : aluguel ? 'até o fim do aluguel' : `${PRAZO_DIAS} dias`,
+                desabilitada: inadimplente,
+              },
+            ]}
+          />
         </label>
         {cliente && (
           <label className="campo">

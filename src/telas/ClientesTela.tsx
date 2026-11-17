@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Aviso from '../components/Aviso';
 import Modal from '../components/Modal';
+import Selecao from '../components/Selecao';
 import { cadastrarCliente, listarClientes } from '../services/api';
 import type { ClienteCategoria, ClienteListarResponse } from '../types';
 import { campo, contem, moeda, type Mensagem } from '../utils';
@@ -145,10 +146,14 @@ export default function ClientesTela() {
             </label>
             <label className="campo">
               <span>Categoria</span>
-              <select name="categoria" value={form.categoria} onChange={onChange}>
-                <option value="NORMAL">Normal</option>
-                <option value="VIP">VIP</option>
-              </select>
+              <Selecao
+                value={form.categoria}
+                onChange={(categoria) => setForm((f) => ({ ...f, categoria }))}
+                opcoes={[
+                  { valor: 'NORMAL', rotulo: 'Normal' },
+                  { valor: 'VIP', rotulo: 'VIP', detalhe: '5% automático' },
+                ]}
+              />
             </label>
             <label className="campo">
               <span>Limite de crédito (R$)</span>
