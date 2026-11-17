@@ -169,7 +169,8 @@ export async function listarClientesLocal(): Promise<ClienteListarResponse[]> {
 // ---------------- Produtos ----------------
 export async function cadastrarProdutoLocal(dados: ProdutoCriarRequest): Promise<ProdutoCriarResponse> {
   const produtos = ler<ProdutoCriarResponse>(CHAVE_PRODUTOS);
-  const novo: ProdutoCriarResponse = { ...dados, id: proximoId(produtos), nome: dados.nome.trim() };
+  // O cadastro não recebe status (igual ao back): todo produto novo entra como disponível.
+  const novo: ProdutoCriarResponse = { ...dados, id: proximoId(produtos), nome: dados.nome.trim(), status: 'DISPONIVEL' };
   salvar(CHAVE_PRODUTOS, [...produtos, novo]);
   return novo;
 }

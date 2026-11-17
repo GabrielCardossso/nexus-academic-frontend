@@ -50,15 +50,17 @@ export interface ProdutoCriarRequest {
   estoque: number;
   precoVenda: number; // BigDecimal no Java
   precoAluguel: number; // valor por mês
-  status: ProdutoStatus;
+  // O status não vai no cadastro (o back não recebe): produto novo entra como DISPONIVEL nos dados locais.
 }
 
 export interface ProdutoCriarResponse extends ProdutoCriarRequest {
   id: number;
+  status: ProdutoStatus;
 }
 
 export interface ProdutoListarResponse extends ProdutoCriarRequest {
   id: number; // necessário para o produto poder ser escolhido no pedido
+  status: ProdutoStatus; // só produtos DISPONIVEL e com estoque entram no pedido
 }
 
 // ---------------- Colaborador ----------------

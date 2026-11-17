@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Aviso from '../components/Aviso';
 import Modal from '../components/Modal';
-import Selecao, { type Opcao } from '../components/Selecao';
 import { cadastrarProduto, listarProdutos } from '../services/api';
 import type { ProdutoListarResponse, ProdutoStatus } from '../types';
 import { campo, moeda, type Mensagem } from '../utils';
 
+// Sem status: o back não recebe no cadastro (produto novo entra como disponível).
 const FORM_VAZIO = {
   nome: '',
   descricao: '',
   estoque: '',
   precoVenda: '',
   precoAluguel: '',
-  status: 'DISPONIVEL' as ProdutoStatus,
 };
 
 const ROTULO_STATUS: Record<ProdutoStatus, string> = {
@@ -20,11 +19,6 @@ const ROTULO_STATUS: Record<ProdutoStatus, string> = {
   INDISPONIVEL: 'Indisponível',
   DESATIVADO: 'Desativado',
 };
-
-const OPCOES_STATUS: Opcao<ProdutoStatus>[] = (Object.keys(ROTULO_STATUS) as ProdutoStatus[]).map((s) => ({
-  valor: s,
-  rotulo: ROTULO_STATUS[s],
-}));
 
 export default function ProdutosTela() {
   const [produtos, setProdutos] = useState<ProdutoListarResponse[] | null>(null); // null = carregando
@@ -149,15 +143,8 @@ export default function ProdutosTela() {
               <span>Estoque</span>
               <input name="estoque" type="number" value={form.estoque} onChange={onChange} min={0} step={1} required />
             </label>
-            <label className="campo">
-              <span>Status</span>
-              <Selecao
-                value={form.status}
-                onChange={(status) => setForm((f) => ({ ...f, status }))}
-                opcoes={OPCOES_STATUS}
-              />
-            </label>
           </div>
+          <p className="dica">O produto novo entra como disponível.</p>
           {erroForm && <p className="msg erro">{erroForm}</p>}
           <div className="modal-acoes">
             <button type="button" className="secundario" onClick={fecharNovo} disabled={enviando}>
