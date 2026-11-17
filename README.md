@@ -14,16 +14,19 @@ Este repositório guarda **apenas a parte do front**. O sistema completo é divi
 
 ## O que o front faz hoje
 
-Aplicação com **menu lateral** (que pode ser recolhido para mostrar só os ícones) e quatro telas.
+Aplicação com **menu lateral** (que pode ser recolhido para mostrar só os ícones) e cinco telas.
 
-Em **Clientes**, **Produtos** e **Pedidos**, a lista ocupa a tela e carrega sozinha. Cada uma tem um campo de **busca**; Produtos e Pedidos também têm um **filtro**, por status. O botão **+ Novo** no topo abre o formulário de cadastro num **popup**, que fecha com Esc, com o "×" ou clicando fora. Mensagens de sucesso e erro aparecem num aviso no canto da tela, que some sozinho.
+Em **Clientes**, **Produtos**, **Pedidos** e **Colaboradores**, a lista ocupa a tela e carrega sozinha. Cada uma tem um campo de **busca**; Produtos e Pedidos também têm um **filtro**, por status. O botão **+ Novo** no topo abre o formulário de cadastro num **popup**, que fecha com Esc, com o "×" ou clicando fora. Mensagens de sucesso e erro aparecem num aviso no canto da tela, que some sozinho.
 
 | Grupo | Tela | O que faz |
 |---|---|---|
 | Cadastros | **Clientes** | Cadastra cliente (nome ou razão social, CNPJ, telefone, e-mail, categoria **Normal** ou **VIP** e limite de crédito) e lista os clientes cadastrados, com a situação (**em dia** ou **inadimplente**). |
 | Cadastros | **Produtos** | Cadastra produto (nome, descrição, estoque, preço de venda, preço de aluguel por mês e status **Disponível**, **Indisponível** ou **Desativado**) e lista os produtos cadastrados. |
 | Vendas | **Pedidos** | Monta um pedido de **venda** ou de **aluguel** (cliente, produtos e quantidades, forma de pagamento) e mostra a prévia com subtotal, desconto e total. Os produtos entram um por vez: **+ Selecionar produto** abre uma lista com busca; depois de escolher e informar a quantidade, o botão aparece de novo para o próximo. A lista de pedidos mostra um resumo de cada um (cliente, itens, total, status do pedido e do pagamento), e **Ver detalhes** abre todos os dados em grade. Permite **confirmar** o pedido, **registrar o pagamento** dos pedidos a prazo e **devolver** os aluguéis. |
-| Gestão | **Colaboradores** | Escolhe o colaborador atual e **aprova ou rejeita** as solicitações de desconto pendentes. |
+| Gestão | **Colaboradores** | Cadastra colaborador (nome, **CPF** e e-mail) e lista os colaboradores, com quantas solicitações de desconto cada um já decidiu. O CPF é validado, e CPF e e-mail não podem se repetir. |
+| Gestão | **Descontos** | Escolhe quem está aprovando (**Aprovando como**) e mostra as solicitações de desconto em duas abas: **Pendentes**, com os botões **Aprovar** e **Rejeitar** e o total antes e depois do desconto, e **Decididas**, com quem aprovou ou rejeitou. O menu mostra quantas estão pendentes. |
+
+Os selos de status (pedido, pagamento, categoria, situação do cliente, status do produto) usam cores sólidas com texto branco: verde para concluído, pago, em dia, disponível e aprovado; laranja para pendente e indisponível; vermelho para vencido, inadimplente e rejeitado; roxo para VIP; cinza para os neutros.
 
 ### Regras de negócio dos pedidos
 
@@ -82,9 +85,9 @@ Por enquanto o front funciona sozinho. Em `src/config/api.ts` a constante `USAR_
 
 - Gera os IDs sozinho (maior ID atual + 1).
 - Valida o **CNPJ** (dígitos verificadores, aceitando também o CNPJ alfanumérico) e não deixa cadastrar dois clientes com o mesmo e-mail.
-- Usa **3 colaboradores fictícios** (Ana Souza, Carlos Lima e Beatriz Rocha), porque ainda não existe cadastro de colaborador.
-- Guarda os dados nas chaves `nexus:v6:clientes`, `nexus:v6:produtos` e `nexus:v6:pedidos`. Para limpar, abra o navegador em **F12 > Application > Local Storage** e apague as chaves `nexus:*`.
-- **Dados de exemplo:** com `CARREGAR_MOCKS = true` (em `src/config/api.ts`), na primeira vez que o app abre com o localStorage vazio ele grava os dados de `src/services/mocks.ts`: 6 clientes, 9 produtos e 15 pedidos que cobrem todos os cenários da tela (desconto pendente, aprovado e rejeitado, VIP pedindo de 10% a 15%, venda e aluguel a prazo, pedido a prazo já pago, aluguel para devolver e aluguel já devolvido). A **Tech Solutions Informática** (VIP) vem **inadimplente**, por uma venda a prazo vencida e não paga. Estoque e limite de crédito já vêm coerentes com esses pedidos. Para recomeçar do zero, apague as chaves `nexus:*` e recarregue a página.
+- Valida o **CPF** do colaborador e não deixa repetir CPF nem e-mail.
+- Guarda os dados nas chaves `nexus:v6:clientes`, `nexus:v6:produtos`, `nexus:v6:pedidos` e `nexus:v6:colaboradores`. Para limpar, abra o navegador em **F12 > Application > Local Storage** e apague as chaves `nexus:*`.
+- **Dados de exemplo:** com `CARREGAR_MOCKS = true` (em `src/config/api.ts`), na primeira vez que o app abre com o localStorage vazio ele grava os dados de `src/services/mocks.ts`: 6 clientes, 9 produtos, 3 colaboradores (Ana Souza, Carlos Lima e Beatriz Rocha) e 15 pedidos que cobrem todos os cenários da tela (desconto pendente, aprovado e rejeitado, VIP pedindo de 10% a 15%, venda e aluguel a prazo, pedido a prazo já pago, aluguel para devolver e aluguel já devolvido). A **Tech Solutions Informática** (VIP) vem **inadimplente**, por uma venda a prazo vencida e não paga. Estoque e limite de crédito já vêm coerentes com esses pedidos. Para recomeçar do zero, apague as chaves `nexus:*` e recarregue a página.
 
 Para usar o back-end real, troque para `USAR_DADOS_LOCAIS = false` em `src/config/api.ts`. Nesse modo, **clientes e produtos** (cadastro e listagem) chamam a API. **Pedidos (venda e aluguel), descontos, pagamento, devolução, situação do cliente (inadimplente) e colaboradores** ainda não têm endpoint no back-end e **só funcionam no modo local**: com a flag desligada essas telas mostram o erro "ainda não têm endpoint no back-end".
 
@@ -192,7 +195,7 @@ Para casar o front com a API real, ajuste:
 
 ```
 public/
-└── icons/              # ícones SVG do menu lateral
+└── icons/              # ícones SVG do menu lateral (inclui percent.svg, de Descontos)
 src/
 ├── main.tsx            # ponto de entrada da aplicação
 ├── App.tsx             # layout: menu lateral + troca de telas
@@ -216,7 +219,8 @@ src/
     ├── ClientesTela.tsx
     ├── ProdutosTela.tsx
     ├── PedidosTela.tsx
-    └── ColaboradoresTela.tsx
+    ├── ColaboradoresTela.tsx
+    └── DescontosTela.tsx
 ```
 
 ## Próximos passos
