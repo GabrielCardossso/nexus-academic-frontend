@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import Aviso from '../components/Aviso';
 import Modal from '../components/Modal';
 import { cadastrarProduto, listarProdutos } from '../services/api';
 import type { ProdutoListarResponse, ProdutoStatus } from '../types';
@@ -54,6 +55,7 @@ export default function ProdutosTela() {
   }
 
   const fecharNovo = useCallback(() => setNovoAberto(false), []);
+  const fecharAviso = useCallback(() => setAviso(null), []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -89,7 +91,7 @@ export default function ProdutosTela() {
         </button>
       </div>
 
-      {aviso && <p className={`msg ${aviso.tipo} aviso-topo`}>{aviso.texto}</p>}
+      <Aviso msg={aviso} onFechar={fecharAviso} />
 
       <div className="filtros">
         <input

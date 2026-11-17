@@ -828,3 +828,67 @@ button.remover:hover:not(:disabled) {
 button.adicionar {
   align-self: flex-start;
 }
+
+/* ---------- Aviso flutuante ---------- */
+.aviso-flutuante {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 12px 12px 16px;
+  font-size: 0.92rem;
+  border-radius: 8px;
+  border: 1px solid;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+}
+
+.aviso-flutuante.sucesso {
+  color: #14532d;
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.aviso-flutuante.erro {
+  color: #7f1d1d;
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.aviso-flutuante button {
+  padding: 0 6px;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+}
+
+.aviso-flutuante button:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+@media (max-width: 760px) {
+  .aviso-flutuante {
+    right: 16px;
+    left: 16px;
+    bottom: 16px;
+    max-width: none;
+  }
+}
+
+.detalhes dt {
+  grid-column-start: auto;
+}
+
+.detalhes dt.inicio {
+  grid-column-start: 1;
+}
+
+.resumo .total-linha {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1rem;
+}

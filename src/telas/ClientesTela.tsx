@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import Aviso from '../components/Aviso';
 import Modal from '../components/Modal';
 import { cadastrarCliente, listarClientes } from '../services/api';
 import type { ClienteCategoria, ClienteListarResponse } from '../types';
@@ -48,6 +49,7 @@ export default function ClientesTela() {
   }
 
   const fecharNovo = useCallback(() => setNovoAberto(false), []);
+  const fecharAviso = useCallback(() => setAviso(null), []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -76,7 +78,7 @@ export default function ClientesTela() {
         </button>
       </div>
 
-      {aviso && <p className={`msg ${aviso.tipo} aviso-topo`}>{aviso.texto}</p>}
+      <Aviso msg={aviso} onFechar={fecharAviso} />
 
       <div className="filtros">
         <input
