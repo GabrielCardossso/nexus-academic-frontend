@@ -93,10 +93,13 @@ export default function NovoPedidoForm({
     .map((p) => ({ ...p, estoque: p.estoque + qtdOriginal(p.id) }))
     .filter((p) => (p.status === 'DISPONIVEL' && p.estoque > 0) || qtdOriginal(p.id) > 0);
   const produtoDe = (id: number) => disponiveis.find((p) => p.id === id);
-  // Na edição, item que já estava no pedido (mesmo tipo) mantém o preço do momento do pedido.
-  const precoDe = (p: ProdutoListarResponse) => {
+  // Na edição, item que já estava no pedido (mesmo tipo) mantém o preço do momento do pedido, desde que
+  // a quantidade não aumente; quantidade maior = nova cotação pelo preço atual (igual ao serviço).
+  const precoDe = (p: ProdutoListarResponse, quantidade = 0) => {
     const anterior = original?.tipo === tipo ? original.itens.find((i) => i.produtoId === p.id) : undefined;
-    return anterior?.precoUnitario ?? Number(aluguel ? p.precoAluguel : p.precoVenda);
+    return anterior && quantidade <= anterior.quantidade
+      ? anterior.precoUnitario
+      : Number(aluguel ? p.precoAluguel : p.precoVenda);
   };
   const quantidadeValida = (l: Linha) => {
     const p = produtoDe(l.produtoId);
@@ -111,7 +114,7 @@ export default function NovoPedidoForm({
   const itens: ItemPedido[] = linhas.flatMap((l) => {
     const p = produtoDe(l.produtoId);
     return p && quantidadeValida(l)
-      ? [{ produtoId: p.id, nome: p.nome, precoUnitario: precoDe(p), quantidade: Number(l.quantidade) }]
+      ? [{ produtoId: p.id, nome: p.nome, precoUnitario: precoDe(p, Number(l.quantidade)), quantidade: Number(l.quantidade) }]
       : [];
   });
 
@@ -279,7 +282,7 @@ export default function NovoPedidoForm({
                   <strong>{p.nome}</strong>
                   <br />
                   <small>
-                    {moeda.format(precoDe(p))}
+                    {moeda.format(precoDe(p, Number(l.quantidade)))}
                     {aluguel && '/mês'} · Estoque: {p.estoque}
                   </small>
                 </span>
