@@ -89,7 +89,11 @@ export default function NovoPedidoForm({
     .map((p) => ({ ...p, estoque: p.estoque + qtdOriginal(p.id) }))
     .filter((p) => (p.status === 'DISPONIVEL' && p.estoque > 0) || qtdOriginal(p.id) > 0);
   const produtoDe = (id: number) => disponiveis.find((p) => p.id === id);
-  const precoDe = (p: ProdutoListarResponse) => Number(aluguel ? p.precoAluguel : p.precoVenda);
+  // Na edição, item que já estava no pedido (mesmo tipo) mantém o preço do momento do pedido.
+  const precoDe = (p: ProdutoListarResponse) => {
+    const anterior = original?.tipo === tipo ? original.itens.find((i) => i.produtoId === p.id) : undefined;
+    return anterior?.precoUnitario ?? Number(aluguel ? p.precoAluguel : p.precoVenda);
+  };
   const quantidadeValida = (l: Linha) => {
     const p = produtoDe(l.produtoId);
     const q = Number(l.quantidade);

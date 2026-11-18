@@ -350,7 +350,9 @@ function montarPedido(req: PedidoCriarRequest, ctx: ContextoPedido, id: number):
     if (quantidade > produto.estoque) {
       throw new Error(`Estoque insuficiente de "${produto.nome}" (disponível: ${produto.estoque}).`);
     }
-    const precoUnitario = aluguel ? produto.precoAluguel : produto.precoVenda;
+    // Item que já estava no pedido (mesmo tipo) mantém o preço do momento do pedido; item novo usa o atual.
+    const anterior = original?.tipo === req.tipo ? original.itens.find((i) => i.produtoId === produtoId) : undefined;
+    const precoUnitario = anterior?.precoUnitario ?? (aluguel ? produto.precoAluguel : produto.precoVenda);
     return { produtoId, nome: produto.nome, precoUnitario, quantidade };
   });
 
