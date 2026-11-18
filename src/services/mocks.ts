@@ -8,8 +8,12 @@
  *  - concluído (pago e com pagamento pendente a prazo)
  *  - aluguel concluído (pode devolver) e aluguel devolvido
  *  - venda a prazo já paga (crédito devolvido) e pedidos a prazo aguardando pagamento
- *  - cliente VIP inadimplente (venda a prazo vencida e não paga), sem os 5% automáticos
+ *  - cliente VIP inadimplente (venda a prazo vencida e não paga): sem desconto nenhum, não pode
+ *    solicitar; o pedido vencido só pode ser pago; o outro pedido a prazo dele (ainda não vencido)
+ *    pode ser editado e continuar a prazo, sem aumentar
  *  - VIP solicitando desconto de 10% a 15% (aprovado e pendente)
+ *  - pedido cancelado (estoque e crédito voltaram) e pedido cancelado com desconto ainda pendente
+ *  - cadastros desativados: 1 cliente, 1 produto e 1 colaborador (podem ser reativados)
  * Estoque e limite de crédito já nascem coerentes com esses pedidos.
  */
 import { PRAZO_DIAS, estaInadimplente, pagoNaHora, resumoPedido } from '../regras';
@@ -51,6 +55,8 @@ export const COLABORADORES_MOCK: Colaborador[] = [
   { id: 1, nome: 'Ana Souza', cpf: cpfDe('123456789'), email: 'ana.souza@nexus.com.br' },
   { id: 2, nome: 'Carlos Lima', cpf: cpfDe('234567891'), email: 'carlos.lima@nexus.com.br' },
   { id: 3, nome: 'Beatriz Rocha', cpf: cpfDe('345678912'), email: 'beatriz.rocha@nexus.com.br' },
+  // Desativado: não aparece em "Aprovando como" (pode ser reativado em Colaboradores).
+  { id: 4, nome: 'Marcos Dias', cpf: cpfDe('456789123'), email: 'marcos.dias@nexus.com.br', ativo: false },
 ];
 
 // Limites de crédito ANTES dos pedidos a prazo (o crédito dos não pagos sai no final de gerarMocks).
@@ -61,6 +67,8 @@ const CLIENTES_BASE: ClienteSalvo[] = [
   { id: 4, name: 'Tech Solutions Informática', telefone: '(31) 99888-7766', cnpj: cnpjDe('445556660001'), email: 'contato@techsolutions.com.br', categoria: 'VIP', limiteCredito: 30000 },
   { id: 5, name: 'Padaria Pão Quente', telefone: '(41) 3322-1100', cnpj: cnpjDe('556667770001'), email: 'padaria@paoquente.com.br', categoria: 'NORMAL', limiteCredito: 3000 },
   { id: 6, name: 'Oficina Mecânica Rápido', telefone: '(51) 99777-6655', cnpj: cnpjDe('667778880001'), email: 'oficina@rapidomecanica.com.br', categoria: 'NORMAL', limiteCredito: 6000 },
+  // Desativado: não aparece para pedido novo (pode ser reativado em Clientes).
+  { id: 7, name: 'Distribuidora Litoral Ltda', telefone: '(48) 3333-2211', cnpj: cnpjDe('778889990001'), email: 'compras@distlitoral.com.br', categoria: 'NORMAL', limiteCredito: 4000, ativo: false },
 ];
 
 // Estoque ANTES dos pedidos (a baixa é aplicada no final de gerarMocks).
@@ -88,6 +96,7 @@ interface PedidoMock {
   concluido?: boolean;
   devolvidoHaDias?: number;
   pagoHaDias?: number; // só a prazo: pagamento registrado
+  canceladoHaDias?: number; // cancelado: estoque e crédito não ficam presos
 }
 
 const ANA = { colaboradorId: 1, colaboradorNome: 'Ana Souza' };
@@ -126,6 +135,10 @@ const PEDIDOS_MOCK: PedidoMock[] = [
   { tipo: 'VENDA', clienteId: 1, pagamento: 'A_VISTA', itens: { 2: 5 }, solicitacao: { percentual: 12, status: 'PENDENTE' }, diasAtras: 0 },
   // VIP inadimplente: compra no PIX sem desconto nenhum (perde os 5% e não pode solicitar).
   { tipo: 'VENDA', clienteId: 4, pagamento: 'PIX', itens: { 6: 2 }, diasAtras: 0 },
+  // Venda a prazo cancelada: o estoque e o crédito reservado voltaram.
+  { tipo: 'VENDA', clienteId: 3, pagamento: 'A_PRAZO', descricao: 'Cancelado a pedido do cliente', itens: { 5: 1 }, diasAtras: 6, canceladoHaDias: 5 },
+  // Pedido cancelado com desconto ainda pendente: aparece em Descontos > Decididas como "Pedido cancelado".
+  { tipo: 'VENDA', clienteId: 6, pagamento: 'PIX', itens: { 4: 3 }, solicitacao: { percentual: 8, status: 'PENDENTE' }, diasAtras: 2, canceladoHaDias: 1 },
 ];
 
 const DIA = 24 * 60 * 60 * 1000;
@@ -172,6 +185,7 @@ export function gerarMocks() {
       fimAluguel: fimAluguel?.toISOString(),
       concluidoEm: m.concluido ? new Date(emissao.getTime() + 60 * 60 * 1000).toISOString() : undefined,
       devolvidoEm: m.devolvidoHaDias != null ? new Date(agora - m.devolvidoHaDias * DIA).toISOString() : undefined,
+      canceladoEm: m.canceladoHaDias != null ? new Date(agora - m.canceladoHaDias * DIA).toISOString() : undefined,
       pagoEm: pagoNaHora(m)
         ? emissao.toISOString()
         : m.pagoHaDias != null
@@ -181,22 +195,26 @@ export function gerarMocks() {
       clienteInadimplente: estaInadimplente(cliente.id, pedidos, emissao),
     };
 
-    // Mesmas regras de criarPedidoLocal: baixa de estoque (volta se devolvido) e crédito usado a prazo.
-    if (!pedido.devolvidoEm) {
+    // Mesmas regras de criarPedidoLocal: baixa de estoque (volta se devolvido ou cancelado) e crédito usado a prazo.
+    if (!pedido.devolvidoEm && !pedido.canceladoEm) {
       for (const item of pedido.itens) {
         produtos.find((p) => p.id === item.produtoId)!.estoque -= item.quantidade;
       }
     }
-    // Crédito a prazo: fica reservado até o pagamento (se já foi pago, voltou ao limite).
+    // Crédito a prazo: fica reservado até o pagamento (se já foi pago ou cancelado, voltou ao limite).
     if (pedido.pagamento === 'A_PRAZO') {
       pedido.creditoUsado = resumoPedido(pedido).total;
-      if (!pedido.pagoEm) {
+      if (!pedido.pagoEm && !pedido.canceladoEm) {
         cliente.limiteCredito = Math.round((cliente.limiteCredito - pedido.creditoUsado) * 100) / 100;
       }
     }
     // Pago depois da emissão: grava a situação do cliente no dia do pagamento.
     if (pedido.pagoEm && pedido.pagoEm !== pedido.emissao) {
       pedido.clienteInadimplente = estaInadimplente(cliente.id, [...pedidos, pedido], new Date(pedido.pagoEm));
+    }
+    // Cancelado: a situação do cliente fica congelada no dia do cancelamento (como em cancelarPedidoLocal).
+    if (pedido.canceladoEm) {
+      pedido.clienteInadimplente = estaInadimplente(cliente.id, pedidos, new Date(pedido.canceladoEm));
     }
     pedidos.push(pedido);
   });
