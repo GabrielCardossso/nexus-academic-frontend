@@ -35,7 +35,7 @@ export default function App() {
   const atualizarContador = useCallback(async () => {
     try {
       const pedidos = await listarPedidos();
-      setDescontosPendentes(pedidos.filter((p) => p.solicitacao?.status === 'PENDENTE').length);
+      setDescontosPendentes(pedidos.filter((p) => p.solicitacao?.status === 'PENDENTE' && !p.canceladoEm).length);
     } catch {
       setDescontosPendentes(0); // sem endpoint no back-end: não mostra contador
     }

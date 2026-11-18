@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Aviso from '../components/Aviso';
+import ConfirmarModal from '../components/ConfirmarModal';
 import Modal from '../components/Modal';
-import { cadastrarColaborador, listarColaboradores, listarPedidos } from '../services/api';
+import {
+  cadastrarColaborador,
+  definirColaboradorAtivo,
+  editarColaborador,
+  listarColaboradores,
+  listarPedidos,
+} from '../services/api';
 import type { Colaborador, Pedido } from '../types';
 import { campo, formatarCpf, type Mensagem } from '../utils';
 
@@ -13,10 +20,14 @@ export default function ColaboradoresTela() {
   const [erroLista, setErroLista] = useState<string | null>(null);
   const [aviso, setAviso] = useState<Mensagem>(null);
 
-  const [novoAberto, setNovoAberto] = useState(false);
+  const [formAberto, setFormAberto] = useState(false);
+  const [editandoId, setEditandoId] = useState<number | null>(null); // null = cadastro novo
   const [form, setForm] = useState(FORM_VAZIO);
   const [erroForm, setErroForm] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+
+  const [desativando, setDesativando] = useState<Colaborador | null>(null);
+  const [processando, setProcessando] = useState(false);
 
   const onChange = campo(setForm);
 
@@ -39,26 +50,50 @@ export default function ColaboradoresTela() {
 
   function abrirNovo() {
     setForm(FORM_VAZIO);
+    setEditandoId(null);
     setErroForm(null);
-    setNovoAberto(true);
+    setFormAberto(true);
   }
 
-  const fecharNovo = useCallback(() => setNovoAberto(false), []);
+  function abrirEditar(c: Colaborador) {
+    setForm({ nome: c.nome, cpf: formatarCpf(c.cpf), email: c.email });
+    setEditandoId(c.id);
+    setErroForm(null);
+    setFormAberto(true);
+  }
+
+  const fecharForm = useCallback(() => setFormAberto(false), []);
   const fecharAviso = useCallback(() => setAviso(null), []);
+  const cancelarDesativar = useCallback(() => setDesativando(null), []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setEnviando(true);
     setErroForm(null);
     try {
-      const novo = await cadastrarColaborador(form);
-      setAviso({ tipo: 'sucesso', texto: `Colaborador "${novo.nome}" cadastrado!` });
-      setNovoAberto(false);
+      const salvo = editandoId === null ? await cadastrarColaborador(form) : await editarColaborador(editandoId, form);
+      setAviso({ tipo: 'sucesso', texto: `Colaborador "${salvo.nome}" ${editandoId === null ? 'cadastrado' : 'atualizado'}!` });
+      setFormAberto(false);
       await carregar();
     } catch (err) {
       setErroForm((err as Error).message);
     } finally {
       setEnviando(false);
+    }
+  }
+
+  async function mudarAtivo(c: Colaborador, ativo: boolean) {
+    setAviso(null);
+    setProcessando(true);
+    try {
+      await definirColaboradorAtivo(c.id, ativo);
+      setAviso({ tipo: 'sucesso', texto: `Colaborador "${c.nome}" ${ativo ? 'reativado' : 'desativado'}.` });
+      await carregar();
+    } catch (err) {
+      setAviso({ tipo: 'erro', texto: (err as Error).message });
+    } finally {
+      setProcessando(false);
+      setDesativando(null);
     }
   }
 
@@ -88,11 +123,15 @@ export default function ColaboradoresTela() {
       <ul className="itens">
         {(colaboradores ?? []).map((c) => {
           const decisoes = decisoesDe(c.id);
+          const ativo = c.ativo !== false;
           return (
-            <li key={c.id} className="item">
+            <li key={c.id} className={`item ${ativo ? '' : 'inativo'}`}>
               <div className="item-topo">
                 <span className="item-titulo">{c.nome}</span>
-                <span className="item-sub">ID {c.id}</span>
+                <div className="selos">
+                  {!ativo && <span className="selo desativado">Desativado</span>}
+                  <span className="item-sub">ID {c.id}</span>
+                </div>
               </div>
               <p className="item-info">
                 CPF {formatarCpf(c.cpf)} · {c.email}
@@ -102,12 +141,31 @@ export default function ColaboradoresTela() {
                   ? 'Ainda não decidiu solicitações de desconto'
                   : `${decisoes} ${decisoes === 1 ? 'solicitação de desconto decidida' : 'solicitações de desconto decididas'}`}
               </p>
+              <div className="acoes">
+                <button type="button" className="secundario" onClick={() => abrirEditar(c)}>
+                  Editar
+                </button>
+                {ativo ? (
+                  <button type="button" className="secundario" onClick={() => setDesativando(c)}>
+                    Desativar
+                  </button>
+                ) : (
+                  <button type="button" className="secundario" disabled={processando} onClick={() => mudarAtivo(c, true)}>
+                    Reativar
+                  </button>
+                )}
+              </div>
             </li>
           );
         })}
       </ul>
 
-      <Modal aberto={novoAberto} titulo="Novo colaborador" onFechar={fecharNovo} bloqueado={enviando}>
+      <Modal
+        aberto={formAberto}
+        titulo={editandoId === null ? 'Novo colaborador' : 'Editar colaborador'}
+        onFechar={fecharForm}
+        bloqueado={enviando}
+      >
         <form className="form" onSubmit={handleSubmit}>
           <div className="form-grade">
             <label className="campo inteiro">
@@ -132,17 +190,41 @@ export default function ColaboradoresTela() {
               <input name="email" type="email" value={form.email} onChange={onChange} required />
             </label>
           </div>
+          {editandoId !== null && (
+            <p className="dica">As decisões de desconto já tomadas continuam com o nome do momento da decisão.</p>
+          )}
           {erroForm && <p className="msg erro">{erroForm}</p>}
           <div className="modal-acoes">
-            <button type="button" className="secundario" onClick={fecharNovo} disabled={enviando}>
+            <button type="button" className="secundario" onClick={fecharForm} disabled={enviando}>
               Cancelar
             </button>
             <button type="submit" disabled={enviando}>
-              {enviando ? 'Salvando...' : 'Cadastrar colaborador'}
+              {enviando ? 'Salvando...' : editandoId === null ? 'Cadastrar colaborador' : 'Salvar alterações'}
             </button>
           </div>
         </form>
       </Modal>
+
+      <ConfirmarModal
+        aberto={desativando !== null}
+        titulo="Desativar colaborador?"
+        textoConfirmar="Desativar"
+        carregando={processando}
+        onConfirmar={() => desativando && mudarAtivo(desativando, false)}
+        onCancelar={cancelarDesativar}
+      >
+        {desativando && (
+          <>
+            <p>
+              <strong>{desativando.nome}</strong>
+            </p>
+            <p>
+              O colaborador não pode mais aprovar nem rejeitar descontos. As decisões que ele já tomou continuam no
+              histórico, e o cadastro pode ser reativado depois.
+            </p>
+          </>
+        )}
+      </ConfirmarModal>
     </>
   );
 }

@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import Aviso from '../components/Aviso';
 import Selecao from '../components/Selecao';
 import { decidirDesconto, listarColaboradores, listarPedidos } from '../services/api';
-import { mensagemRejeicao, resumoPedido, ROTULO_PAGAMENTO, ROTULO_TIPO } from '../regras';
+import {
+  mensagemRejeicao,
+  MSG_INADIMPLENTE_SEM_DESCONTO,
+  resumoPedido,
+  ROTULO_PAGAMENTO,
+  ROTULO_TIPO,
+} from '../regras';
 import type { Colaborador, Pedido } from '../types';
 import { dataBR, moeda, type Mensagem } from '../utils';
 
@@ -23,7 +29,8 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
 
   async function carregar() {
     try {
-      const [c, p] = await Promise.all([listarColaboradores(), listarPedidos()]);
+      const [todos, p] = await Promise.all([listarColaboradores(), listarPedidos()]);
+      const c = todos.filter((x) => x.ativo !== false); // desativado não decide descontos
       setColaboradores(c);
       setPedidos(p);
       setColaboradorId((atual) => (c.some((x) => String(x.id) === atual) ? atual : String(c[0]?.id ?? '')));
@@ -41,8 +48,10 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
 
   const colaborador = colaboradores.find((c) => String(c.id) === colaboradorId);
   const comSolicitacao = (pedidos ?? []).filter((p) => p.solicitacao);
-  const pendentes = comSolicitacao.filter((p) => p.solicitacao!.status === 'PENDENTE');
-  const decididas = comSolicitacao.filter((p) => p.solicitacao!.status !== 'PENDENTE');
+  // Pedido cancelado sai dos pendentes (não há mais o que decidir).
+  const pendentes = comSolicitacao.filter((p) => p.solicitacao!.status === 'PENDENTE' && !p.canceladoEm);
+  // Cancelado antes da decisão vai para o histórico (aba Decididas), com o selo "Pedido cancelado".
+  const decididas = comSolicitacao.filter((p) => p.solicitacao!.status !== 'PENDENTE' || p.canceladoEm);
   const lista = aba === 'PENDENTES' ? pendentes : decididas;
 
   async function decidir(pedido: Pedido, aprovar: boolean) {
@@ -85,7 +94,9 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
       <Aviso msg={aviso} onFechar={fecharAviso} />
 
       {pedidos && colaboradores.length === 0 && (
-        <p className="aviso erro">Cadastre um colaborador (Gestão &gt; Colaboradores) para poder decidir os descontos.</p>
+        <p className="aviso erro">
+          Cadastre ou reative um colaborador (Gestão &gt; Colaboradores) para poder decidir os descontos.
+        </p>
       )}
 
       <div className="abas" role="tablist">
@@ -108,6 +119,7 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
       <ul className="itens">
         {lista.map((p) => {
           const s = p.solicitacao!;
+          const aguardando = s.status === 'PENDENTE' && !p.canceladoEm; // cancelado não tem mais o que decidir
           const atual = resumoPedido({ ...p, solicitacao: { ...s, status: 'REJEITADA' } }); // sem a solicitação
           const comDesconto = resumoPedido({ ...p, solicitacao: { ...s, status: 'APROVADA' } });
           return (
@@ -116,7 +128,8 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                 <span className="item-titulo">
                   #{p.id} · {ROTULO_TIPO[p.tipo]} <span className="item-sub">· {dataBR(p.criadoEm)}</span>
                 </span>
-                {s.status === 'PENDENTE' && <span className="selo pendente">Aguardando decisão</span>}
+                {aguardando && <span className="selo pendente">Aguardando decisão</span>}
+                {p.canceladoEm && <span className="selo cancelado">Pedido cancelado</span>}
                 {s.status === 'APROVADA' && <span className="selo aprovada">Aprovada</span>}
                 {s.status === 'REJEITADA' && <span className="selo rejeitada">Rejeitada</span>}
               </div>
@@ -133,11 +146,16 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                   Solicitou <strong>{s.percentual}%</strong> · {ROTULO_PAGAMENTO[p.pagamento]}
                 </span>
                 <span className="item-info">
-                  {moeda.format(atual.total)} → <strong className="valor">{moeda.format(comDesconto.total)}</strong>
+                  {/* Sem diferença (ex.: cliente inadimplente, que não tem desconto): mostra só o total. */}
+                  {comDesconto.total !== atual.total && <>{moeda.format(atual.total)} → </>}
+                  <strong className="valor">{moeda.format(comDesconto.total)}</strong>
                 </span>
               </div>
 
-              {s.status === 'PENDENTE' ? (
+              {aguardando && p.clienteInadimplente && (
+                <p className="aviso erro">{MSG_INADIMPLENTE_SEM_DESCONTO} Esta solicitação só pode ser rejeitada.</p>
+              )}
+              {aguardando ? (
                 <div className="item-rodape fim">
                   <div className="acoes">
                     <button
@@ -151,7 +169,7 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                     <button
                       type="button"
                       className="confirmar"
-                      disabled={!colaborador || decidindo === p.id}
+                      disabled={!colaborador || decidindo === p.id || p.clienteInadimplente}
                       onClick={() => decidir(p, true)}
                     >
                       Aprovar {s.percentual}%
@@ -160,7 +178,9 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                 </div>
               ) : (
                 <p className="item-info">
-                  {s.status === 'APROVADA' ? 'Aprovada' : 'Rejeitada'} por {s.colaboradorNome} (ID {s.colaboradorId})
+                  {s.status === 'PENDENTE'
+                    ? 'Pedido cancelado antes da decisão.'
+                    : `${s.status === 'APROVADA' ? 'Aprovada' : 'Rejeitada'} por ${s.colaboradorNome} (ID ${s.colaboradorId})`}
                 </p>
               )}
             </li>

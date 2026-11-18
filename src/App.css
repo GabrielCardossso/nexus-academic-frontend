@@ -327,6 +327,7 @@ button.rejeitar:hover:not(:disabled) {
 }
 
 .selo.devolvido,
+.selo.cancelado,
 .selo.neutro,
 .selo.desativado {
   background: #52525b;
@@ -980,4 +981,18 @@ button.selecao-botao:disabled {
 .selecao-opcao[aria-disabled='true'] {
   color: #8c959f;
   cursor: not-allowed;
+}
+
+/* ---------- Cadastros desativados (nada é excluído: fica esmaecido e pode ser reativado) ---------- */
+.item.inativo {
+  background: #f6f8fa;
+}
+
+.item.inativo .item-titulo,
+.item.inativo .item-info {
+  color: #8c959f;
+}
+
+.item .acoes {
+  flex-wrap: wrap;
 }

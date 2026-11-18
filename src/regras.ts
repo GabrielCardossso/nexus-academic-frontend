@@ -30,6 +30,7 @@ export const ROTULO_STATUS_PEDIDO: Record<StatusPedido, string> = {
   PENDENTE: 'Pendente',
   CONCLUIDO: 'Concluído',
   DEVOLVIDO: 'Devolvido',
+  CANCELADO: 'Cancelado',
 };
 
 export const ROTULO_STATUS_PAGAMENTO: Record<StatusPagamento, string> = {
@@ -45,18 +46,19 @@ interface DadosPedido {
   solicitacao?: SolicitacaoDesconto;
   concluidoEm?: string;
   devolvidoEm?: string;
+  canceladoEm?: string; // cancelado (o "excluir" do pedido): não volta atrás
   pagoEm?: string;
   clienteInadimplente?: boolean; // inadimplente perde os 5% automáticos de VIP
 }
 
-type EstadoPedido = Pick<DadosPedido, 'solicitacao' | 'concluidoEm' | 'devolvidoEm'>;
+type EstadoPedido = Pick<DadosPedido, 'solicitacao' | 'concluidoEm' | 'devolvidoEm' | 'canceladoEm'>;
 
-type PedidoComPrazo = Pick<DadosPedido, 'pagamento' | 'pagoEm'> & { clienteId: number; vencimento: string };
+type PedidoComPrazo = Pick<DadosPedido, 'pagamento' | 'pagoEm' | 'canceladoEm'> & { clienteId: number; vencimento: string };
 
 /** Pedido a prazo que passou do vencimento sem pagamento (na data `em`, padrão: agora). */
 export function estaVencido(p: PedidoComPrazo, em: Date = new Date()): boolean {
   const pagoAte = p.pagoEm != null && new Date(p.pagoEm) <= em;
-  return p.pagamento === 'A_PRAZO' && !pagoAte && new Date(p.vencimento) < em;
+  return p.pagamento === 'A_PRAZO' && !p.canceladoEm && !pagoAte && new Date(p.vencimento) < em;
 }
 
 /** "AAAA-MM-DD" → último instante desse dia (hora local); null se a data for inválida. */
@@ -65,6 +67,12 @@ export function fimDoDia(data: string): Date | null {
   if (!m) return null;
   const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 999);
   return d.getDate() === Number(m[3]) ? d : null; // recusa 31/02 etc.
+}
+
+/** ISO → "AAAA-MM-DD" na hora local (para o campo de data e para comparar datas). */
+export function dataLocal(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /** Data de hoje em "AAAA-MM-DD" (hora local), para o mínimo do campo de data. */
@@ -88,19 +96,25 @@ export function estaInadimplente(clienteId: number, pedidos: PedidoComPrazo[], e
   return pedidos.some((p) => p.clienteId === clienteId && estaVencido(p, em));
 }
 
+export const MSG_SAIR_DO_A_PRAZO =
+  'Pedido a prazo só pode passar para PIX ou à vista se for pago na hora: tire a solicitação de desconto.';
+
+export const MSG_INADIMPLENTE_SEM_DESCONTO =
+  'Cliente inadimplente não tem desconto e não pode solicitar desconto (nem com aprovação de colaborador).';
+
 /**
  * Faixa (em %, inteiros) que o cliente pode solicitar.
  * NORMAL: 1–10. VIP em dia: 10–15 (já tem 5% garantido; se aprovado, substitui).
- * VIP inadimplente: 1–15 (perdeu os 5% automáticos).
+ * Inadimplente (Normal ou VIP) não solicita: ver erroDesconto.
  */
-export function faixaDesconto(categoria: ClienteCategoria, inadimplente = false): { min: number; max: number } {
-  if (categoria === 'NORMAL') return { min: 1, max: 10 };
-  return inadimplente ? { min: 1, max: 15 } : { min: 10, max: 15 };
+export function faixaDesconto(categoria: ClienteCategoria): { min: number; max: number } {
+  return categoria === 'NORMAL' ? { min: 1, max: 10 } : { min: 10, max: 15 };
 }
 
-/** Mensagem de erro se o percentual estiver fora da faixa; null se for válido. */
+/** Mensagem de erro se o cliente não pode solicitar ou o percentual está fora da faixa; null se for válido. */
 export function erroDesconto(percentual: number, categoria: ClienteCategoria, inadimplente = false): string | null {
-  const { min, max } = faixaDesconto(categoria, inadimplente);
+  if (inadimplente) return MSG_INADIMPLENTE_SEM_DESCONTO;
+  const { min, max } = faixaDesconto(categoria);
   if (!Number.isInteger(percentual) || percentual < min || percentual > max) {
     return `O desconto solicitado deve ser um número inteiro de ${min}% a ${max}%.`;
   }
@@ -115,12 +129,14 @@ export function resumoPedido(p: DadosPedido) {
     p.itens.reduce((soma, i) => soma + i.precoUnitario * i.quantidade, 0) * meses,
   );
 
+  // Inadimplente: nenhum desconto (nem os 5% de VIP, nem solicitação aprovada).
   // Solicitação APROVADA vale o percentual pedido (no VIP substitui os 5%, não soma).
-  // Sem aprovação: VIP em dia fica com os 5% automáticos; NORMAL e inadimplente ficam sem desconto.
-  const percentual =
-    p.solicitacao?.status === 'APROVADA'
+  // Sem aprovação: VIP fica com os 5% automáticos; NORMAL fica sem desconto.
+  const percentual = p.clienteInadimplente
+    ? 0
+    : p.solicitacao?.status === 'APROVADA'
       ? p.solicitacao.percentual
-      : p.clienteCategoria === 'VIP' && !p.clienteInadimplente
+      : p.clienteCategoria === 'VIP'
         ? DESCONTO_VIP
         : 0;
 
@@ -134,9 +150,27 @@ export function resumoPedido(p: DadosPedido) {
 
 /** O pedido nunca conclui sozinho: só com `concluidoEm` (botão "Confirmar pedido"). */
 export function statusDoPedido(p: EstadoPedido): StatusPedido {
+  if (p.canceladoEm) return 'CANCELADO';
   if (p.devolvidoEm) return 'DEVOLVIDO';
   if (p.concluidoEm) return 'CONCLUIDO';
   return 'PENDENTE';
+}
+
+type ConteudoPedido = {
+  tipo: TipoPedido;
+  pagamento: FormaPagamento;
+  meses?: number;
+  itens: { produtoId: number; quantidade: number }[];
+};
+
+/**
+ * Na edição: tipo, pagamento, meses, produtos e quantidades iguais aos do pedido original.
+ * Só assim uma decisão de desconto já tomada continua valendo (senão volta a ficar pendente).
+ */
+export function mesmoConteudo(a: ConteudoPedido, b: ConteudoPedido): boolean {
+  const chave = (p: ConteudoPedido) =>
+    [p.tipo, p.pagamento, p.tipo === 'ALUGUEL' ? p.meses : '', ...p.itens.map((i) => `${i.produtoId}:${i.quantidade}`).sort()].join('|');
+  return chave(a) === chave(b);
 }
 
 /** Desconto solicitado ainda sem decisão de um colaborador. */
@@ -150,8 +184,32 @@ export const pagoNaHora = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao'>) =>
   p.pagamento !== 'A_PRAZO' && !aguardaDesconto(p);
 
 /** Pedido a prazo ainda não pago e sem desconto aguardando decisão pode ter o pagamento registrado. */
-export const podePagar = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao' | 'pagoEm'>) =>
-  p.pagamento === 'A_PRAZO' && !p.pagoEm && !aguardaDesconto(p);
+export const podePagar = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao' | 'pagoEm' | 'canceladoEm'>) =>
+  p.pagamento === 'A_PRAZO' && !p.pagoEm && !p.canceladoEm && !aguardaDesconto(p);
+
+/**
+ * Edição: só antes do pagamento (vale também para pedido já confirmado). A prazo, até registrar o
+ * pagamento; PIX/à vista já nascem pagos, então só editam enquanto o desconto aguarda decisão.
+ * Aluguel devolvido e pedido cancelado não editam.
+ * Pedido a prazo VENCIDO também não: só o pagamento pode ser registrado (senão daria para reduzir o
+ * total, trocar para PIX e o cliente sair da inadimplência pagando menos).
+ */
+export const podeEditar = (p: PedidoComPrazo & Pick<DadosPedido, 'devolvidoEm'>) =>
+  !p.pagoEm && !p.devolvidoEm && !p.canceladoEm && !estaVencido(p);
+
+/**
+ * Cancelar (o "excluir" do pedido): mesmas condições da edição (não pago, não devolvido, não vencido).
+ * Pedido a prazo vencido não pode ser cancelado: senão o cliente sairia da inadimplência sem pagar.
+ */
+export const podeCancelar = (p: PedidoComPrazo & Pick<DadosPedido, 'devolvidoEm'>) => podeEditar(p);
+
+export const MSG_INADIMPLENTE_NAO_AUMENTA =
+  'Cliente inadimplente: o pedido a prazo pode ser editado, mas o total não pode aumentar.';
+
+/** Total do pedido como o cliente inadimplente pagaria (sem desconto nenhum). */
+export const totalSemDesconto = (p: DadosPedido) => resumoPedido({ ...p, clienteInadimplente: true }).total;
+
+export const MSG_VENCIDO_SO_PAGAR = 'Pedido a prazo vencido não pode ser editado nem cancelado: registre o pagamento.';
 
 /** Só aluguel já concluído e ainda não devolvido pode ser devolvido. */
 export const podeDevolver = (p: EstadoPedido & { tipo: TipoPedido }) =>
