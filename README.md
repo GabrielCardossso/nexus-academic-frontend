@@ -43,12 +43,13 @@ As regras ficam em funções puras no arquivo `src/regras.ts`, usadas tanto pela
 - **Limite de crédito:** todo pedido a prazo (venda ou aluguel) **reserva o total no limite do cliente** assim que é criado. Se o desconto de um pedido a prazo for aprovado, a diferença volta para o limite. Ao **registrar o pagamento**, o valor reservado volta inteiro para o limite. Na devolução do aluguel o crédito não volta (só o estoque).
 - **Repor estoque:** o botão **Repor estoque** do produto **soma** a quantidade informada (inteira, maior que zero) ao estoque atual. Não muda o status do produto: um produto indisponível que recebe estoque continua indisponível até alguém mudar o status na edição.
 - **Editar pedido:** o botão **Editar** aparece enquanto o pedido **não foi pago**, inclusive se já foi confirmado. Dá para mudar praticamente tudo (tipo, produtos, quantidades, meses, pagamento, desconto e descrição).
-  - A prazo: só até **Registrar pagamento**. PIX e à vista já nascem pagos, então só editam enquanto o desconto aguarda decisão. Aluguel devolvido e pedido cancelado não editam.
-  - Pedido **a prazo**: o **cliente** e o **vencimento** não podem ser alterados (senão daria para passar a dívida para outro cliente ou adiar o vencimento). Ele pode continuar a prazo mesmo que o cliente esteja inadimplente.
-  - Na edição, o pedido antigo é desfeito (o estoque e o crédito reservado voltam) e o novo passa pelas mesmas validações do cadastro. Os itens que já estavam no pedido mantêm o **preço do momento do pedido**; itens novos usam o preço atual.
+  - A prazo: só até **Registrar pagamento**, e **nunca depois de vencido** (pedido vencido só tem o pagamento registrado). PIX e à vista já nascem pagos, então só editam enquanto o desconto aguarda decisão. Aluguel devolvido e pedido cancelado não editam.
+  - Pedido **a prazo**: o **cliente** e o **vencimento** não podem ser alterados (senão daria para passar a dívida para outro cliente ou adiar o vencimento). Ele só sai do a prazo se for **pago na hora** (PIX ou à vista sem solicitação de desconto).
+  - Se o cliente estiver inadimplente, o pedido a prazo pode ser editado e continuar a prazo, mas o **total não pode aumentar** (seria uma compra nova a prazo).
+  - Na edição, o pedido antigo é desfeito (o estoque e o crédito reservado voltam) e o novo passa pelas mesmas validações do cadastro. Um item que já estava no pedido mantém o **preço do momento do pedido** se a quantidade ficar igual ou menor; se a quantidade **aumentar**, o item é recotado pelo **preço atual**. Itens novos usam o preço atual.
   - A solicitação de desconto (e a decisão já tomada) só continua se o cliente, o percentual, o tipo, o pagamento, os meses, os produtos e as quantidades forem os mesmos. Se algo disso mudar, ela volta a ficar **pendente**.
   - A forma de pagamento nunca muda sozinha. Se a edição trocar para PIX ou à vista (sem desconto pendente), o formulário avisa antes de salvar que o pedido vai ficar **Pago**.
-- **Cancelar pedido:** o "excluir" do pedido. O botão **Cancelar pedido** abre um popup de confirmação e só aparece em pedido **não pago** e não devolvido. Ao cancelar, os itens voltam ao estoque e o crédito reservado volta para o limite; o pedido continua na lista como **Cancelado** (não dá para desfazer) e sai dos descontos pendentes.
+- **Cancelar pedido:** o "excluir" do pedido. O botão **Cancelar pedido** abre um popup de confirmação e só aparece em pedido **não pago** e não devolvido (inclusive já confirmado). Ao cancelar, os itens voltam ao estoque e o crédito reservado volta para o limite; o pedido continua na lista como **Cancelado** (não dá para desfazer). A solicitação de desconto dele sai dos pendentes e vai para a aba **Decididas** com o selo "Pedido cancelado".
   - Pedido **a prazo vencido** não pode ser cancelado: o cliente precisa pagar (senão sairia da inadimplência sem pagar).
 
 #### Descontos
@@ -64,11 +65,11 @@ O cliente digita o percentual (número inteiro) que quer solicitar. Toda solicit
 #### Cliente inadimplente
 
 - O cliente é **inadimplente** quando tem pelo menos um **pedido a prazo vencido e não pago**. Não é um campo do cadastro: é calculado a partir dos pedidos. Ao registrar o pagamento dos pedidos vencidos, ele volta a ficar em dia.
-- Inadimplente **não pode fazer pedido a prazo**: o pedido é bloqueado antes de ser criado. Pode comprar com **PIX** ou **à vista**. Um pedido que **já era a prazo** pode ser editado e continuar a prazo.
+- Inadimplente **não pode fazer pedido a prazo**: o pedido é bloqueado antes de ser criado. Pode comprar com **PIX** ou **à vista**. Um pedido que **já era a prazo** (e ainda não venceu) pode ser editado e continuar a prazo, sem o total aumentar.
 - Inadimplente **fica sem desconto nenhum**: o VIP perde os 5% automáticos, ninguém pode solicitar desconto, e nem uma solicitação aprovada vale.
 - A perda do desconto vale para os pedidos do cliente **ainda não pagos**, inclusive os antigos. Os pedidos já pagos ficam com o valor do momento do pagamento.
 - Solicitação que ficou pendente de antes de o cliente virar inadimplente só pode ser **rejeitada** (o botão Aprovar fica bloqueado na tela de Descontos).
-- O pedido vencido pode ser editado, mas continua com o mesmo cliente e o mesmo vencimento (continua vencido). Para sair da inadimplência, o cliente paga: **Registrar pagamento**, ou a edição para PIX/à vista, que avisa que o pedido vai ficar pago. Pedido vencido não pode ser cancelado.
+- O pedido vencido **não pode ser editado nem cancelado**. Para sair da inadimplência, o cliente paga: **Registrar pagamento**.
 - Na tela de pedidos, o inadimplente aparece marcado na lista de clientes, e a opção *A prazo* (em pedido novo) e o campo de desconto ficam bloqueados. Pedido a prazo vencido ganha o selo **Vencido**.
 
 #### Status do pedido e status do pagamento
