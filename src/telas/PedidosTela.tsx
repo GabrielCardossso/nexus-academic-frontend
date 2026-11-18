@@ -22,6 +22,7 @@ export default function PedidosTela() {
   const [aviso, setAviso] = useState<Mensagem>(null);
 
   const [novoAberto, setNovoAberto] = useState(false);
+  const [editando, setEditando] = useState<Pedido | null>(null); // pedido no popup de edição
   const [enviandoNovo, setEnviandoNovo] = useState(false);
   const [devolvendo, setDevolvendo] = useState<Pedido | null>(null); // pedido no popup de devolução
   const [processando, setProcessando] = useState(false);
@@ -43,7 +44,10 @@ export default function PedidosTela() {
   }, []);
 
   const fecharAviso = useCallback(() => setAviso(null), []);
-  const fecharNovo = useCallback(() => setNovoAberto(false), []);
+  const fecharNovo = useCallback(() => {
+    setNovoAberto(false);
+    setEditando(null);
+  }, []);
   const cancelarDevolucao = useCallback(() => setDevolvendo(null), []);
 
   async function executar(acao: () => Promise<unknown>, sucesso: string) {
@@ -57,10 +61,10 @@ export default function PedidosTela() {
     }
   }
 
-  async function aoCriar(pedido: Pedido) {
-    setNovoAberto(false);
-    setAviso({ tipo: 'sucesso', texto: `Pedido #${pedido.id} realizado!` });
-    await carregar(); // estoque e crédito mudaram e o pedido novo entra na lista
+  async function aoSalvar(pedido: Pedido) {
+    setAviso({ tipo: 'sucesso', texto: editando ? `Pedido #${pedido.id} atualizado!` : `Pedido #${pedido.id} realizado!` });
+    fecharNovo();
+    await carregar(); // estoque e crédito mudaram e o pedido entra (ou muda) na lista
   }
 
   async function confirmarDevolucao() {
@@ -103,15 +107,24 @@ export default function PedidosTela() {
               )
             }
             onDevolver={setDevolvendo}
+            onEditar={setEditando}
           />
         ))}
       </ul>
 
-      <Modal aberto={novoAberto} titulo="Novo pedido" onFechar={fecharNovo} bloqueado={enviandoNovo} larga>
+      <Modal
+        aberto={novoAberto || editando !== null}
+        titulo={editando ? `Editar pedido #${editando.id}` : 'Novo pedido'}
+        onFechar={fecharNovo}
+        bloqueado={enviandoNovo}
+        larga
+      >
         <NovoPedidoForm
+          key={editando?.id ?? 'novo'}
           clientes={clientes}
           produtos={produtos}
-          onCriado={aoCriar}
+          pedido={editando ?? undefined}
+          onSalvo={aoSalvar}
           onCancelar={fecharNovo}
           onEnviando={setEnviandoNovo}
         />

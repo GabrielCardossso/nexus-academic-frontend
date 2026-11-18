@@ -981,3 +981,17 @@ button.selecao-botao:disabled {
   color: #8c959f;
   cursor: not-allowed;
 }
+
+/* ---------- Cadastros desativados (nada é excluído: fica esmaecido e pode ser reativado) ---------- */
+.item.inativo {
+  background: #f6f8fa;
+}
+
+.item.inativo .item-titulo,
+.item.inativo .item-info {
+  color: #8c959f;
+}
+
+.item .acoes {
+  flex-wrap: wrap;
+}

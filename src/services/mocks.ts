@@ -124,8 +124,8 @@ const PEDIDOS_MOCK: PedidoMock[] = [
   { tipo: 'ALUGUEL', clienteId: 6, pagamento: 'A_PRAZO', itens: { 2: 1 }, meses: 4, solicitacao: { percentual: 5, status: 'PENDENTE' }, diasAtras: 0 },
   // VIP em dia pedindo 12% (fica com os 5% até a decisão).
   { tipo: 'VENDA', clienteId: 1, pagamento: 'A_VISTA', itens: { 2: 5 }, solicitacao: { percentual: 12, status: 'PENDENTE' }, diasAtras: 0 },
-  // VIP inadimplente: sem os 5% automáticos, pede 3% (faixa de 1% a 15%, só com aprovação).
-  { tipo: 'VENDA', clienteId: 4, pagamento: 'PIX', itens: { 6: 2 }, solicitacao: { percentual: 3, status: 'PENDENTE' }, diasAtras: 0 },
+  // VIP inadimplente: compra no PIX sem desconto nenhum (perde os 5% e não pode solicitar).
+  { tipo: 'VENDA', clienteId: 4, pagamento: 'PIX', itens: { 6: 2 }, diasAtras: 0 },
 ];
 
 const DIA = 24 * 60 * 60 * 1000;

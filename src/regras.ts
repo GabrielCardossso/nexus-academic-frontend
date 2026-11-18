@@ -88,19 +88,22 @@ export function estaInadimplente(clienteId: number, pedidos: PedidoComPrazo[], e
   return pedidos.some((p) => p.clienteId === clienteId && estaVencido(p, em));
 }
 
+export const MSG_INADIMPLENTE_SEM_DESCONTO =
+  'Cliente inadimplente não tem desconto e não pode solicitar desconto (nem com aprovação de colaborador).';
+
 /**
  * Faixa (em %, inteiros) que o cliente pode solicitar.
  * NORMAL: 1–10. VIP em dia: 10–15 (já tem 5% garantido; se aprovado, substitui).
- * VIP inadimplente: 1–15 (perdeu os 5% automáticos).
+ * Inadimplente (Normal ou VIP) não solicita: ver erroDesconto.
  */
-export function faixaDesconto(categoria: ClienteCategoria, inadimplente = false): { min: number; max: number } {
-  if (categoria === 'NORMAL') return { min: 1, max: 10 };
-  return inadimplente ? { min: 1, max: 15 } : { min: 10, max: 15 };
+export function faixaDesconto(categoria: ClienteCategoria): { min: number; max: number } {
+  return categoria === 'NORMAL' ? { min: 1, max: 10 } : { min: 10, max: 15 };
 }
 
-/** Mensagem de erro se o percentual estiver fora da faixa; null se for válido. */
+/** Mensagem de erro se o cliente não pode solicitar ou o percentual está fora da faixa; null se for válido. */
 export function erroDesconto(percentual: number, categoria: ClienteCategoria, inadimplente = false): string | null {
-  const { min, max } = faixaDesconto(categoria, inadimplente);
+  if (inadimplente) return MSG_INADIMPLENTE_SEM_DESCONTO;
+  const { min, max } = faixaDesconto(categoria);
   if (!Number.isInteger(percentual) || percentual < min || percentual > max) {
     return `O desconto solicitado deve ser um número inteiro de ${min}% a ${max}%.`;
   }
@@ -115,12 +118,14 @@ export function resumoPedido(p: DadosPedido) {
     p.itens.reduce((soma, i) => soma + i.precoUnitario * i.quantidade, 0) * meses,
   );
 
+  // Inadimplente: nenhum desconto (nem os 5% de VIP, nem solicitação aprovada).
   // Solicitação APROVADA vale o percentual pedido (no VIP substitui os 5%, não soma).
-  // Sem aprovação: VIP em dia fica com os 5% automáticos; NORMAL e inadimplente ficam sem desconto.
-  const percentual =
-    p.solicitacao?.status === 'APROVADA'
+  // Sem aprovação: VIP fica com os 5% automáticos; NORMAL fica sem desconto.
+  const percentual = p.clienteInadimplente
+    ? 0
+    : p.solicitacao?.status === 'APROVADA'
       ? p.solicitacao.percentual
-      : p.clienteCategoria === 'VIP' && !p.clienteInadimplente
+      : p.clienteCategoria === 'VIP'
         ? DESCONTO_VIP
         : 0;
 
@@ -152,6 +157,13 @@ export const pagoNaHora = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao'>) =>
 /** Pedido a prazo ainda não pago e sem desconto aguardando decisão pode ter o pagamento registrado. */
 export const podePagar = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao' | 'pagoEm'>) =>
   p.pagamento === 'A_PRAZO' && !p.pagoEm && !aguardaDesconto(p);
+
+/**
+ * Edição: só antes do pagamento (vale também para pedido já confirmado). A prazo, até registrar o
+ * pagamento; PIX/à vista já nascem pagos, então só editam enquanto o desconto aguarda decisão.
+ * Aluguel devolvido não edita.
+ */
+export const podeEditar = (p: Pick<DadosPedido, 'pagoEm' | 'devolvidoEm'>) => !p.pagoEm && !p.devolvidoEm;
 
 /** Só aluguel já concluído e ainda não devolvido pode ser devolvido. */
 export const podeDevolver = (p: EstadoPedido & { tipo: TipoPedido }) =>

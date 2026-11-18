@@ -41,6 +41,8 @@ export interface ClienteListarResponse {
   categoria: ClienteCategoria;
   limiteCredito: number;
   inadimplente?: boolean; // calculado: tem pedido a prazo vencido e não pago
+  ativo?: boolean; // false = desativado (não entra em pedido novo). Ausente = ativo.
+  cnpj?: string; // só nos dados locais (o back ainda não devolve na listagem); usado na edição
 }
 
 // ---------------- Produto ----------------
@@ -72,6 +74,7 @@ export interface ColaboradorCriarRequest {
 
 export interface Colaborador extends ColaboradorCriarRequest {
   id: number;
+  ativo?: boolean; // false = desativado (não decide descontos). Ausente = ativo.
 }
 
 // ---------------- Pedido / Desconto ----------------
@@ -119,7 +122,16 @@ export interface Pedido {
 }
 
 /** Cliente como fica guardado (como a tabela do banco): tem id e cnpj. */
-export type ClienteSalvo = ClienteCriarRequest & { id: number };
+export type ClienteSalvo = ClienteCriarRequest & { id: number; ativo?: boolean };
+
+/** Edição de produto: o estoque não muda aqui (só por "Repor estoque" e pelos pedidos). */
+export interface ProdutoEditarRequest {
+  nome: string;
+  descricao: string;
+  precoVenda: number;
+  precoAluguel: number;
+  status: ProdutoStatus;
+}
 
 export interface PedidoCriarRequest {
   tipo: TipoPedido;
@@ -129,5 +141,5 @@ export interface PedidoCriarRequest {
   meses?: number; // só aluguel
   descricao?: string;
   dataVencimento?: string; // AAAA-MM-DD, obrigatória e futura no pedido a prazo
-  descontoSolicitado?: number; // % inteiro: NORMAL de 1 a 10, VIP de 10 a 15 (VIP inadimplente: 1 a 15)
+  descontoSolicitado?: number; // % inteiro: NORMAL de 1 a 10, VIP de 10 a 15. Inadimplente não pode solicitar.
 }

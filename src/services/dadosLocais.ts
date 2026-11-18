@@ -13,7 +13,9 @@ import {
   erroVencimento,
   estaInadimplente,
   fimDoDia,
+  MSG_INADIMPLENTE_SEM_DESCONTO,
   pagoNaHora,
+  podeEditar,
   podePagar,
   resumoPedido,
   statusDoPedido,
@@ -31,6 +33,7 @@ import type {
   PedidoCriarRequest,
   ProdutoCriarRequest,
   ProdutoCriarResponse,
+  ProdutoEditarRequest,
   ProdutoListarResponse,
   SolicitacaoDesconto,
 } from '../types';
@@ -91,14 +94,22 @@ function proximoId(itens: { id: number }[]): number {
   return itens.reduce((maior, item) => Math.max(maior, item.id), 0) + 1;
 }
 
+const arredondar = (n: number) => Math.round(n * 100) / 100;
+
 /** Soma ao limite de crédito do cliente (valor negativo desconta). */
 function ajustarCredito(clienteId: number, valor: number) {
   salvar(
     CHAVE_CLIENTES,
     ler<ClienteSalvo>(CHAVE_CLIENTES).map((c) =>
-      c.id === clienteId ? { ...c, limiteCredito: Math.round((c.limiteCredito + valor) * 100) / 100 } : c,
+      c.id === clienteId ? { ...c, limiteCredito: arredondar(c.limiteCredito + valor) } : c,
     ),
   );
+}
+
+/** Troca um registro (pelo id) e salva a lista. */
+function substituir<T extends { id: number }>(chave: string, lista: T[], atualizado: T): T {
+  salvar(chave, lista.map((x) => (x.id === atualizado.id ? atualizado : x)));
+  return atualizado;
 }
 
 /**
@@ -130,17 +141,25 @@ function cpfValido(cpf: string): boolean {
 }
 
 // ---------------- Clientes ----------------
-export async function cadastrarClienteLocal(dados: ClienteCriarRequest): Promise<ClienteCriarResponse> {
-  const clientes = ler<ClienteSalvo>(CHAVE_CLIENTES);
+/** Valida e normaliza os dados do cliente (cadastro e edição). `idAtual` = cliente sendo editado. */
+function validarCliente(dados: ClienteCriarRequest, clientes: ClienteSalvo[], idAtual?: number): ClienteCriarRequest {
+  const name = dados.name.trim();
   const cnpj = dados.cnpj.replace(/[^0-9a-z]/gi, '').toUpperCase();
   const email = dados.email.trim();
+  const limiteCredito = Number(dados.limiteCredito);
 
+  if (name.length < 3) throw new Error('Informe o nome ou a razão social do cliente.');
   if (!cnpjValido(cnpj)) throw new Error('CNPJ inválido.');
-  if (clientes.some((c) => c.email.toLowerCase() === email.toLowerCase())) {
+  if (clientes.some((c) => c.id !== idAtual && c.email.toLowerCase() === email.toLowerCase())) {
     throw new Error('Já existe um cliente com esse e-mail.'); // coluna unique
   }
+  if (!Number.isFinite(limiteCredito) || limiteCredito < 0) throw new Error('Limite de crédito inválido.');
+  return { ...dados, name, cnpj, email, telefone: dados.telefone.trim(), limiteCredito };
+}
 
-  const novo: ClienteSalvo = { ...dados, id: proximoId(clientes), name: dados.name.trim(), cnpj, email };
+export async function cadastrarClienteLocal(dados: ClienteCriarRequest): Promise<ClienteCriarResponse> {
+  const clientes = ler<ClienteSalvo>(CHAVE_CLIENTES);
+  const novo: ClienteSalvo = { ...validarCliente(dados, clientes), id: proximoId(clientes) };
   salvar(CHAVE_CLIENTES, [...clientes, novo]);
   return {
     id: novo.id,
@@ -154,16 +173,37 @@ export async function cadastrarClienteLocal(dados: ClienteCriarRequest): Promise
 export async function listarClientesLocal(): Promise<ClienteListarResponse[]> {
   const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
   return ler<ClienteSalvo>(CHAVE_CLIENTES).map(
-    ({ id, name, telefone, email, categoria, limiteCredito }) => ({
+    ({ id, name, telefone, cnpj, email, categoria, limiteCredito, ativo }) => ({
       id,
       name,
       telefone,
+      cnpj,
       email,
       categoria,
       limiteCredito,
+      ativo: ativo !== false,
       inadimplente: estaInadimplente(id, pedidos),
     }),
   );
+}
+
+/**
+ * Edita os dados do cliente. O limite informado é o limite **disponível** (o que a tela mostra).
+ * Os pedidos já feitos guardam o nome e a categoria do momento do pedido.
+ */
+export async function editarClienteLocal(id: number, dados: ClienteCriarRequest): Promise<ClienteSalvo> {
+  const clientes = ler<ClienteSalvo>(CHAVE_CLIENTES);
+  const atual = clientes.find((c) => c.id === id);
+  if (!atual) throw new Error('Cliente não encontrado.');
+  return substituir(CHAVE_CLIENTES, clientes, { ...atual, ...validarCliente(dados, clientes, id) });
+}
+
+/** Nada é excluído de verdade: o cliente desativado some da escolha de pedido novo, e pode ser reativado. */
+export async function definirClienteAtivoLocal(id: number, ativo: boolean): Promise<ClienteSalvo> {
+  const clientes = ler<ClienteSalvo>(CHAVE_CLIENTES);
+  const atual = clientes.find((c) => c.id === id);
+  if (!atual) throw new Error('Cliente não encontrado.');
+  return substituir(CHAVE_CLIENTES, clientes, { ...atual, ativo });
 }
 
 // ---------------- Produtos ----------------
@@ -179,46 +219,111 @@ export async function listarProdutosLocal(): Promise<ProdutoListarResponse[]> {
   return ler<ProdutoListarResponse>(CHAVE_PRODUTOS);
 }
 
+/** Edita nome, descrição, preços e status. O estoque só muda por "Repor estoque" e pelos pedidos. */
+export async function editarProdutoLocal(id: number, dados: ProdutoEditarRequest): Promise<ProdutoCriarResponse> {
+  const produtos = ler<ProdutoCriarResponse>(CHAVE_PRODUTOS);
+  const atual = produtos.find((p) => p.id === id);
+  if (!atual) throw new Error('Produto não encontrado.');
+  const nome = dados.nome.trim();
+  if (!nome) throw new Error('Informe o nome do produto.');
+  const precoVenda = Number(dados.precoVenda);
+  const precoAluguel = Number(dados.precoAluguel);
+  if (!Number.isFinite(precoVenda) || precoVenda < 0) throw new Error('Preço de venda inválido.');
+  if (!Number.isFinite(precoAluguel) || precoAluguel < 0) throw new Error('Preço de aluguel inválido.');
+  return substituir(CHAVE_PRODUTOS, produtos, {
+    ...atual,
+    nome,
+    descricao: dados.descricao.trim(),
+    precoVenda,
+    precoAluguel,
+    status: dados.status,
+  });
+}
+
+/** Repor estoque: soma a quantidade ao estoque atual (não substitui e não muda o status). */
+export async function reporEstoqueLocal(id: number, quantidade: number): Promise<ProdutoCriarResponse> {
+  const produtos = ler<ProdutoCriarResponse>(CHAVE_PRODUTOS);
+  const atual = produtos.find((p) => p.id === id);
+  if (!atual) throw new Error('Produto não encontrado.');
+  if (!Number.isInteger(quantidade) || quantidade <= 0) {
+    throw new Error('Informe uma quantidade inteira maior que zero para repor.');
+  }
+  return substituir(CHAVE_PRODUTOS, produtos, { ...atual, estoque: atual.estoque + quantidade });
+}
+
 // ---------------- Colaboradores ----------------
 export async function listarColaboradoresLocal(): Promise<Colaborador[]> {
-  return ler<Colaborador>(CHAVE_COLABORADORES);
+  return ler<Colaborador>(CHAVE_COLABORADORES).map((c) => ({ ...c, ativo: c.ativo !== false }));
+}
+
+/** Valida e normaliza os dados do colaborador (cadastro e edição). `idAtual` = colaborador sendo editado. */
+function validarColaborador(dados: ColaboradorCriarRequest, colaboradores: Colaborador[], idAtual?: number) {
+  const nome = dados.nome.trim();
+  const cpf = dados.cpf.replace(/\D/g, '');
+  const email = dados.email.trim();
+  const outros = colaboradores.filter((c) => c.id !== idAtual);
+
+  if (nome.length < 3) throw new Error('Informe o nome do colaborador.');
+  if (!cpfValido(cpf)) throw new Error('CPF inválido.');
+  if (outros.some((c) => c.cpf === cpf)) throw new Error('Já existe um colaborador com esse CPF.');
+  if (outros.some((c) => c.email.toLowerCase() === email.toLowerCase())) {
+    throw new Error('Já existe um colaborador com esse e-mail.');
+  }
+  return { nome, cpf, email };
 }
 
 export async function cadastrarColaboradorLocal(dados: ColaboradorCriarRequest): Promise<Colaborador> {
   const colaboradores = ler<Colaborador>(CHAVE_COLABORADORES);
-  const nome = dados.nome.trim();
-  const cpf = dados.cpf.replace(/\D/g, '');
-  const email = dados.email.trim();
-
-  if (nome.length < 3) throw new Error('Informe o nome do colaborador.');
-  if (!cpfValido(cpf)) throw new Error('CPF inválido.');
-  if (colaboradores.some((c) => c.cpf === cpf)) throw new Error('Já existe um colaborador com esse CPF.');
-  if (colaboradores.some((c) => c.email.toLowerCase() === email.toLowerCase())) {
-    throw new Error('Já existe um colaborador com esse e-mail.');
-  }
-
-  const novo: Colaborador = { id: proximoId(colaboradores), nome, cpf, email };
+  const novo: Colaborador = { id: proximoId(colaboradores), ...validarColaborador(dados, colaboradores) };
   salvar(CHAVE_COLABORADORES, [...colaboradores, novo]);
   return novo;
 }
 
+/** As decisões de desconto já tomadas guardam o nome do colaborador daquele momento. */
+export async function editarColaboradorLocal(id: number, dados: ColaboradorCriarRequest): Promise<Colaborador> {
+  const colaboradores = ler<Colaborador>(CHAVE_COLABORADORES);
+  const atual = colaboradores.find((c) => c.id === id);
+  if (!atual) throw new Error('Colaborador não encontrado.');
+  return substituir(CHAVE_COLABORADORES, colaboradores, { ...atual, ...validarColaborador(dados, colaboradores, id) });
+}
+
+/** Colaborador desativado não decide descontos; as decisões antigas continuam no histórico. */
+export async function definirColaboradorAtivoLocal(id: number, ativo: boolean): Promise<Colaborador> {
+  const colaboradores = ler<Colaborador>(CHAVE_COLABORADORES);
+  const atual = colaboradores.find((c) => c.id === id);
+  if (!atual) throw new Error('Colaborador não encontrado.');
+  return substituir(CHAVE_COLABORADORES, colaboradores, { ...atual, ativo });
+}
+
 // ---------------- Pedidos ----------------
-export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido> {
-  const clientes = ler<ClienteSalvo>(CHAVE_CLIENTES);
-  const produtos = ler<ProdutoCriarResponse>(CHAVE_PRODUTOS);
-  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
+interface ContextoPedido {
+  clientes: ClienteSalvo[]; // limite de crédito já liberado do pedido original (na edição)
+  produtos: ProdutoCriarResponse[]; // estoque já devolvido do pedido original (na edição)
+  pedidos: Pedido[]; // para calcular a inadimplência
+  original?: Pedido; // pedido sendo editado
+}
+
+/**
+ * Valida o pedido e monta o registro (sem salvar). Usado no cadastro e na edição.
+ * Na edição, os produtos e o cliente que já estavam no pedido continuam aceitos mesmo se
+ * depois foram desativados.
+ */
+function montarPedido(req: PedidoCriarRequest, ctx: ContextoPedido, id: number): Pedido {
+  const { clientes, produtos, pedidos, original } = ctx;
 
   const cliente = clientes.find((c) => c.id === req.clienteId);
   if (!cliente) throw new Error('Cliente não encontrado.');
+  if (cliente.ativo === false && cliente.id !== original?.clienteId) {
+    throw new Error('Cliente desativado: reative o cadastro para fazer pedidos.');
+  }
   if (req.itens.length === 0) throw new Error('O pedido precisa de pelo menos um produto.');
 
-  // Inadimplente (pedido a prazo vencido e não pago): só PIX ou à vista.
+  // Inadimplente (pedido a prazo vencido e não pago): só PIX ou à vista, e sem desconto.
   const inadimplente = estaInadimplente(cliente.id, pedidos);
   if (inadimplente && req.pagamento === 'A_PRAZO') {
     throw new Error('Cliente inadimplente: não pode fazer pedido a prazo. Use PIX ou à vista.');
   }
 
-  // Aluguel: o fim do aluguel é calculado pela quantidade de meses.
   const aluguel = req.tipo === 'ALUGUEL';
   const meses = aluguel ? req.meses : undefined;
   if (aluguel && (!meses || !Number.isInteger(meses) || meses <= 0)) {
@@ -228,7 +333,8 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
   const itens: ItemPedido[] = req.itens.map(({ produtoId, quantidade }) => {
     const produto = produtos.find((p) => p.id === produtoId);
     if (!produto) throw new Error('Produto não encontrado.');
-    if (produto.status !== 'DISPONIVEL') throw new Error(`"${produto.nome}" não está disponível.`);
+    const jaEstava = original?.itens.some((i) => i.produtoId === produtoId);
+    if (produto.status !== 'DISPONIVEL' && !jaEstava) throw new Error(`"${produto.nome}" não está disponível.`);
     if (!Number.isInteger(quantidade) || quantidade <= 0) {
       throw new Error(`Quantidade inválida para "${produto.nome}".`);
     }
@@ -239,33 +345,39 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
     return { produtoId, nome: produto.nome, precoUnitario, quantidade };
   });
 
-  // NORMAL solicita de 1% a 10%; VIP (que já tem 5%) solicita de 10% a 15% para substituir os 5%;
-  // VIP inadimplente (sem os 5%) solicita de 1% a 15%. Sempre depende de aprovação.
+  // NORMAL solicita de 1% a 10%; VIP (que já tem 5%) solicita de 10% a 15% para substituir os 5%.
+  // Inadimplente não solicita. Sempre depende de aprovação.
+  // Na edição, se o percentual e o cliente não mudaram, a solicitação (e a decisão dela) continua.
   let solicitacao: SolicitacaoDesconto | undefined;
   if (req.descontoSolicitado != null) {
     const erro = erroDesconto(req.descontoSolicitado, cliente.categoria, inadimplente);
     if (erro) throw new Error(erro);
-    solicitacao = { percentual: req.descontoSolicitado, status: 'PENDENTE' };
+    const mantem =
+      original?.solicitacao &&
+      original.clienteId === cliente.id &&
+      original.solicitacao.percentual === req.descontoSolicitado;
+    solicitacao = mantem ? original!.solicitacao : { percentual: req.descontoSolicitado, status: 'PENDENTE' };
   }
 
   // A prazo: o vencimento é a data escolhida no pedido (obrigatória e futura). PIX/à vista: a emissão.
   const agora = new Date();
-  let vencimento = agora;
+  const emissao = original ? new Date(original.emissao) : agora;
+  let vencimento = emissao;
   if (req.pagamento === 'A_PRAZO') {
     const erro = erroVencimento(req.dataVencimento);
     if (erro) throw new Error(erro);
     vencimento = fimDoDia(req.dataVencimento!)!;
   }
-  // Aluguel: o fim do aluguel é calculado pela quantidade de meses.
+  // Aluguel: o fim do aluguel é calculado pela quantidade de meses, a partir do início.
   let fimAluguel: Date | undefined;
   if (meses) {
-    fimAluguel = new Date(agora);
+    fimAluguel = new Date(emissao);
     fimAluguel.setMonth(fimAluguel.getMonth() + meses);
   }
 
   const descricao = req.descricao?.trim();
-  const novo: Pedido = {
-    id: proximoId(pedidos),
+  const pedido: Pedido = {
+    id,
     tipo: req.tipo,
     clienteId: cliente.id,
     clienteNome: cliente.name,
@@ -275,32 +387,76 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido>
     meses,
     pagamento: req.pagamento,
     solicitacao,
-    criadoEm: agora.toISOString(),
-    emissao: agora.toISOString(),
+    criadoEm: original?.criadoEm ?? agora.toISOString(),
+    emissao: emissao.toISOString(),
     vencimento: vencimento.toISOString(),
     fimAluguel: fimAluguel?.toISOString(),
+    concluidoEm: original?.concluidoEm,
     pagoEm: pagoNaHora({ pagamento: req.pagamento, solicitacao }) ? agora.toISOString() : undefined,
     clienteInadimplente: inadimplente,
   };
 
-  // A prazo (venda ou aluguel): valida e desconta o total do limite de crédito do cliente.
-  const total = resumoPedido(novo).total;
+  // A prazo (venda ou aluguel): valida e reserva o total no limite de crédito do cliente.
   if (req.pagamento === 'A_PRAZO') {
+    const total = resumoPedido(pedido).total;
     if (total > cliente.limiteCredito) throw new Error('Total do pedido acima do limite de crédito do cliente.');
-    novo.creditoUsado = total;
+    pedido.creditoUsado = total;
   }
+  return pedido;
+}
 
-  // Baixa de estoque (como o baixarEstoque() do Produto no back)
-  salvar(
-    CHAVE_PRODUTOS,
-    produtos.map((p) => {
-      const item = itens.find((i) => i.produtoId === p.id);
-      return item ? { ...p, estoque: p.estoque - item.quantidade } : p;
-    }),
-  );
+/** Baixa o estoque dos itens do pedido (como o baixarEstoque() do Produto no back). */
+const baixarEstoque = (produtos: ProdutoCriarResponse[], itens: ItemPedido[], sinal = -1) =>
+  produtos.map((p) => {
+    const item = itens.find((i) => i.produtoId === p.id);
+    return item ? { ...p, estoque: p.estoque + sinal * item.quantidade } : p;
+  });
+
+export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<Pedido> {
+  const clientes = ler<ClienteSalvo>(CHAVE_CLIENTES);
+  const produtos = ler<ProdutoCriarResponse>(CHAVE_PRODUTOS);
+  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
+
+  const novo = montarPedido(req, { clientes, produtos, pedidos }, proximoId(pedidos));
+
+  salvar(CHAVE_PRODUTOS, baixarEstoque(produtos, novo.itens));
   salvar(CHAVE_PEDIDOS, [...pedidos, novo]);
-  if (req.pagamento === 'A_PRAZO') ajustarCredito(cliente.id, -total);
+  if (novo.creditoUsado) ajustarCredito(novo.clienteId, -novo.creditoUsado);
   return novo;
+}
+
+/**
+ * Edita um pedido ainda não pago (pode mudar praticamente tudo).
+ * Desfaz o pedido antigo (estoque e crédito reservado voltam) e aplica o novo com as mesmas
+ * validações do cadastro. Se o novo for PIX/à vista sem desconto pendente, já fica pago.
+ */
+export async function editarPedidoLocal(id: number, req: PedidoCriarRequest): Promise<Pedido> {
+  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
+  const original = pedidos.find((p) => p.id === id);
+  if (!original) throw new Error('Pedido não encontrado.');
+  if (original.devolvidoEm) throw new Error('Aluguel já devolvido: não pode ser editado.');
+  if (!podeEditar(original)) throw new Error('Pedido já pago: não pode mais ser editado.');
+
+  // Desfaz o original: devolve o estoque e libera o crédito reservado (a prazo não pago).
+  const produtos = baixarEstoque(ler<ProdutoCriarResponse>(CHAVE_PRODUTOS), original.itens, +1);
+  const clientes = ler<ClienteSalvo>(CHAVE_CLIENTES).map((c) =>
+    c.id === original.clienteId && original.creditoUsado
+      ? { ...c, limiteCredito: arredondar(c.limiteCredito + original.creditoUsado) }
+      : c,
+  );
+
+  const atualizado = montarPedido(req, { clientes, produtos, pedidos, original }, id);
+
+  salvar(CHAVE_PRODUTOS, baixarEstoque(produtos, atualizado.itens));
+  salvar(
+    CHAVE_CLIENTES,
+    clientes.map((c) =>
+      c.id === atualizado.clienteId && atualizado.creditoUsado
+        ? { ...c, limiteCredito: arredondar(c.limiteCredito - atualizado.creditoUsado) }
+        : c,
+    ),
+  );
+  return substituir(CHAVE_PEDIDOS, pedidos, atualizado);
 }
 
 export async function listarPedidosLocal(): Promise<Pedido[]> {
@@ -317,9 +473,12 @@ export async function decidirDescontoLocal(
   const colaborador = ler<Colaborador>(CHAVE_COLABORADORES).find((c) => c.id === colaboradorId);
 
   if (!colaborador) throw new Error('Colaborador não encontrado.');
+  if (colaborador.ativo === false) throw new Error('Colaborador desativado: não pode decidir descontos.');
   if (!pedido?.solicitacao || pedido.solicitacao.status !== 'PENDENTE') {
     throw new Error('Não há solicitação pendente para este pedido.');
   }
+  // Cliente que ficou inadimplente depois de pedir: a solicitação só pode ser rejeitada.
+  if (aprovar && pedido.clienteInadimplente) throw new Error(MSG_INADIMPLENTE_SEM_DESCONTO);
 
   const atualizado: Pedido = {
     ...pedido,
@@ -337,8 +496,8 @@ export async function decidirDescontoLocal(
   let devolver = 0;
   if (aprovar && pedido.pagamento === 'A_PRAZO') {
     const usado = pedido.creditoUsado ?? resumoPedido(pedido).total;
-    devolver = Math.max(0, Math.round((usado - resumoPedido(atualizado).total) * 100) / 100);
-    atualizado.creditoUsado = Math.round((usado - devolver) * 100) / 100;
+    devolver = Math.max(0, arredondar(usado - resumoPedido(atualizado).total));
+    atualizado.creditoUsado = arredondar(usado - devolver);
   }
 
   salvar(CHAVE_PEDIDOS, pedidos.map((p) => (p.id === pedidoId ? atualizado : p)));
@@ -357,9 +516,7 @@ export async function confirmarPedidoLocal(pedidoId: number): Promise<Pedido> {
     throw new Error('Aguarde a decisão sobre o desconto solicitado antes de confirmar o pedido.');
   }
 
-  const atualizado: Pedido = { ...pedido, concluidoEm: new Date().toISOString() };
-  salvar(CHAVE_PEDIDOS, pedidos.map((p) => (p.id === pedidoId ? atualizado : p)));
-  return atualizado;
+  return substituir(CHAVE_PEDIDOS, pedidos, { ...pedido, concluidoEm: new Date().toISOString() });
 }
 
 /** Registra o pagamento de um pedido a prazo: o crédito reservado volta ao limite do cliente. */
@@ -383,23 +540,13 @@ export async function pagarPedidoLocal(pedidoId: number): Promise<Pedido> {
 
 export async function devolverPedidoLocal(pedidoId: number): Promise<Pedido> {
   const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
-  const produtos = ler<ProdutoCriarResponse>(CHAVE_PRODUTOS);
   const pedido = pedidos.find((p) => p.id === pedidoId);
 
   if (!pedido || pedido.tipo !== 'ALUGUEL') throw new Error('Aluguel não encontrado.');
   if (pedido.devolvidoEm) throw new Error('Este aluguel já foi devolvido.');
   if (statusDoPedido(pedido) !== 'CONCLUIDO') throw new Error('Confirme o pedido antes de registrar a devolução.');
 
-  const atualizado: Pedido = { ...pedido, devolvidoEm: new Date().toISOString() };
-
   // O estoque volta na devolução (o crédito, por enquanto, não volta).
-  salvar(
-    CHAVE_PRODUTOS,
-    produtos.map((p) => {
-      const item = pedido.itens.find((i) => i.produtoId === p.id);
-      return item ? { ...p, estoque: p.estoque + item.quantidade } : p;
-    }),
-  );
-  salvar(CHAVE_PEDIDOS, pedidos.map((p) => (p.id === pedidoId ? atualizado : p)));
-  return atualizado;
+  salvar(CHAVE_PRODUTOS, baixarEstoque(ler<ProdutoCriarResponse>(CHAVE_PRODUTOS), pedido.itens, +1));
+  return substituir(CHAVE_PEDIDOS, pedidos, { ...pedido, devolvidoEm: new Date().toISOString() });
 }

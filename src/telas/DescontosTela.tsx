@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import Aviso from '../components/Aviso';
 import Selecao from '../components/Selecao';
 import { decidirDesconto, listarColaboradores, listarPedidos } from '../services/api';
-import { mensagemRejeicao, resumoPedido, ROTULO_PAGAMENTO, ROTULO_TIPO } from '../regras';
+import {
+  mensagemRejeicao,
+  MSG_INADIMPLENTE_SEM_DESCONTO,
+  resumoPedido,
+  ROTULO_PAGAMENTO,
+  ROTULO_TIPO,
+} from '../regras';
 import type { Colaborador, Pedido } from '../types';
 import { dataBR, moeda, type Mensagem } from '../utils';
 
@@ -23,7 +29,8 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
 
   async function carregar() {
     try {
-      const [c, p] = await Promise.all([listarColaboradores(), listarPedidos()]);
+      const [todos, p] = await Promise.all([listarColaboradores(), listarPedidos()]);
+      const c = todos.filter((x) => x.ativo !== false); // desativado não decide descontos
       setColaboradores(c);
       setPedidos(p);
       setColaboradorId((atual) => (c.some((x) => String(x.id) === atual) ? atual : String(c[0]?.id ?? '')));
@@ -85,7 +92,9 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
       <Aviso msg={aviso} onFechar={fecharAviso} />
 
       {pedidos && colaboradores.length === 0 && (
-        <p className="aviso erro">Cadastre um colaborador (Gestão &gt; Colaboradores) para poder decidir os descontos.</p>
+        <p className="aviso erro">
+          Cadastre ou reative um colaborador (Gestão &gt; Colaboradores) para poder decidir os descontos.
+        </p>
       )}
 
       <div className="abas" role="tablist">
@@ -137,6 +146,9 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                 </span>
               </div>
 
+              {s.status === 'PENDENTE' && p.clienteInadimplente && (
+                <p className="aviso erro">{MSG_INADIMPLENTE_SEM_DESCONTO} Esta solicitação só pode ser rejeitada.</p>
+              )}
               {s.status === 'PENDENTE' ? (
                 <div className="item-rodape fim">
                   <div className="acoes">
@@ -151,7 +163,7 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                     <button
                       type="button"
                       className="confirmar"
-                      disabled={!colaborador || decidindo === p.id}
+                      disabled={!colaborador || decidindo === p.id || p.clienteInadimplente}
                       onClick={() => decidir(p, true)}
                     >
                       Aprovar {s.percentual}%

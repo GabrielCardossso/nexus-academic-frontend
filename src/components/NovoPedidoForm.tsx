@@ -1,10 +1,11 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
-import { criarPedido } from '../services/api';
+import { criarPedido, editarPedido } from '../services/api';
 import Selecao from './Selecao';
 import {
   erroDesconto,
   erroVencimento,
   faixaDesconto,
+  MSG_INADIMPLENTE_SEM_DESCONTO,
   hojeAAAAMMDD,
   pagoNaHora,
   resumoPedido,
@@ -24,7 +25,9 @@ import { moeda } from '../utils';
 interface NovoPedidoFormProps {
   clientes: ClienteListarResponse[];
   produtos: ProdutoListarResponse[];
-  onCriado: (pedido: Pedido) => void;
+  /** Pedido sendo editado (ainda não pago). Sem ele, o formulário cria um pedido novo. */
+  pedido?: Pedido;
+  onSalvo: (pedido: Pedido) => void;
   onCancelar: () => void;
   onEnviando: (enviando: boolean) => void;
 }
@@ -32,26 +35,62 @@ interface NovoPedidoFormProps {
 /** Produto escolhido no pedido; a quantidade fica como texto porque vem do <input>. */
 type Linha = { produtoId: number; quantidade: string };
 
-export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancelar, onEnviando }: NovoPedidoFormProps) {
-  const [tipo, setTipo] = useState<TipoPedido>('VENDA');
-  const [clienteId, setClienteId] = useState('');
-  const [linhas, setLinhas] = useState<Linha[]>([]);
+/** ISO → "AAAA-MM-DD" na hora local (para o campo de data). */
+function paraAAAAMMDD(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export default function NovoPedidoForm({
+  clientes,
+  produtos,
+  pedido: original,
+  onSalvo,
+  onCancelar,
+  onEnviando,
+}: NovoPedidoFormProps) {
+  const editando = !!original;
+  const inadimplenteOriginal = !!clientes.find((c) => c.id === original?.clienteId)?.inadimplente;
+  const [tipo, setTipo] = useState<TipoPedido>(original?.tipo ?? 'VENDA');
+  const [clienteId, setClienteId] = useState(original ? String(original.clienteId) : '');
+  const [linhas, setLinhas] = useState<Linha[]>(
+    original?.itens.map((i) => ({ produtoId: i.produtoId, quantidade: String(i.quantidade) })) ?? [],
+  );
   const [escolhendo, setEscolhendo] = useState(false); // lista de produtos aberta
-  const [meses, setMeses] = useState('1'); // só aluguel
-  const [pagamento, setPagamento] = useState<FormaPagamento>('PIX');
-  const [descontoSolicitado, setDescontoSolicitado] = useState(''); // '' = sem solicitação
-  const [descricao, setDescricao] = useState('');
-  const [dataVencimento, setDataVencimento] = useState(''); // AAAA-MM-DD, só a prazo
+  const [meses, setMeses] = useState(String(original?.meses ?? 1)); // só aluguel
+  // Inadimplente não pode ficar com pedido a prazo: na edição, já troca para PIX.
+  const [pagamento, setPagamento] = useState<FormaPagamento>(
+    original && !(inadimplenteOriginal && original.pagamento === 'A_PRAZO') ? original.pagamento : 'PIX',
+  );
+  // '' = sem solicitação. Inadimplente não pode solicitar: na edição, a solicitação sai.
+  const [descontoSolicitado, setDescontoSolicitado] = useState(
+    original?.solicitacao && !inadimplenteOriginal ? String(original.solicitacao.percentual) : '',
+  );
+  const [descricao, setDescricao] = useState(original?.descricao ?? '');
+  const [dataVencimento, setDataVencimento] = useState(
+    original?.pagamento === 'A_PRAZO' ? paraAAAAMMDD(original.vencimento) : '',
+  ); // AAAA-MM-DD, só a prazo
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
   const aluguel = tipo === 'ALUGUEL';
   const quantidadeMeses = Number(meses);
-  const cliente = clientes.find((c) => String(c.id) === clienteId);
+  // Cliente desativado não entra em pedido novo (na edição, o cliente atual continua na lista).
+  const clientesEscolha = clientes.filter((c) => c.ativo !== false || c.id === original?.clienteId);
+  const cliente = clientesEscolha.find((c) => String(c.id) === clienteId);
   const inadimplente = !!cliente?.inadimplente;
+  // Na edição, o crédito reservado por este pedido volta para o cliente antes de reservar o novo total.
+  const limiteDisponivel = cliente
+    ? cliente.limiteCredito + (cliente.id === original?.clienteId ? (original.creditoUsado ?? 0) : 0)
+    : 0;
 
   // ---------- Produtos ----------
-  const disponiveis = produtos.filter((p) => p.status === 'DISPONIVEL' && p.estoque > 0);
+  // Na edição, o estoque que este pedido segura volta para a conta, e os produtos dele continuam
+  // na lista mesmo que tenham ficado indisponíveis depois.
+  const qtdOriginal = (id: number) => original?.itens.find((i) => i.produtoId === id)?.quantidade ?? 0;
+  const disponiveis = produtos
+    .map((p) => ({ ...p, estoque: p.estoque + qtdOriginal(p.id) }))
+    .filter((p) => (p.status === 'DISPONIVEL' && p.estoque > 0) || qtdOriginal(p.id) > 0);
   const produtoDe = (id: number) => disponiveis.find((p) => p.id === id);
   const precoDe = (p: ProdutoListarResponse) => Number(aluguel ? p.precoAluguel : p.precoVenda);
   const quantidadeValida = (l: Linha) => {
@@ -84,10 +123,18 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
   }
 
   // ---------- Desconto e prévia ----------
-  const faixa = faixaDesconto(cliente?.categoria ?? 'NORMAL', inadimplente);
-  const solicitacao: SolicitacaoDesconto | undefined =
-    cliente && descontoSolicitado.trim() !== ''
-      ? { percentual: Number(descontoSolicitado), status: 'PENDENTE' }
+  const faixa = faixaDesconto(cliente?.categoria ?? 'NORMAL');
+  // Na edição, mesmo cliente e mesmo percentual: a solicitação (e a decisão já tomada) continua.
+  // Inadimplente não solicita: o campo fica bloqueado e nada é enviado.
+  const textoDesconto = inadimplente ? '' : descontoSolicitado.trim();
+  const mantemSolicitacao =
+    !!original?.solicitacao &&
+    original.clienteId === cliente?.id &&
+    String(original.solicitacao.percentual) === textoDesconto;
+  const solicitacao: SolicitacaoDesconto | undefined = mantemSolicitacao
+    ? original!.solicitacao
+    : cliente && textoDesconto !== ''
+      ? { percentual: Number(textoDesconto), status: 'PENDENTE' }
       : undefined;
   const erroDoDesconto =
     cliente && solicitacao ? erroDesconto(solicitacao.percentual, cliente.categoria, inadimplente) : null;
@@ -101,12 +148,12 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
     solicitacao,
     pagoEm: pagoNaHora({ pagamento, solicitacao }) ? new Date().toISOString() : undefined, // prévia
   });
-  const acimaDoLimite = !!cliente && pagamento === 'A_PRAZO' && resumo.total > cliente.limiteCredito;
+  const acimaDoLimite = !!cliente && pagamento === 'A_PRAZO' && resumo.total > limiteDisponivel;
 
   function escolherCliente(id: string) {
     setClienteId(id);
     setDescontoSolicitado(''); // a faixa muda conforme a categoria do cliente
-    const escolhido = clientes.find((c) => String(c.id) === id);
+    const escolhido = clientesEscolha.find((c) => String(c.id) === id);
     if (escolhido?.inadimplente && pagamento === 'A_PRAZO') setPagamento('PIX'); // inadimplente não compra a prazo
   }
 
@@ -131,7 +178,7 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
     setEnviando(true);
     onEnviando(true);
     try {
-      const pedido = await criarPedido({
+      const dados = {
         tipo,
         clienteId: cliente.id,
         pagamento,
@@ -140,8 +187,8 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
         descontoSolicitado: solicitacao?.percentual,
         descricao: descricao.trim() || undefined,
         dataVencimento: pagamento === 'A_PRAZO' ? dataVencimento : undefined,
-      });
-      onCriado(pedido);
+      };
+      onSalvo(original ? await editarPedido(original.id, dados) : await criarPedido(dados));
     } catch (err) {
       setErro((err as Error).message);
     } finally {
@@ -170,7 +217,7 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
             value={clienteId}
             onChange={escolherCliente}
             placeholder="Selecione o cliente"
-            opcoes={clientes.map((c) => ({
+            opcoes={clientesEscolha.map((c) => ({
               valor: String(c.id),
               rotulo: c.name,
               detalhe: c.inadimplente ? `${c.categoria === 'VIP' ? 'VIP · ' : ''}inadimplente` : c.categoria === 'VIP' ? 'VIP' : undefined,
@@ -178,16 +225,16 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
           />
         </label>
       </div>
-      {clientes.length === 0 && <p className="dica">Nenhum cliente cadastrado ainda.</p>}
+      {clientesEscolha.length === 0 && <p className="dica">Nenhum cliente ativo cadastrado.</p>}
 
       {cliente && (
         <>
-          <p className="dica">Limite de crédito disponível: {moeda.format(cliente.limiteCredito)}</p>
+          <p className="dica">Limite de crédito disponível: {moeda.format(limiteDisponivel)}</p>
           {inadimplente && (
             <p className="aviso erro">
-              Cliente inadimplente: tem pedido a prazo vencido e não pago. Só pode comprar com PIX ou à vista
-              {cliente.categoria === 'VIP' && ' e perde os 5% automáticos de VIP'}; desconto só com aprovação de
-              um colaborador.
+              Cliente inadimplente: tem pedido a prazo vencido e não pago. Só pode comprar com PIX ou à vista, sem
+              desconto nenhum{cliente.categoria === 'VIP' && ' (perde os 5% automáticos de VIP)'} e sem poder
+              solicitar desconto.
             </p>
           )}
           {cliente.categoria === 'VIP' && !inadimplente && (
@@ -324,11 +371,13 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
             <span>Solicitar desconto (%)</span>
             <input
               type="number"
-              placeholder={`Opcional: ${faixa.min} a ${faixa.max}`}
+              placeholder={inadimplente ? 'Indisponível (inadimplente)' : `Opcional: ${faixa.min} a ${faixa.max}`}
+              title={inadimplente ? MSG_INADIMPLENTE_SEM_DESCONTO : undefined}
               min={faixa.min}
               max={faixa.max}
               step={1}
-              value={descontoSolicitado}
+              disabled={inadimplente}
+              value={inadimplente ? '' : descontoSolicitado}
               onChange={(e) => setDescontoSolicitado(e.target.value)}
             />
           </label>
@@ -347,7 +396,11 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
       {aluguel && <p className="dica">Valor do aluguel: preço por mês × meses × quantidade.</p>}
       {erroDoDesconto && <p className="msg erro">{erroDoDesconto}</p>}
       {solicitacao && !erroDoDesconto && (
-        <p className="dica">O desconto solicitado só é aplicado depois da aprovação de um colaborador.</p>
+        <p className="dica">
+          {mantemSolicitacao && solicitacao.status !== 'PENDENTE'
+            ? `Solicitação de ${solicitacao.percentual}% já ${solicitacao.status === 'APROVADA' ? 'aprovada' : 'rejeitada'}: a decisão continua valendo. Mude o percentual para pedir de novo.`
+            : 'O desconto solicitado só é aplicado depois da aprovação de um colaborador.'}
+        </p>
       )}
 
       <div className="resumo">
@@ -370,7 +423,7 @@ export default function NovoPedidoForm({ clientes, produtos, onCriado, onCancela
           Cancelar
         </button>
         <button type="submit" disabled={enviando}>
-          {enviando ? 'Enviando...' : 'Fazer pedido'}
+          {enviando ? 'Enviando...' : editando ? 'Salvar alterações' : 'Fazer pedido'}
         </button>
       </div>
     </form>

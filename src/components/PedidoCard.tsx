@@ -5,6 +5,7 @@ import {
   linhasSolicitacao,
   podeConfirmar,
   podeDevolver,
+  podeEditar,
   podePagar,
   resumoPedido,
   ROTULO_PAGAMENTO,
@@ -19,6 +20,7 @@ interface PedidoCardProps {
   onConfirmar: (p: Pedido) => void;
   onPagar: (p: Pedido) => void;
   onDevolver: (p: Pedido) => void;
+  onEditar: (p: Pedido) => void;
 }
 
 type Detalhe = { rotulo: string; valor: string; largo?: boolean };
@@ -62,7 +64,7 @@ function detalhesDo(p: Pedido): Detalhe[] {
 }
 
 /** Card do pedido: resumo sempre visível; "Ver detalhes" abre a grade com tudo. */
-export default function PedidoCard({ pedido: p, onConfirmar, onPagar, onDevolver }: PedidoCardProps) {
+export default function PedidoCard({ pedido: p, onConfirmar, onPagar, onDevolver, onEditar }: PedidoCardProps) {
   const [aberto, setAberto] = useState(false);
   const r = resumoPedido(p);
   const aluguel = p.tipo === 'ALUGUEL';
@@ -134,6 +136,11 @@ export default function PedidoCard({ pedido: p, onConfirmar, onPagar, onDevolver
           {podeDevolver(p) && (
             <button type="button" onClick={() => onDevolver(p)}>
               Devolver
+            </button>
+          )}
+          {podeEditar(p) && (
+            <button type="button" className="secundario" onClick={() => onEditar(p)}>
+              Editar
             </button>
           )}
         </div>

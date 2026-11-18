@@ -9,6 +9,7 @@ import type {
   PedidoCriarRequest,
   ProdutoCriarRequest,
   ProdutoCriarResponse,
+  ProdutoEditarRequest,
   ProdutoListarResponse,
   ProdutoStatus,
 } from '../types';
@@ -19,12 +20,19 @@ import {
   confirmarPedidoLocal,
   criarPedidoLocal,
   decidirDescontoLocal,
+  definirClienteAtivoLocal,
+  definirColaboradorAtivoLocal,
   devolverPedidoLocal,
+  editarClienteLocal,
+  editarColaboradorLocal,
+  editarPedidoLocal,
+  editarProdutoLocal,
   listarClientesLocal,
   listarColaboradoresLocal,
   listarPedidosLocal,
   listarProdutosLocal,
   pagarPedidoLocal,
+  reporEstoqueLocal,
 } from './dadosLocais';
 
 /**
@@ -245,4 +253,49 @@ export async function pagarPedido(pedidoId: number) {
 export async function devolverPedido(pedidoId: number) {
   exigirModoLocal();
   return devolverPedidoLocal(pedidoId);
+}
+
+export async function editarPedido(pedidoId: number, pedido: PedidoCriarRequest) {
+  exigirModoLocal();
+  return editarPedidoLocal(pedidoId, pedido);
+}
+
+// ============================================================
+//  Edição, desativação e reposição de estoque
+// ============================================================
+/** O back ainda não tem rotas de editar, desativar nem repor estoque: por enquanto só nos dados locais. */
+function exigirLocal(acao: string) {
+  if (!USAR_DADOS_LOCAIS) {
+    throw new Error(`${acao} ainda não existe no back-end (só funciona com os dados locais).`);
+  }
+}
+
+export async function editarCliente(id: number, cliente: ClienteCriarRequest) {
+  exigirLocal('Editar cliente');
+  return editarClienteLocal(id, cliente);
+}
+
+export async function definirClienteAtivo(id: number, ativo: boolean) {
+  exigirLocal(ativo ? 'Reativar cliente' : 'Desativar cliente');
+  return definirClienteAtivoLocal(id, ativo);
+}
+
+export async function editarProduto(id: number, produto: ProdutoEditarRequest) {
+  exigirLocal('Editar produto');
+  return editarProdutoLocal(id, produto);
+}
+
+export async function reporEstoque(id: number, quantidade: number) {
+  exigirLocal('Repor estoque');
+  return reporEstoqueLocal(id, quantidade);
+}
+
+export async function editarColaborador(id: number, colaborador: ColaboradorCriarRequest) {
+  exigirLocal('Editar colaborador');
+  return editarColaboradorLocal(id, colaborador);
+}
+
+export async function definirColaboradorAtivo(id: number, ativo: boolean) {
+  exigirLocal(ativo ? 'Reativar colaborador' : 'Desativar colaborador');
+  return definirColaboradorAtivoLocal(id, ativo);
 }
