@@ -142,7 +142,9 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                   Solicitou <strong>{s.percentual}%</strong> · {ROTULO_PAGAMENTO[p.pagamento]}
                 </span>
                 <span className="item-info">
-                  {moeda.format(atual.total)} → <strong className="valor">{moeda.format(comDesconto.total)}</strong>
+                  {/* Sem diferença (ex.: cliente inadimplente, que não tem desconto): mostra só o total. */}
+                  {comDesconto.total !== atual.total && <>{moeda.format(atual.total)} → </>}
+                  <strong className="valor">{moeda.format(comDesconto.total)}</strong>
                 </span>
               </div>
 
