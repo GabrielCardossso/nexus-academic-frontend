@@ -255,10 +255,14 @@ export default function ProdutosTela() {
                 <Selecao<ProdutoStatus>
                   value={status}
                   onChange={setStatus}
+                  // Desativar só pelo botão "Desativar", que pede confirmação. Se o produto já está
+                  // desativado, a opção aparece para manter o status atual.
                   opcoes={[
                     { valor: 'DISPONIVEL', rotulo: 'Disponível' },
                     { valor: 'INDISPONIVEL', rotulo: 'Indisponível' },
-                    { valor: 'DESATIVADO', rotulo: 'Desativado' },
+                    ...(editando.status === 'DESATIVADO'
+                      ? [{ valor: 'DESATIVADO' as ProdutoStatus, rotulo: 'Desativado' }]
+                      : []),
                   ]}
                 />
               </label>
@@ -271,7 +275,7 @@ export default function ProdutosTela() {
           </div>
           <p className="dica">
             {editando
-              ? `Estoque atual: ${editando.estoque}. Para aumentar, use "Repor estoque". Pedidos já feitos mantêm o preço do momento do pedido.`
+              ? `Estoque atual: ${editando.estoque}. Para aumentar, use "Repor estoque"; para desativar, use o botão "Desativar". Pedidos já feitos mantêm o preço do momento do pedido.`
               : 'O produto novo entra como disponível.'}
           </p>
           {erroForm && <p className="msg erro">{erroForm}</p>}
