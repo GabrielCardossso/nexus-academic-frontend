@@ -9,6 +9,7 @@
 import { CARREGAR_MOCKS } from '../config/api';
 import {
   aguardaDesconto,
+  dataLocal,
   erroDesconto,
   erroVencimento,
   estaInadimplente,
@@ -318,9 +319,17 @@ function montarPedido(req: PedidoCriarRequest, ctx: ContextoPedido, id: number):
   }
   if (req.itens.length === 0) throw new Error('O pedido precisa de pelo menos um produto.');
 
-  // Inadimplente (pedido a prazo vencido e não pago): só PIX ou à vista, e sem desconto.
+  // Edição de pedido a prazo: o cliente e o vencimento não mudam (senão daria para passar a dívida
+  // para outro cliente ou adiar o vencimento e escapar da inadimplência).
+  const eraAPrazo = original?.pagamento === 'A_PRAZO';
+  if (eraAPrazo && cliente.id !== original!.clienteId) {
+    throw new Error('Pedido a prazo: o cliente não pode ser trocado.');
+  }
+
+  // Inadimplente (pedido a prazo vencido e não pago): pedido novo só PIX ou à vista, e sem desconto.
+  // Um pedido que já era a prazo pode ser editado e continuar a prazo.
   const inadimplente = estaInadimplente(cliente.id, pedidos);
-  if (inadimplente && req.pagamento === 'A_PRAZO') {
+  if (inadimplente && req.pagamento === 'A_PRAZO' && !eraAPrazo) {
     throw new Error('Cliente inadimplente: não pode fazer pedido a prazo. Use PIX ou à vista.');
   }
 
@@ -363,7 +372,13 @@ function montarPedido(req: PedidoCriarRequest, ctx: ContextoPedido, id: number):
   const agora = new Date();
   const emissao = original ? new Date(original.emissao) : agora;
   let vencimento = emissao;
-  if (req.pagamento === 'A_PRAZO') {
+  if (req.pagamento === 'A_PRAZO' && eraAPrazo) {
+    // Continua a prazo: o vencimento original fica (mesmo que vença hoje ou já tenha vencido).
+    if (req.dataVencimento && req.dataVencimento !== dataLocal(original!.vencimento)) {
+      throw new Error('O vencimento de um pedido a prazo não pode ser alterado.');
+    }
+    vencimento = new Date(original!.vencimento);
+  } else if (req.pagamento === 'A_PRAZO') {
     const erro = erroVencimento(req.dataVencimento);
     if (erro) throw new Error(erro);
     vencimento = fimDoDia(req.dataVencimento!)!;

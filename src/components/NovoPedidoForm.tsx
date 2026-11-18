@@ -2,6 +2,7 @@ import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import { criarPedido, editarPedido } from '../services/api';
 import Selecao from './Selecao';
 import {
+  dataLocal,
   erroDesconto,
   erroVencimento,
   faixaDesconto,
@@ -35,12 +36,6 @@ interface NovoPedidoFormProps {
 /** Produto escolhido no pedido; a quantidade fica como texto porque vem do <input>. */
 type Linha = { produtoId: number; quantidade: string };
 
-/** ISO → "AAAA-MM-DD" na hora local (para o campo de data). */
-function paraAAAAMMDD(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 export default function NovoPedidoForm({
   clientes,
   produtos,
@@ -58,21 +53,23 @@ export default function NovoPedidoForm({
   );
   const [escolhendo, setEscolhendo] = useState(false); // lista de produtos aberta
   const [meses, setMeses] = useState(String(original?.meses ?? 1)); // só aluguel
-  // Inadimplente não pode ficar com pedido a prazo: na edição, já troca para PIX.
-  const [pagamento, setPagamento] = useState<FormaPagamento>(
-    original && !(inadimplenteOriginal && original.pagamento === 'A_PRAZO') ? original.pagamento : 'PIX',
-  );
+  // Na edição, a forma de pagamento nunca muda sozinha (um pedido a prazo pode continuar a prazo
+  // mesmo com o cliente inadimplente).
+  const [pagamento, setPagamento] = useState<FormaPagamento>(original?.pagamento ?? 'PIX');
   // '' = sem solicitação. Inadimplente não pode solicitar: na edição, a solicitação sai.
   const [descontoSolicitado, setDescontoSolicitado] = useState(
     original?.solicitacao && !inadimplenteOriginal ? String(original.solicitacao.percentual) : '',
   );
   const [descricao, setDescricao] = useState(original?.descricao ?? '');
   const [dataVencimento, setDataVencimento] = useState(
-    original?.pagamento === 'A_PRAZO' ? paraAAAAMMDD(original.vencimento) : '',
+    original?.pagamento === 'A_PRAZO' ? dataLocal(original.vencimento) : '',
   ); // AAAA-MM-DD, só a prazo
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
+  // Pedido que já era a prazo: cliente e vencimento ficam travados, e pode continuar a prazo.
+  const eraAPrazo = original?.pagamento === 'A_PRAZO';
+  const vencimentoTravado = eraAPrazo && pagamento === 'A_PRAZO';
   const aluguel = tipo === 'ALUGUEL';
   const quantidadeMeses = Number(meses);
   // Cliente desativado não entra em pedido novo (na edição, o cliente atual continua na lista).
@@ -166,10 +163,10 @@ export default function NovoPedidoForm({
     if (aluguel && (!Number.isInteger(quantidadeMeses) || quantidadeMeses <= 0)) {
       return setErro('Informe a duração do aluguel em meses.');
     }
-    if (inadimplente && pagamento === 'A_PRAZO') {
+    if (inadimplente && pagamento === 'A_PRAZO' && !eraAPrazo) {
       return setErro('Cliente inadimplente: não pode fazer pedido a prazo. Use PIX ou à vista.');
     }
-    if (pagamento === 'A_PRAZO') {
+    if (pagamento === 'A_PRAZO' && !vencimentoTravado) {
       const erroData = erroVencimento(dataVencimento);
       if (erroData) return setErro(erroData);
     }
@@ -216,6 +213,7 @@ export default function NovoPedidoForm({
           <Selecao
             value={clienteId}
             onChange={escolherCliente}
+            disabled={eraAPrazo}
             placeholder="Selecione o cliente"
             opcoes={clientesEscolha.map((c) => ({
               valor: String(c.id),
@@ -226,13 +224,17 @@ export default function NovoPedidoForm({
         </label>
       </div>
       {clientesEscolha.length === 0 && <p className="dica">Nenhum cliente ativo cadastrado.</p>}
+      {eraAPrazo && (
+        <p className="dica">Pedido a prazo: o cliente e o vencimento não podem ser alterados.</p>
+      )}
 
       {cliente && (
         <>
           <p className="dica">Limite de crédito disponível: {moeda.format(limiteDisponivel)}</p>
           {inadimplente && (
             <p className="aviso erro">
-              Cliente inadimplente: tem pedido a prazo vencido e não pago. Só pode comprar com PIX ou à vista, sem
+              Cliente inadimplente: tem pedido a prazo vencido e não pago.{' '}
+              {eraAPrazo ? 'Este pedido pode continuar a prazo, mas fica' : 'Só pode comprar com PIX ou à vista,'} sem
               desconto nenhum{cliente.categoria === 'VIP' && ' (perde os 5% automáticos de VIP)'} e sem poder
               solicitar desconto.
             </p>
@@ -348,8 +350,12 @@ export default function NovoPedidoForm({
               {
                 valor: 'A_PRAZO',
                 rotulo: 'A prazo',
-                detalhe: inadimplente ? 'indisponível (inadimplente)' : 'escolha o vencimento',
-                desabilitada: inadimplente,
+                detalhe: eraAPrazo
+                  ? 'vencimento mantido'
+                  : inadimplente
+                    ? 'indisponível (inadimplente)'
+                    : 'escolha o vencimento',
+                desabilitada: inadimplente && !eraAPrazo,
               },
             ]}
           />
@@ -359,9 +365,11 @@ export default function NovoPedidoForm({
             <span>Vencimento</span>
             <input
               type="date"
-              min={hojeAAAAMMDD(1)}
+              min={vencimentoTravado ? undefined : hojeAAAAMMDD(1)}
               value={dataVencimento}
               onChange={(e) => setDataVencimento(e.target.value)}
+              disabled={vencimentoTravado}
+              title={vencimentoTravado ? 'O vencimento de um pedido a prazo não pode ser alterado.' : undefined}
               required
             />
           </label>

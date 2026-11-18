@@ -67,6 +67,12 @@ export function fimDoDia(data: string): Date | null {
   return d.getDate() === Number(m[3]) ? d : null; // recusa 31/02 etc.
 }
 
+/** ISO → "AAAA-MM-DD" na hora local (para o campo de data e para comparar datas). */
+export function dataLocal(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** Data de hoje em "AAAA-MM-DD" (hora local), para o mínimo do campo de data. */
 export function hojeAAAAMMDD(desloc = 0): string {
   const d = new Date();
