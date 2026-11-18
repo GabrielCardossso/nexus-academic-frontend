@@ -6,6 +6,7 @@ import {
   erroDesconto,
   erroVencimento,
   faixaDesconto,
+  mesmoConteudo,
   MSG_INADIMPLENTE_SEM_DESCONTO,
   hojeAAAAMMDD,
   pagoNaHora,
@@ -131,7 +132,8 @@ export default function NovoPedidoForm({
   const mantemSolicitacao =
     !!original?.solicitacao &&
     original.clienteId === cliente?.id &&
-    String(original.solicitacao.percentual) === textoDesconto;
+    String(original.solicitacao.percentual) === textoDesconto &&
+    mesmoConteudo(original, { tipo, pagamento, meses: aluguel ? quantidadeMeses : undefined, itens });
   const solicitacao: SolicitacaoDesconto | undefined = mantemSolicitacao
     ? original!.solicitacao
     : cliente && textoDesconto !== ''
@@ -410,8 +412,10 @@ export default function NovoPedidoForm({
       {solicitacao && !erroDoDesconto && (
         <p className="dica">
           {mantemSolicitacao && solicitacao.status !== 'PENDENTE'
-            ? `Solicitação de ${solicitacao.percentual}% já ${solicitacao.status === 'APROVADA' ? 'aprovada' : 'rejeitada'}: a decisão continua valendo. Mude o percentual para pedir de novo.`
-            : 'O desconto solicitado só é aplicado depois da aprovação de um colaborador.'}
+            ? `Solicitação de ${solicitacao.percentual}% já ${solicitacao.status === 'APROVADA' ? 'aprovada' : 'rejeitada'}: a decisão continua valendo enquanto o pedido não mudar.`
+            : original?.solicitacao && original.solicitacao.status !== 'PENDENTE'
+              ? 'O pedido mudou: a solicitação de desconto volta a aguardar a decisão de um colaborador.'
+              : 'O desconto solicitado só é aplicado depois da aprovação de um colaborador.'}
         </p>
       )}
 

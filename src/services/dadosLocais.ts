@@ -14,6 +14,7 @@ import {
   erroVencimento,
   estaInadimplente,
   fimDoDia,
+  mesmoConteudo,
   MSG_INADIMPLENTE_SEM_DESCONTO,
   pagoNaHora,
   podeEditar,
@@ -358,7 +359,8 @@ function montarPedido(req: PedidoCriarRequest, ctx: ContextoPedido, id: number):
 
   // NORMAL solicita de 1% a 10%; VIP (que já tem 5%) solicita de 10% a 15% para substituir os 5%.
   // Inadimplente não solicita. Sempre depende de aprovação.
-  // Na edição, se o percentual e o cliente não mudaram, a solicitação (e a decisão dela) continua.
+  // Na edição, a solicitação (e a decisão dela) só continua se o cliente, o percentual e o conteúdo
+  // do pedido (tipo, pagamento, meses, produtos e quantidades) não mudaram. Senão, volta a ficar pendente.
   let solicitacao: SolicitacaoDesconto | undefined;
   if (req.descontoSolicitado != null) {
     const erro = erroDesconto(req.descontoSolicitado, cliente.categoria, inadimplente);
@@ -366,7 +368,8 @@ function montarPedido(req: PedidoCriarRequest, ctx: ContextoPedido, id: number):
     const mantem =
       original?.solicitacao &&
       original.clienteId === cliente.id &&
-      original.solicitacao.percentual === req.descontoSolicitado;
+      original.solicitacao.percentual === req.descontoSolicitado &&
+      mesmoConteudo(original, req);
     solicitacao = mantem ? original!.solicitacao : { percentual: req.descontoSolicitado, status: 'PENDENTE' };
   }
 

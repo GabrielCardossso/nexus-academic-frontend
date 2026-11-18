@@ -150,6 +150,23 @@ export function statusDoPedido(p: EstadoPedido): StatusPedido {
   return 'PENDENTE';
 }
 
+type ConteudoPedido = {
+  tipo: TipoPedido;
+  pagamento: FormaPagamento;
+  meses?: number;
+  itens: { produtoId: number; quantidade: number }[];
+};
+
+/**
+ * Na edição: tipo, pagamento, meses, produtos e quantidades iguais aos do pedido original.
+ * Só assim uma decisão de desconto já tomada continua valendo (senão volta a ficar pendente).
+ */
+export function mesmoConteudo(a: ConteudoPedido, b: ConteudoPedido): boolean {
+  const chave = (p: ConteudoPedido) =>
+    [p.tipo, p.pagamento, p.tipo === 'ALUGUEL' ? p.meses : '', ...p.itens.map((i) => `${i.produtoId}:${i.quantidade}`).sort()].join('|');
+  return chave(a) === chave(b);
+}
+
 /** Desconto solicitado ainda sem decisão de um colaborador. */
 export const aguardaDesconto = (p: Pick<DadosPedido, 'solicitacao'>) => p.solicitacao?.status === 'PENDENTE';
 
