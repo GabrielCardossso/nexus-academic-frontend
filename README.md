@@ -215,7 +215,7 @@ Para casar o front com a API real:
 
 ## Estrutura do projeto
 
-Cada pasta com mais de um arquivo tem um `index.ts` que reexporta tudo, então os imports ficam curtos (`from '../regras'`, `from '../services/api'`), e o comentário no topo do `index.ts` diz o que tem em cada arquivo.
+As pastas `types`, `regras`, `utils`, `services/api` e `services/dadosLocais` têm um `index.ts` que reexporta tudo, então os imports ficam curtos (`from '../regras'`, `from '../services/api'`), e o comentário no topo do `index.ts` diz o que tem em cada arquivo. Componentes e telas são importados pelo caminho do arquivo (`from '../components/comum/Modal'`).
 
 ```
 public/
