@@ -18,6 +18,7 @@ import {
   mesmoConteudo,
   MSG_INADIMPLENTE_SEM_DESCONTO,
   MSG_SAIR_DO_A_PRAZO,
+  MSG_VENCIDO_SO_PAGAR,
   pagoNaHora,
   podeCancelar,
   podeEditar,
@@ -467,6 +468,7 @@ export async function editarPedidoLocal(id: number, req: PedidoCriarRequest): Pr
   if (!original) throw new Error('Pedido não encontrado.');
   if (original.canceladoEm) throw new Error('Pedido cancelado: não pode ser editado.');
   if (original.devolvidoEm) throw new Error('Aluguel já devolvido: não pode ser editado.');
+  if (estaVencido(original)) throw new Error(MSG_VENCIDO_SO_PAGAR);
   if (!podeEditar(original)) throw new Error('Pedido já pago: não pode mais ser editado.');
 
   // Desfaz o original: devolve o estoque e libera o crédito reservado (a prazo não pago).
@@ -502,7 +504,7 @@ export async function cancelarPedidoLocal(id: number): Promise<Pedido> {
   if (!pedido) throw new Error('Pedido não encontrado.');
   if (pedido.canceladoEm) throw new Error('Este pedido já foi cancelado.');
   if (estaVencido(pedido)) {
-    throw new Error('Pedido a prazo vencido não pode ser cancelado: registre o pagamento.');
+    throw new Error(MSG_VENCIDO_SO_PAGAR);
   }
   if (!podeCancelar(pedido)) throw new Error('Só pedido ainda não pago (e não devolvido) pode ser cancelado.');
 

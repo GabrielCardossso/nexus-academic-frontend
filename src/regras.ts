@@ -190,17 +190,20 @@ export const podePagar = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao' | 'pa
 /**
  * Edição: só antes do pagamento (vale também para pedido já confirmado). A prazo, até registrar o
  * pagamento; PIX/à vista já nascem pagos, então só editam enquanto o desconto aguarda decisão.
- * Aluguel devolvido não edita.
+ * Aluguel devolvido e pedido cancelado não editam.
+ * Pedido a prazo VENCIDO também não: só o pagamento pode ser registrado (senão daria para reduzir o
+ * total, trocar para PIX e o cliente sair da inadimplência pagando menos).
  */
-export const podeEditar = (p: Pick<DadosPedido, 'pagoEm' | 'devolvidoEm' | 'canceladoEm'>) =>
-  !p.pagoEm && !p.devolvidoEm && !p.canceladoEm;
+export const podeEditar = (p: PedidoComPrazo & Pick<DadosPedido, 'devolvidoEm'>) =>
+  !p.pagoEm && !p.devolvidoEm && !p.canceladoEm && !estaVencido(p);
 
 /**
- * Cancelar (o "excluir" do pedido): só pedido que ainda pode ser editado (não pago, não devolvido).
+ * Cancelar (o "excluir" do pedido): mesmas condições da edição (não pago, não devolvido, não vencido).
  * Pedido a prazo vencido não pode ser cancelado: senão o cliente sairia da inadimplência sem pagar.
  */
-export const podeCancelar = (p: PedidoComPrazo & Pick<DadosPedido, 'devolvidoEm'>) =>
-  podeEditar(p) && !estaVencido(p);
+export const podeCancelar = (p: PedidoComPrazo & Pick<DadosPedido, 'devolvidoEm'>) => podeEditar(p);
+
+export const MSG_VENCIDO_SO_PAGAR = 'Pedido a prazo vencido não pode ser editado nem cancelado: registre o pagamento.';
 
 /** Só aluguel já concluído e ainda não devolvido pode ser devolvido. */
 export const podeDevolver = (p: EstadoPedido & { tipo: TipoPedido }) =>
