@@ -423,6 +423,13 @@ export default function NovoPedidoForm({
         <span>Pagamento: {ROTULO_STATUS_PAGAMENTO[resumo.statusPagamento]} · o pedido conclui só ao ser confirmado</span>
       </div>
       {pagamento === 'A_PRAZO' && <p className="dica">O total será descontado do limite de crédito do cliente.</p>}
+      {editando && resumo.statusPagamento === 'PAGO' && (
+        <p className="aviso erro">
+          Atenção: ao salvar, este pedido será marcado como PAGO ({pagamento === 'PIX' ? 'PIX' : 'à vista'} sem
+          desconto aguardando decisão) e não poderá mais ser editado.
+          {original?.pagamento === 'A_PRAZO' && ' O crédito reservado volta para o limite do cliente.'}
+        </p>
+      )}
       {acimaDoLimite && <p className="msg erro">Total acima do limite de crédito do cliente.</p>}
 
       {erro && <p className="msg erro">{erro}</p>}
