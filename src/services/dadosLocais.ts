@@ -19,6 +19,8 @@ import {
   MSG_INADIMPLENTE_SEM_DESCONTO,
   MSG_SAIR_DO_A_PRAZO,
   MSG_VENCIDO_SO_PAGAR,
+  MSG_INADIMPLENTE_NAO_AUMENTA,
+  totalSemDesconto,
   pagoNaHora,
   podeCancelar,
   podeEditar,
@@ -432,6 +434,8 @@ function montarPedido(req: PedidoCriarRequest, ctx: ContextoPedido, id: number):
   if (req.pagamento === 'A_PRAZO') {
     const total = resumoPedido(pedido).total;
     if (total > cliente.limiteCredito) throw new Error('Total do pedido acima do limite de crédito do cliente.');
+    // Inadimplente continuando a prazo: o pedido não pode crescer (seria uma compra nova a prazo).
+    if (eraAPrazo && inadimplente && total > totalSemDesconto(original!)) throw new Error(MSG_INADIMPLENTE_NAO_AUMENTA);
     pedido.creditoUsado = total;
   }
   return pedido;

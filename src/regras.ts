@@ -203,6 +203,12 @@ export const podeEditar = (p: PedidoComPrazo & Pick<DadosPedido, 'devolvidoEm'>)
  */
 export const podeCancelar = (p: PedidoComPrazo & Pick<DadosPedido, 'devolvidoEm'>) => podeEditar(p);
 
+export const MSG_INADIMPLENTE_NAO_AUMENTA =
+  'Cliente inadimplente: o pedido a prazo pode ser editado, mas o total não pode aumentar.';
+
+/** Total do pedido como o cliente inadimplente pagaria (sem desconto nenhum). */
+export const totalSemDesconto = (p: DadosPedido) => resumoPedido({ ...p, clienteInadimplente: true }).total;
+
 export const MSG_VENCIDO_SO_PAGAR = 'Pedido a prazo vencido não pode ser editado nem cancelado: registre o pagamento.';
 
 /** Só aluguel já concluído e ainda não devolvido pode ser devolvido. */

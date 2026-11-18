@@ -9,6 +9,8 @@ import {
   mesmoConteudo,
   MSG_INADIMPLENTE_SEM_DESCONTO,
   MSG_SAIR_DO_A_PRAZO,
+  MSG_INADIMPLENTE_NAO_AUMENTA,
+  totalSemDesconto,
   hojeAAAAMMDD,
   pagoNaHora,
   resumoPedido,
@@ -155,6 +157,9 @@ export default function NovoPedidoForm({
   const acimaDoLimite = !!cliente && pagamento === 'A_PRAZO' && resumo.total > limiteDisponivel;
   // Pedido a prazo só sai do a prazo sendo pago na hora (senão a trava de cliente/vencimento se perderia).
   const saiDoAPrazoSemPagar = eraAPrazo && pagamento !== 'A_PRAZO' && resumo.statusPagamento !== 'PAGO';
+  // Inadimplente continuando a prazo: o total não pode subir (seria uma compra nova a prazo).
+  const inadimplenteAumenta =
+    eraAPrazo && inadimplente && pagamento === 'A_PRAZO' && resumo.total > totalSemDesconto(original!);
 
   function escolherCliente(id: string) {
     setClienteId(id);
@@ -181,6 +186,7 @@ export default function NovoPedidoForm({
     }
     if (erroDoDesconto) return setErro(erroDoDesconto);
     if (saiDoAPrazoSemPagar) return setErro(MSG_SAIR_DO_A_PRAZO);
+    if (inadimplenteAumenta) return setErro(MSG_INADIMPLENTE_NAO_AUMENTA);
 
     setEnviando(true);
     onEnviando(true);
@@ -444,6 +450,7 @@ export default function NovoPedidoForm({
       )}
       {acimaDoLimite && <p className="msg erro">Total acima do limite de crédito do cliente.</p>}
       {saiDoAPrazoSemPagar && <p className="msg erro">{MSG_SAIR_DO_A_PRAZO}</p>}
+      {inadimplenteAumenta && <p className="msg erro">{MSG_INADIMPLENTE_NAO_AUMENTA}</p>}
 
       {erro && <p className="msg erro">{erro}</p>}
       <div className="modal-acoes">
