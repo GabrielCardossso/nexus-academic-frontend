@@ -52,7 +52,7 @@ function detalhesDo(p: Pedido): Detalhe[] {
     { rotulo: 'Total', valor: moeda.format(r.total) },
     p.pagamento === 'A_PRAZO' && {
       rotulo: 'Crédito usado',
-      valor: `${moeda.format(p.creditoUsado ?? r.total)}${p.pagoEm ? ' (devolvido)' : ''}`,
+      valor: `${moeda.format(p.creditoUsado ?? r.total)}${p.pagoEm || p.canceladoEm ? ' (devolvido)' : ''}`,
     },
     { rotulo: 'Criado em', valor: dataHoraBR(p.criadoEm) },
     { rotulo: aluguel ? 'Início' : 'Emissão', valor: dataBR(p.emissao) },

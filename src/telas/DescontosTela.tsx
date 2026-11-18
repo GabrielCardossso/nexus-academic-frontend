@@ -50,7 +50,8 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
   const comSolicitacao = (pedidos ?? []).filter((p) => p.solicitacao);
   // Pedido cancelado sai dos pendentes (não há mais o que decidir).
   const pendentes = comSolicitacao.filter((p) => p.solicitacao!.status === 'PENDENTE' && !p.canceladoEm);
-  const decididas = comSolicitacao.filter((p) => p.solicitacao!.status !== 'PENDENTE');
+  // Cancelado antes da decisão vai para o histórico (aba Decididas), com o selo "Pedido cancelado".
+  const decididas = comSolicitacao.filter((p) => p.solicitacao!.status !== 'PENDENTE' || p.canceladoEm);
   const lista = aba === 'PENDENTES' ? pendentes : decididas;
 
   async function decidir(pedido: Pedido, aprovar: boolean) {
@@ -118,6 +119,7 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
       <ul className="itens">
         {lista.map((p) => {
           const s = p.solicitacao!;
+          const aguardando = s.status === 'PENDENTE' && !p.canceladoEm; // cancelado não tem mais o que decidir
           const atual = resumoPedido({ ...p, solicitacao: { ...s, status: 'REJEITADA' } }); // sem a solicitação
           const comDesconto = resumoPedido({ ...p, solicitacao: { ...s, status: 'APROVADA' } });
           return (
@@ -126,7 +128,8 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                 <span className="item-titulo">
                   #{p.id} · {ROTULO_TIPO[p.tipo]} <span className="item-sub">· {dataBR(p.criadoEm)}</span>
                 </span>
-                {s.status === 'PENDENTE' && <span className="selo pendente">Aguardando decisão</span>}
+                {aguardando && <span className="selo pendente">Aguardando decisão</span>}
+                {p.canceladoEm && <span className="selo cancelado">Pedido cancelado</span>}
                 {s.status === 'APROVADA' && <span className="selo aprovada">Aprovada</span>}
                 {s.status === 'REJEITADA' && <span className="selo rejeitada">Rejeitada</span>}
               </div>
@@ -149,10 +152,10 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                 </span>
               </div>
 
-              {s.status === 'PENDENTE' && p.clienteInadimplente && (
+              {aguardando && p.clienteInadimplente && (
                 <p className="aviso erro">{MSG_INADIMPLENTE_SEM_DESCONTO} Esta solicitação só pode ser rejeitada.</p>
               )}
-              {s.status === 'PENDENTE' ? (
+              {aguardando ? (
                 <div className="item-rodape fim">
                   <div className="acoes">
                     <button
@@ -175,7 +178,9 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                 </div>
               ) : (
                 <p className="item-info">
-                  {s.status === 'APROVADA' ? 'Aprovada' : 'Rejeitada'} por {s.colaboradorNome} (ID {s.colaboradorId})
+                  {s.status === 'PENDENTE'
+                    ? 'Pedido cancelado antes da decisão.'
+                    : `${s.status === 'APROVADA' ? 'Aprovada' : 'Rejeitada'} por ${s.colaboradorNome} (ID ${s.colaboradorId})`}
                 </p>
               )}
             </li>

@@ -89,8 +89,9 @@ function salvar<T>(chave: string, itens: T[]) {
  */
 function lerPedidos(): Pedido[] {
   const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
+  // Pago ou cancelado: fica a situação gravada naquele momento (o valor e os selos não mudam mais).
   return pedidos.map((p) =>
-    p.pagoEm ? p : { ...p, clienteInadimplente: estaInadimplente(p.clienteId, pedidos) },
+    p.pagoEm || p.canceladoEm ? p : { ...p, clienteInadimplente: estaInadimplente(p.clienteId, pedidos) },
   );
 }
 
@@ -496,7 +497,7 @@ export async function editarPedidoLocal(id: number, req: PedidoCriarRequest): Pr
  * como "Cancelado".
  */
 export async function cancelarPedidoLocal(id: number): Promise<Pedido> {
-  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
+  const pedidos = lerPedidos(); // grava a situação do cliente no momento do cancelamento
   const pedido = pedidos.find((p) => p.id === id);
   if (!pedido) throw new Error('Pedido não encontrado.');
   if (pedido.canceladoEm) throw new Error('Este pedido já foi cancelado.');
