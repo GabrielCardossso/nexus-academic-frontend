@@ -17,6 +17,7 @@ import {
   fimDoDia,
   mesmoConteudo,
   MSG_INADIMPLENTE_SEM_DESCONTO,
+  MSG_SAIR_DO_A_PRAZO,
   pagoNaHora,
   podeCancelar,
   podeEditar,
@@ -418,6 +419,12 @@ function montarPedido(req: PedidoCriarRequest, ctx: ContextoPedido, id: number):
     pagoEm: pagoNaHora({ pagamento: req.pagamento, solicitacao }) ? agora.toISOString() : undefined,
     clienteInadimplente: inadimplente,
   };
+
+  // Pedido a prazo só sai do a prazo sendo pago na hora (PIX/à vista sem desconto pendente).
+  // Senão, numa segunda edição ele já não seria "a prazo" e daria para trocar o cliente ou o vencimento.
+  if (eraAPrazo && req.pagamento !== 'A_PRAZO' && !pedido.pagoEm) {
+    throw new Error(MSG_SAIR_DO_A_PRAZO);
+  }
 
   // A prazo (venda ou aluguel): valida e reserva o total no limite de crédito do cliente.
   if (req.pagamento === 'A_PRAZO') {

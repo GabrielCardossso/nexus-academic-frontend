@@ -96,6 +96,9 @@ export function estaInadimplente(clienteId: number, pedidos: PedidoComPrazo[], e
   return pedidos.some((p) => p.clienteId === clienteId && estaVencido(p, em));
 }
 
+export const MSG_SAIR_DO_A_PRAZO =
+  'Pedido a prazo só pode passar para PIX ou à vista se for pago na hora: tire a solicitação de desconto.';
+
 export const MSG_INADIMPLENTE_SEM_DESCONTO =
   'Cliente inadimplente não tem desconto e não pode solicitar desconto (nem com aprovação de colaborador).';
 
