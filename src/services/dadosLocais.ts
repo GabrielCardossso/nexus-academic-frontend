@@ -152,6 +152,7 @@ function validarCliente(dados: ClienteCriarRequest, clientes: ClienteSalvo[], id
 
   if (name.length < 3) throw new Error('Informe o nome ou a razão social do cliente.');
   if (!cnpjValido(cnpj)) throw new Error('CNPJ inválido.');
+  if (clientes.some((c) => c.id !== idAtual && c.cnpj === cnpj)) throw new Error('Já existe um cliente com esse CNPJ.');
   if (clientes.some((c) => c.id !== idAtual && c.email.toLowerCase() === email.toLowerCase())) {
     throw new Error('Já existe um cliente com esse e-mail.'); // coluna unique
   }
