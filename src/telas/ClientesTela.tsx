@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import Aviso from '../components/Aviso';
-import ConfirmarModal from '../components/ConfirmarModal';
-import Modal from '../components/Modal';
-import Selecao from '../components/Selecao';
+import Aviso from '../components/comum/Aviso';
+import ConfirmarModal from '../components/comum/ConfirmarModal';
+import Modal from '../components/comum/Modal';
+import Selecao from '../components/comum/Selecao';
 import { cadastrarCliente, definirClienteAtivo, editarCliente, listarClientes } from '../services/api';
 import type { ClienteCategoria, ClienteListarResponse } from '../types';
 import { campo, moeda, type Mensagem } from '../utils';

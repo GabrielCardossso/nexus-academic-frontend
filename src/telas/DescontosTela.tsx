@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import Aviso from '../components/Aviso';
-import Selecao from '../components/Selecao';
+import Aviso from '../components/comum/Aviso';
+import Selecao from '../components/comum/Selecao';
 import { decidirDesconto, listarColaboradores, listarPedidos } from '../services/api';
 import {
   mensagemRejeicao,

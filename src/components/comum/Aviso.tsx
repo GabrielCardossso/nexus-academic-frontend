@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { Mensagem } from '../utils';
+import type { Mensagem } from '../../utils';
 
 interface AvisoProps {
   msg: Mensagem;

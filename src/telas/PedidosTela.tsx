@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import Aviso from '../components/Aviso';
-import ConfirmarModal from '../components/ConfirmarModal';
-import Modal from '../components/Modal';
-import NovoPedidoForm from '../components/NovoPedidoForm';
-import PedidoCard from '../components/PedidoCard';
+import Aviso from '../components/comum/Aviso';
+import ConfirmarModal from '../components/comum/ConfirmarModal';
+import Modal from '../components/comum/Modal';
+import PedidoForm from '../components/pedidos/PedidoForm';
+import PedidoCard from '../components/pedidos/PedidoCard';
 import {
   cancelarPedido,
   confirmarPedido,
@@ -134,7 +134,7 @@ export default function PedidosTela() {
         bloqueado={enviandoNovo}
         larga
       >
-        <NovoPedidoForm
+        <PedidoForm
           key={editando?.id ?? 'novo'}
           clientes={clientes}
           produtos={produtos}

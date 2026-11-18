@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import Aviso from '../components/Aviso';
-import ConfirmarModal from '../components/ConfirmarModal';
-import Modal from '../components/Modal';
+import Aviso from '../components/comum/Aviso';
+import ConfirmarModal from '../components/comum/ConfirmarModal';
+import Modal from '../components/comum/Modal';
 import {
   cadastrarColaborador,
   definirColaboradorAtivo,
