@@ -46,12 +46,12 @@ import type {
   SolicitacaoDesconto,
 } from '../types';
 
-// "v7": pedido com descrição, vencimento escolhido (a prazo) e fim do aluguel separado.
-// Dados antigos de teste ficam de lado.
-const CHAVE_CLIENTES = 'nexus:v7:clientes';
-const CHAVE_PRODUTOS = 'nexus:v7:produtos';
-const CHAVE_PEDIDOS = 'nexus:v7:pedidos';
-const CHAVE_COLABORADORES = 'nexus:v7:colaboradores';
+// "v8": dados de exemplo com as regras novas (inadimplente sem desconto, cancelados e desativados).
+// Dados de versões antigas ficam de lado e os de exemplo são recriados.
+const CHAVE_CLIENTES = 'nexus:v8:clientes';
+const CHAVE_PRODUTOS = 'nexus:v8:produtos';
+const CHAVE_PEDIDOS = 'nexus:v8:pedidos';
+const CHAVE_COLABORADORES = 'nexus:v8:colaboradores';
 
 /** Primeira execução (nada salvo ainda): grava os dados de exemplo de mocks.ts. */
 function carregarMocksSeVazio() {
