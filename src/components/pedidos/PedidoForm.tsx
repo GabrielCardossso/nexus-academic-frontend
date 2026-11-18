@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
-import { criarPedido, editarPedido } from '../services/api';
-import Selecao from './Selecao';
+import { criarPedido, editarPedido } from '../../services/api';
+import Selecao from '../comum/Selecao';
 import {
   dataLocal,
   erroDesconto,
@@ -15,7 +15,7 @@ import {
   pagoNaHora,
   resumoPedido,
   ROTULO_STATUS_PAGAMENTO,
-} from '../regras';
+} from '../../regras';
 import type {
   ClienteListarResponse,
   FormaPagamento,
@@ -24,10 +24,10 @@ import type {
   ProdutoListarResponse,
   SolicitacaoDesconto,
   TipoPedido,
-} from '../types';
-import { moeda } from '../utils';
+} from '../../types';
+import { moeda } from '../../utils';
 
-interface NovoPedidoFormProps {
+interface PedidoFormProps {
   clientes: ClienteListarResponse[];
   produtos: ProdutoListarResponse[];
   /** Pedido sendo editado (ainda não pago). Sem ele, o formulário cria um pedido novo. */
@@ -40,14 +40,14 @@ interface NovoPedidoFormProps {
 /** Produto escolhido no pedido; a quantidade fica como texto porque vem do <input>. */
 type Linha = { produtoId: number; quantidade: string };
 
-export default function NovoPedidoForm({
+export default function PedidoForm({
   clientes,
   produtos,
   pedido: original,
   onSalvo,
   onCancelar,
   onEnviando,
-}: NovoPedidoFormProps) {
+}: PedidoFormProps) {
   const editando = !!original;
   const inadimplenteOriginal = !!clientes.find((c) => c.id === original?.clienteId)?.inadimplente;
   const [tipo, setTipo] = useState<TipoPedido>(original?.tipo ?? 'VENDA');

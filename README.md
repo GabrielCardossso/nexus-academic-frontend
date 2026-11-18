@@ -32,7 +32,7 @@ Os selos de status (pedido, pagamento, categoria, situação do cliente, status 
 
 ### Regras de negócio dos pedidos
 
-As regras ficam em funções puras no arquivo `src/regras.ts`, usadas tanto pela prévia na tela quanto pelos dados locais:
+As regras ficam em funções puras na pasta `src/regras/` (um arquivo por assunto), usadas tanto pela prévia na tela quanto pelos dados locais:
 
 - **Produtos:** só entram no pedido produtos com status *Disponível* e estoque maior que zero. A quantidade não pode passar do estoque, e o estoque é baixado quando o pedido é feito (venda ou aluguel).
 - **Tipo do pedido:** *Venda* usa o preço de venda do produto. *Aluguel* usa o preço de aluguel **por mês**.
@@ -95,13 +95,13 @@ Cada pedido tem **dois status independentes**, mostrados como selos na lista:
 
 ### Dados locais (sem back-end)
 
-Por enquanto o front funciona sozinho. Em `src/config/api.ts` a constante `USAR_DADOS_LOCAIS` está como `true`, e então tudo é salvo e lido do **localStorage** do navegador por `src/services/dadosLocais.ts`, que faz o papel do back-end:
+Por enquanto o front funciona sozinho. Em `src/config/api.ts` a constante `USAR_DADOS_LOCAIS` está como `true`, e então tudo é salvo e lido do **localStorage** do navegador pela pasta `src/services/dadosLocais/`, que faz o papel do back-end:
 
 - Gera os IDs sozinho (maior ID atual + 1).
 - Valida o **CNPJ** (dígitos verificadores, aceitando também o CNPJ alfanumérico) e não deixa cadastrar nem editar dois clientes com o mesmo CNPJ ou o mesmo e-mail.
 - Valida o **CPF** do colaborador e não deixa repetir CPF nem e-mail.
 - Guarda os dados nas chaves `nexus:v8:clientes`, `nexus:v8:produtos`, `nexus:v8:pedidos` e `nexus:v8:colaboradores`. Para limpar, abra o navegador em **F12 > Application > Local Storage** e apague as chaves `nexus:*`.
-- **Dados de exemplo:** com `CARREGAR_MOCKS = true` (em `src/config/api.ts`), na primeira vez que o app abre com o localStorage vazio ele grava os dados de `src/services/mocks.ts`: 7 clientes, 9 produtos, 4 colaboradores (Ana Souza, Carlos Lima, Beatriz Rocha e Marcos Dias) e 17 pedidos que cobrem todos os cenários da tela (desconto pendente, aprovado e rejeitado, VIP pedindo de 10% a 15%, venda e aluguel a prazo, pedido a prazo já pago, aluguel para devolver e aluguel já devolvido, pedido cancelado e pedido cancelado com desconto pendente). A **Tech Solutions Informática** (VIP) vem **inadimplente**, por uma venda a prazo vencida e não paga: ela compra no PIX sem desconto, e o aluguel a prazo dela (ainda não vencido) pode ser editado sem aumentar. Vêm também desativados, para testar o reativar: o cliente **Distribuidora Litoral**, o colaborador **Marcos Dias** e o produto **Tablet Samsung**. Estoque e limite de crédito já vêm coerentes com esses pedidos. Para recomeçar do zero, apague as chaves `nexus:*` e recarregue a página.
+- **Dados de exemplo:** com `CARREGAR_MOCKS = true` (em `src/config/api.ts`), na primeira vez que o app abre com o localStorage vazio ele grava os dados de `src/services/dadosLocais/mocks.ts`: 7 clientes, 9 produtos, 4 colaboradores (Ana Souza, Carlos Lima, Beatriz Rocha e Marcos Dias) e 17 pedidos que cobrem todos os cenários da tela (desconto pendente, aprovado e rejeitado, VIP pedindo de 10% a 15%, venda e aluguel a prazo, pedido a prazo já pago, aluguel para devolver e aluguel já devolvido, pedido cancelado e pedido cancelado com desconto pendente). A **Tech Solutions Informática** (VIP) vem **inadimplente**, por uma venda a prazo vencida e não paga: ela compra no PIX sem desconto, e o aluguel a prazo dela (ainda não vencido) pode ser editado sem aumentar. Vêm também desativados, para testar o reativar: o cliente **Distribuidora Litoral**, o colaborador **Marcos Dias** e o produto **Tablet Samsung**. Estoque e limite de crédito já vêm coerentes com esses pedidos. Para recomeçar do zero, apague as chaves `nexus:*` e recarregue a página.
 
 Para usar o back-end real, troque para `USAR_DADOS_LOCAIS = false` em `src/config/api.ts`. Nesse modo, **clientes, produtos e colaboradores** (cadastro e listagem) chamam a API. **Pedidos, descontos, pagamento e devolução** continuam **só no modo local**: o back já tem essas rotas, mas as regras ainda estão sendo alinhadas (o Lucas está terminando inadimplente e faixas de desconto). Com a flag desligada, essas telas mostram o erro "ainda não estão ligados ao back-end".
 
@@ -163,7 +163,7 @@ O back usa o prefixo **`/api/v1`** (context-path no `application.yml`). Os camin
 
 O back também já tem rotas de pedido (`/api/v1/pedidos`, `/{id}`, `/vencidosEmAberto`, `/solicitacoesDescontoEmAberto`, `/cliente`, `/{id}/desconto`, `/{id}/finalizar`, `/{id}/devolucao`) e `/api/v1/produtos/listarAlugados`. O front ainda não usa essas rotas porque as regras de pedido estão sendo alinhadas.
 
-O front usa nomes próprios por dentro (`categoria`, `limiteCredito`, `nome`), e `src/services/api.ts` converte para os nomes do back ao enviar e receber:
+O front usa nomes próprios por dentro (`categoria`, `limiteCredito`, `nome`), e os arquivos de `src/services/api/` convertem para os nomes do back ao enviar e receber:
 
 ```json
 // POST /api/v1/clientes
@@ -208,37 +208,66 @@ Para casar o front com a API real:
 
 1. **`USAR_DADOS_LOCAIS = false`** em `src/config/api.ts`, para o front parar de usar o localStorage.
 2. **Caminhos** em `src/config/api.ts` (Swagger do back: `http://localhost:8080/api/v1/swagger-ui/index.html`).
-3. **Conversão de campos** em `src/services/api.ts` (tipos `ClienteBack*`, `ProdutoBack*` e `ColaboradorBack`), se o back mudar algum nome.
-4. **Autenticação:** hoje o back libera tudo (`permitAll`). Se passar a exigir token, ajustar `getAuthHeaders()` em `src/services/api.ts`.
-5. **Pedidos e descontos:** quando as regras estiverem iguais nos dois lados, trocar `exigirModoLocal()` pelas chamadas às rotas de `/pedidos` em `src/services/api.ts`.
+3. **Conversão de campos** em `src/services/api/` (clientes.ts, produtos.ts e colaboradores.ts; tipos `ClienteBack*`, `ProdutoBack*` e `ColaboradorBack`), se o back mudar algum nome.
+4. **Autenticação:** hoje o back libera tudo (`permitAll`). Se passar a exigir token, ajustar `getAuthHeaders()` em `src/services/api/http.ts`.
+5. **Pedidos e descontos:** quando as regras estiverem iguais nos dois lados, trocar `exigirModoLocal()` pelas chamadas às rotas de `/pedidos` em `src/services/api/pedidos.ts`.
 6. **CORS:** o back precisa liberar a origem `http://localhost:5173`. Se aparecer `Failed to fetch` no front e erro de CORS no console do navegador (F12), o ajuste é feito no Spring.
 
 ## Estrutura do projeto
 
+As pastas `types`, `regras`, `utils`, `services/api` e `services/dadosLocais` têm um `index.ts` que reexporta tudo, então os imports ficam curtos (`from '../regras'`, `from '../services/api'`), e o comentário no topo do `index.ts` diz o que tem em cada arquivo. Componentes e telas são importados pelo caminho do arquivo (`from '../components/comum/Modal'`).
+
 ```
 public/
-└── icons/              # ícones SVG do menu lateral (inclui percent.svg, de Descontos)
+└── icons/                    # ícones SVG do menu lateral
 src/
-├── main.tsx            # ponto de entrada da aplicação
-├── App.tsx             # layout: menu lateral + troca de telas
-├── App.css             # estilos
-├── types.ts            # tipos dos DTOs (Cliente, Produto, Pedido, Desconto...)
-├── regras.ts           # regras de pedido e desconto (funções puras)
-├── utils.ts            # formatação de moeda, datas e CPF, helper de formulário
+├── main.tsx                  # ponto de entrada da aplicação
+├── App.tsx                   # layout: menu lateral + troca de telas
+├── estilos/
+│   └── App.css               # estilos
 ├── config/
-│   └── api.ts          # URL base, caminhos dos endpoints e flags USAR_DADOS_LOCAIS e CARREGAR_MOCKS
+│   └── api.ts                # URL base, caminhos dos endpoints e flags USAR_DADOS_LOCAIS e CARREGAR_MOCKS
+├── types/                    # tipos (DTOs), um arquivo por assunto
+│   ├── cliente.ts
+│   ├── produto.ts
+│   ├── colaborador.ts
+│   └── pedido.ts             # pedido, itens e solicitação de desconto
+├── regras/                   # regras de negócio (funções puras), usadas pela tela e pelos dados locais
+│   ├── pedido.ts             # total, status e o que o pedido pode fazer (confirmar, pagar, editar, cancelar, devolver)
+│   ├── descontos.ts          # desconto de VIP, faixas de solicitação e textos da decisão
+│   ├── inadimplencia.ts      # pedido vencido e cliente inadimplente
+│   ├── datas.ts              # vencimento e conversões de data
+│   ├── mensagens.ts          # mensagens de regra (tela e dados locais)
+│   └── rotulos.ts            # textos de cada valor (pagamento, tipo, status)
+├── utils/                    # utilitários sem regra de negócio
+│   ├── formatacao.ts         # moeda, datas, CPF e arredondamento
+│   └── formulario.ts         # helper de formulário e tipo do aviso
 ├── services/
-│   ├── api.ts          # chamadas HTTP ao back-end
-│   ├── dadosLocais.ts  # back-end "de mentira" no localStorage
-│   └── mocks.ts        # dados de exemplo carregados na primeira execução
+│   ├── api/                  # o que as telas chamam: back real ou dados locais
+│   │   ├── http.ts           # GET/POST, erro do Spring e as travas do modo local
+│   │   ├── clientes.ts       # (cada arquivo traz os DTOs do back daquela entidade)
+│   │   ├── produtos.ts
+│   │   ├── colaboradores.ts
+│   │   └── pedidos.ts        # pedidos e descontos
+│   └── dadosLocais/          # back-end "de mentira" no localStorage
+│       ├── armazenamento.ts  # chaves nexus:v8:*, ler/salvar e ajudantes comuns
+│       ├── validacao.ts      # CNPJ e CPF
+│       ├── clientes.ts
+│       ├── produtos.ts
+│       ├── colaboradores.ts
+│       ├── pedidos.ts        # criar, editar, cancelar, confirmar, pagar e devolver
+│       ├── descontos.ts      # aprovar ou rejeitar desconto
+│       └── mocks.ts          # dados de exemplo carregados na primeira execução
 ├── components/
-│   ├── Modal.tsx           # popup genérico (formulários de cadastro e novo pedido)
-│   ├── ConfirmarModal.tsx  # popup de confirmação (usado na devolução)
-│   ├── Aviso.tsx           # aviso flutuante de sucesso/erro
-│   ├── Selecao.tsx         # caixa de seleção própria (substitui o <select> nativo)
-│   ├── NovoPedidoForm.tsx  # formulário de novo pedido com o seletor de produtos
-│   └── PedidoCard.tsx      # card do pedido (resumo + detalhes)
-└── telas/
+│   ├── comum/                # peças reaproveitadas em várias telas
+│   │   ├── Modal.tsx         # popup genérico (formulários)
+│   │   ├── ConfirmarModal.tsx # popup de confirmação (desativar, cancelar, devolver)
+│   │   ├── Aviso.tsx         # aviso flutuante de sucesso/erro
+│   │   └── Selecao.tsx       # caixa de seleção própria (substitui o <select> nativo)
+│   └── pedidos/
+│       ├── PedidoForm.tsx    # formulário de pedido (novo e edição) com o seletor de produtos
+│       └── PedidoCard.tsx    # card do pedido (resumo, ações e detalhes)
+└── telas/                    # uma tela por item do menu
     ├── ClientesTela.tsx
     ├── ProdutosTela.tsx
     ├── PedidosTela.tsx

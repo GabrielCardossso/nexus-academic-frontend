@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import Aviso from '../components/Aviso';
-import ConfirmarModal from '../components/ConfirmarModal';
-import Modal from '../components/Modal';
-import Selecao from '../components/Selecao';
+import Aviso from '../components/comum/Aviso';
+import ConfirmarModal from '../components/comum/ConfirmarModal';
+import Modal from '../components/comum/Modal';
+import Selecao from '../components/comum/Selecao';
 import { cadastrarProduto, editarProduto, listarProdutos, reporEstoque } from '../services/api';
 import type { ProdutoListarResponse, ProdutoStatus } from '../types';
 import { campo, moeda, type Mensagem } from '../utils';

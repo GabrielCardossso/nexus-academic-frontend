@@ -12,9 +12,9 @@ import {
   ROTULO_PAGAMENTO,
   ROTULO_STATUS_PEDIDO,
   ROTULO_TIPO,
-} from '../regras';
-import type { Pedido } from '../types';
-import { dataBR, dataHoraBR, moeda } from '../utils';
+} from '../../regras';
+import type { Pedido } from '../../types';
+import { dataBR, dataHoraBR, moeda } from '../../utils';
 
 interface PedidoCardProps {
   pedido: Pedido;

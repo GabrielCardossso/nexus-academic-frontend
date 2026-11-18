@@ -1,6 +1,6 @@
 /**
  * Dados de exemplo (mock) para testar a tela sem back-end.
- * São carregados uma única vez, quando o localStorage ainda está vazio (ver dadosLocais.ts).
+ * São carregados uma única vez, quando o localStorage ainda está vazio (ver armazenamento.ts).
  *
  * Os pedidos cobrem todos os cenários da tela:
  *  - pendente aguardando aprovação de desconto (botão Confirmar bloqueado)
@@ -16,7 +16,7 @@
  *  - cadastros desativados: 1 cliente, 1 produto e 1 colaborador (podem ser reativados)
  * Estoque e limite de crédito já nascem coerentes com esses pedidos.
  */
-import { PRAZO_DIAS, estaInadimplente, pagoNaHora, resumoPedido } from '../regras';
+import { PRAZO_DIAS, estaInadimplente, pagoNaHora, resumoPedido } from '../../regras';
 import type {
   ClienteSalvo,
   Colaborador,
@@ -25,7 +25,7 @@ import type {
   ProdutoCriarResponse,
   SolicitacaoDesconto,
   TipoPedido,
-} from '../types';
+} from '../../types';
 
 /** Monta um CNPJ válido a partir dos 12 primeiros dígitos (calcula os dois verificadores). */
 function cnpjDe(base: string): string {

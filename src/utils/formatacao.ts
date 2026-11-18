@@ -1,6 +1,4 @@
-import type { ChangeEvent } from 'react';
-
-export type Mensagem = { tipo: 'sucesso' | 'erro'; texto: string } | null;
+/** Formatação de valores para mostrar na tela (moeda, datas e CPF) e arredondamento de centavos. */
 
 export const moeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 export const dataBR = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
@@ -10,8 +8,5 @@ export const dataHoraBR = (iso: string) =>
 /** 12345678909 → 123.456.789-09 */
 export const formatarCpf = (cpf: string) => cpf.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
 
-/** Atualiza um campo do formulário pelo atributo name do input/select. */
-export function campo<T extends Record<string, string>>(setForm: (fn: (f: T) => T) => void) {
-  return (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
-}
+/** Arredonda para centavos (2 casas). */
+export const arredondar = (n: number) => Math.round(n * 100) / 100;

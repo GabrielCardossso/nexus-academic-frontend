@@ -862,7 +862,7 @@ button.adicionar {
   justify-content: flex-end;
 }
 
-/* ---------- Caixa de seleção própria (components/Selecao.tsx) ---------- */
+/* ---------- Caixa de seleção própria (components/comum/Selecao.tsx) ---------- */
 .selecao {
   position: relative;
   min-width: 0;
