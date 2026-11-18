@@ -20,11 +20,13 @@ Em **Clientes**, **Produtos**, **Pedidos** e **Colaboradores**, a lista ocupa a 
 
 | Grupo | Tela | O que faz |
 |---|---|---|
-| Cadastros | **Clientes** | Cadastra cliente (nome ou razão social, CNPJ, telefone, e-mail, categoria **Normal** ou **VIP** e limite de crédito) e lista os clientes cadastrados, com a situação (**em dia** ou **inadimplente**). |
-| Cadastros | **Produtos** | Cadastra produto (nome, descrição, estoque, preço de venda e preço de aluguel por mês) e lista os produtos cadastrados com o status (**Disponível**, **Indisponível** ou **Desativado**). O cadastro não pede status, igual ao back: produto novo entra como disponível. |
-| Vendas | **Pedidos** | Monta um pedido de **venda** ou de **aluguel** (cliente, produtos e quantidades, forma de pagamento) e mostra a prévia com subtotal, desconto e total. Os produtos entram um por vez: **+ Selecionar produto** abre a lista de produtos disponíveis; depois de escolher e informar a quantidade, o botão aparece de novo para o próximo. A lista de pedidos mostra um resumo de cada um (cliente, itens, total, status do pedido e do pagamento), e **Ver detalhes** abre todos os dados em grade. Permite **confirmar** o pedido, **registrar o pagamento** dos pedidos a prazo e **devolver** os aluguéis. |
-| Gestão | **Colaboradores** | Cadastra colaborador (nome, **CPF** e e-mail) e lista os colaboradores, com quantas solicitações de desconto cada um já decidiu. O CPF é validado, e CPF e e-mail não podem se repetir. |
-| Gestão | **Descontos** | Escolhe quem está aprovando (**Aprovando como**) e mostra as solicitações de desconto em duas abas: **Pendentes**, com os botões **Aprovar** e **Rejeitar** e o total antes e depois do desconto, e **Decididas**, com quem aprovou ou rejeitou. O menu mostra quantas estão pendentes. |
+| Cadastros | **Clientes** | Cadastra, **edita** e **desativa/reativa** cliente (nome ou razão social, CNPJ, telefone, e-mail, categoria **Normal** ou **VIP** e limite de crédito) e lista os clientes cadastrados, com a situação (**em dia** ou **inadimplente**). |
+| Cadastros | **Produtos** | Cadastra, **edita** (nome, descrição, preços e status), **repõe estoque** e **desativa/reativa** produto, e lista os produtos com o status (**Disponível**, **Indisponível** ou **Desativado**). O cadastro não pede status, igual ao back: produto novo entra como disponível. |
+| Vendas | **Pedidos** | Monta um pedido de **venda** ou de **aluguel** (cliente, produtos e quantidades, forma de pagamento) e mostra a prévia com subtotal, desconto e total. Os produtos entram um por vez: **+ Selecionar produto** abre a lista de produtos disponíveis; depois de escolher e informar a quantidade, o botão aparece de novo para o próximo. A lista de pedidos mostra um resumo de cada um (cliente, itens, total, status do pedido e do pagamento), e **Ver detalhes** abre todos os dados em grade. Permite **editar** o pedido enquanto não foi pago, **confirmar** o pedido, **registrar o pagamento** dos pedidos a prazo e **devolver** os aluguéis. |
+| Gestão | **Colaboradores** | Cadastra, **edita** e **desativa/reativa** colaborador (nome, **CPF** e e-mail) e lista os colaboradores, com quantas solicitações de desconto cada um já decidiu. O CPF é validado, e CPF e e-mail não podem se repetir. |
+| Gestão | **Descontos** | Escolhe quem está aprovando (**Aprovando como**, só colaboradores ativos) e mostra as solicitações de desconto em duas abas: **Pendentes**, com os botões **Aprovar** e **Rejeitar** e o total antes e depois do desconto, e **Decididas**, com quem aprovou ou rejeitou. O menu mostra quantas estão pendentes. |
+
+**Nada é excluído de verdade.** O "excluir" de clientes, produtos e colaboradores é **Desativar** (com popup de confirmação), e o cadastro pode ser **Reativado**. Cliente desativado não aparece para pedido novo; produto desativado não entra em pedido; colaborador desativado não decide descontos. Os pedidos e decisões antigos continuam como estavam (guardam o nome, a categoria e o preço do momento).
 
 Os selos de status (pedido, pagamento, categoria, situação do cliente, status do produto) usam cores sólidas com texto branco: verde para concluído, pago, em dia, disponível e aprovado; laranja para pendente e indisponível; vermelho para vencido, inadimplente e rejeitado; roxo para VIP; cinza para os neutros.
 
@@ -39,6 +41,12 @@ As regras ficam em funções puras no arquivo `src/regras.ts`, usadas tanto pela
   - PIX e à vista: o pagamento já fica **Pago**, a não ser que exista uma solicitação de desconto ainda pendente (aí fica pago quando o colaborador decide).
   - A prazo: o pagamento fica **Pendente** até alguém clicar em **Registrar pagamento**, e o total não pode ultrapassar o **limite de crédito** do cliente. A **data de vencimento** é escolhida no pedido: obrigatória e precisa ser depois de hoje (igual ao `@Future` do back). O pedido também tem um campo opcional de **descrição**.
 - **Limite de crédito:** todo pedido a prazo (venda ou aluguel) **reserva o total no limite do cliente** assim que é criado. Se o desconto de um pedido a prazo for aprovado, a diferença volta para o limite. Ao **registrar o pagamento**, o valor reservado volta inteiro para o limite. Na devolução do aluguel o crédito não volta (só o estoque).
+- **Repor estoque:** o botão **Repor estoque** do produto **soma** a quantidade informada (inteira, maior que zero) ao estoque atual. Não muda o status do produto.
+- **Editar pedido:** o botão **Editar** aparece enquanto o pedido **não foi pago**, inclusive se já foi confirmado. Dá para mudar praticamente tudo (tipo, cliente, produtos, quantidades, meses, pagamento, vencimento, desconto e descrição).
+  - A prazo: só até **Registrar pagamento**. PIX e à vista já nascem pagos, então só editam enquanto o desconto aguarda decisão. Aluguel devolvido não edita.
+  - Na edição, o pedido antigo é desfeito (o estoque e o crédito reservado voltam) e o novo passa pelas mesmas validações do cadastro, com os preços atuais dos produtos.
+  - Mantendo o mesmo cliente e o mesmo percentual, a solicitação de desconto (e a decisão já tomada) continua. Mudando o percentual, vira uma nova solicitação pendente.
+  - Se a edição trocar para PIX ou à vista (sem desconto pendente), o pedido fica **Pago** na hora.
 
 #### Descontos
 
@@ -48,16 +56,17 @@ O cliente digita o percentual (número inteiro) que quer solicitar. Toda solicit
 |---|---|---|
 | **Normal** | — | de **1% a 10%** |
 | **VIP** em dia | **5%**, em qualquer forma de pagamento | de **10% a 15%**. Se aprovado, **substitui** os 5% (não soma): passa de 5% para 12%, por exemplo. |
-| **VIP inadimplente** | — (perde os 5%) | de **1% a 15%** |
-| **Normal inadimplente** | — | de **1% a 10%** |
+| **Inadimplente** (Normal ou VIP) | — (VIP perde os 5%) | **Não pode solicitar.** Fica sem desconto nenhum, nem com aprovação de colaborador. |
 
 #### Cliente inadimplente
 
 - O cliente é **inadimplente** quando tem pelo menos um **pedido a prazo vencido e não pago**. Não é um campo do cadastro: é calculado a partir dos pedidos. Ao registrar o pagamento dos pedidos vencidos, ele volta a ficar em dia.
-- Inadimplente **não pode fazer pedido a prazo**, só **PIX** ou **à vista**.
-- Inadimplente **VIP perde os 5% automáticos**. O desconto só vem por solicitação aprovada por um colaborador (veja a tabela acima).
-- A perda dos 5% vale para os pedidos do cliente **ainda não pagos**, inclusive os antigos. Os pedidos já pagos ficam com o valor do momento do pagamento.
-- Na tela de pedidos, o inadimplente aparece marcado na lista de clientes e a opção *A prazo* fica bloqueada. Pedido a prazo vencido ganha o selo **Vencido**.
+- Inadimplente **não pode fazer pedido a prazo**: o pedido é bloqueado antes de ser criado. Pode comprar com **PIX** ou **à vista**.
+- Inadimplente **fica sem desconto nenhum**: o VIP perde os 5% automáticos, ninguém pode solicitar desconto, e nem uma solicitação aprovada vale.
+- A perda do desconto vale para os pedidos do cliente **ainda não pagos**, inclusive os antigos. Os pedidos já pagos ficam com o valor do momento do pagamento.
+- Solicitação que ficou pendente de antes de o cliente virar inadimplente só pode ser **rejeitada** (o botão Aprovar fica bloqueado na tela de Descontos).
+- Editar o próprio pedido vencido: como o cliente está inadimplente, ele não pode continuar a prazo; trocando para PIX ou à vista, o pedido fica pago e o cliente volta a ficar em dia (se não tiver outro vencido).
+- Na tela de pedidos, o inadimplente aparece marcado na lista de clientes, a opção *A prazo* e o campo de desconto ficam bloqueados. Pedido a prazo vencido ganha o selo **Vencido**.
 
 #### Status do pedido e status do pagamento
 
@@ -186,6 +195,7 @@ Os erros do back vêm no formato `ProblemDetail` do Spring (`detail` e `errors`)
 > - A listagem de produtos devolve um campo `preco` que não existe na entidade, e não devolve `precoVenda`, `precoAluguel` nem o status.
 > - O cadastro de produto não define o status (fica nulo).
 > - Não há liberação de CORS para `http://localhost:5173`.
+> - Não há rotas de **editar**, **desativar/reativar** nem **repor estoque**. Essas ações só funcionam com os dados locais; com `USAR_DADOS_LOCAIS = false` elas mostram o erro "ainda não existe no back-end". Também falta no back a regra nova do inadimplente (sem desconto e sem poder solicitar).
 
 ## Integração com o back-end
 
@@ -238,7 +248,8 @@ src/
 - [ ] Back: devolver `id` (e `cnpj` do cliente) nas listagens, preços e status na listagem de produtos, liberar CORS
 - [ ] Back: inadimplente e faixas de desconto (em andamento com o Lucas)
 - [ ] Ligar pedidos e descontos às rotas `/pedidos` do back quando as regras estiverem iguais
-- [ ] Editar e excluir registros
+- [x] Editar e desativar/reativar registros (só nos dados locais)
+- [ ] Back: rotas de editar, desativar/reativar e repor estoque (clientes, produtos, colaboradores e pedidos)
 - [ ] Validação de formulário campo a campo
 - [ ] Autenticação (se exigida pelo back)
 
