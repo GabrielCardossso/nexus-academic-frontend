@@ -327,6 +327,7 @@ button.rejeitar:hover:not(:disabled) {
 }
 
 .selo.devolvido,
+.selo.cancelado,
 .selo.neutro,
 .selo.desativado {
   background: #52525b;

@@ -13,10 +13,12 @@ import {
   erroDesconto,
   erroVencimento,
   estaInadimplente,
+  estaVencido,
   fimDoDia,
   mesmoConteudo,
   MSG_INADIMPLENTE_SEM_DESCONTO,
   pagoNaHora,
+  podeCancelar,
   podeEditar,
   podePagar,
   resumoPedido,
@@ -455,6 +457,7 @@ export async function editarPedidoLocal(id: number, req: PedidoCriarRequest): Pr
   const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
   const original = pedidos.find((p) => p.id === id);
   if (!original) throw new Error('Pedido não encontrado.');
+  if (original.canceladoEm) throw new Error('Pedido cancelado: não pode ser editado.');
   if (original.devolvidoEm) throw new Error('Aluguel já devolvido: não pode ser editado.');
   if (!podeEditar(original)) throw new Error('Pedido já pago: não pode mais ser editado.');
 
@@ -480,6 +483,26 @@ export async function editarPedidoLocal(id: number, req: PedidoCriarRequest): Pr
   return substituir(CHAVE_PEDIDOS, pedidos, atualizado);
 }
 
+/**
+ * Cancela o pedido (o "excluir" do pedido; não volta atrás). Só pedido não pago e não devolvido, e
+ * nunca um pedido a prazo vencido. O estoque e o crédito reservado voltam; o pedido fica na lista
+ * como "Cancelado".
+ */
+export async function cancelarPedidoLocal(id: number): Promise<Pedido> {
+  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
+  const pedido = pedidos.find((p) => p.id === id);
+  if (!pedido) throw new Error('Pedido não encontrado.');
+  if (pedido.canceladoEm) throw new Error('Este pedido já foi cancelado.');
+  if (estaVencido(pedido)) {
+    throw new Error('Pedido a prazo vencido não pode ser cancelado: registre o pagamento.');
+  }
+  if (!podeCancelar(pedido)) throw new Error('Só pedido ainda não pago (e não devolvido) pode ser cancelado.');
+
+  salvar(CHAVE_PRODUTOS, baixarEstoque(ler<ProdutoCriarResponse>(CHAVE_PRODUTOS), pedido.itens, +1));
+  if (pedido.creditoUsado) ajustarCredito(pedido.clienteId, pedido.creditoUsado);
+  return substituir(CHAVE_PEDIDOS, pedidos, { ...pedido, canceladoEm: new Date().toISOString() });
+}
+
 export async function listarPedidosLocal(): Promise<Pedido[]> {
   return lerPedidos().reverse(); // mais recentes primeiro
 }
@@ -495,7 +518,7 @@ export async function decidirDescontoLocal(
 
   if (!colaborador) throw new Error('Colaborador não encontrado.');
   if (colaborador.ativo === false) throw new Error('Colaborador desativado: não pode decidir descontos.');
-  if (!pedido?.solicitacao || pedido.solicitacao.status !== 'PENDENTE') {
+  if (!pedido?.solicitacao || pedido.solicitacao.status !== 'PENDENTE' || pedido.canceladoEm) {
     throw new Error('Não há solicitação pendente para este pedido.');
   }
   // Cliente que ficou inadimplente depois de pedir: a solicitação só pode ser rejeitada.
@@ -532,7 +555,7 @@ export async function confirmarPedidoLocal(pedidoId: number): Promise<Pedido> {
   const pedido = pedidos.find((p) => p.id === pedidoId);
 
   if (!pedido) throw new Error('Pedido não encontrado.');
-  if (statusDoPedido(pedido) !== 'PENDENTE') throw new Error('Este pedido já foi concluído ou devolvido.');
+  if (statusDoPedido(pedido) !== 'PENDENTE') throw new Error('Este pedido já foi concluído, devolvido ou cancelado.');
   if (aguardaDesconto(pedido)) {
     throw new Error('Aguarde a decisão sobre o desconto solicitado antes de confirmar o pedido.');
   }
@@ -547,6 +570,7 @@ export async function pagarPedidoLocal(pedidoId: number): Promise<Pedido> {
   const pedido = pedidos.find((p) => p.id === pedidoId);
 
   if (!pedido) throw new Error('Pedido não encontrado.');
+  if (pedido.canceladoEm) throw new Error('Pedido cancelado: não há pagamento a registrar.');
   if (pedido.pagamento !== 'A_PRAZO') throw new Error('Só pedidos a prazo têm pagamento a registrar.');
   if (pedido.pagoEm) throw new Error('O pagamento deste pedido já foi registrado.');
   if (!podePagar(pedido)) {

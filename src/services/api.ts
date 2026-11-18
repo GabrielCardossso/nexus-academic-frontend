@@ -22,6 +22,7 @@ import {
   decidirDescontoLocal,
   definirClienteAtivoLocal,
   definirColaboradorAtivoLocal,
+  cancelarPedidoLocal,
   devolverPedidoLocal,
   editarClienteLocal,
   editarColaboradorLocal,
@@ -298,4 +299,9 @@ export async function editarColaborador(id: number, colaborador: ColaboradorCria
 export async function definirColaboradorAtivo(id: number, ativo: boolean) {
   exigirLocal(ativo ? 'Reativar colaborador' : 'Desativar colaborador');
   return definirColaboradorAtivoLocal(id, ativo);
+}
+
+export async function cancelarPedido(pedidoId: number) {
+  exigirModoLocal();
+  return cancelarPedidoLocal(pedidoId);
 }

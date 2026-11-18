@@ -48,7 +48,8 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
 
   const colaborador = colaboradores.find((c) => String(c.id) === colaboradorId);
   const comSolicitacao = (pedidos ?? []).filter((p) => p.solicitacao);
-  const pendentes = comSolicitacao.filter((p) => p.solicitacao!.status === 'PENDENTE');
+  // Pedido cancelado sai dos pendentes (não há mais o que decidir).
+  const pendentes = comSolicitacao.filter((p) => p.solicitacao!.status === 'PENDENTE' && !p.canceladoEm);
   const decididas = comSolicitacao.filter((p) => p.solicitacao!.status !== 'PENDENTE');
   const lista = aba === 'PENDENTES' ? pendentes : decididas;
 

@@ -10,7 +10,7 @@ export type TipoPedido = 'VENDA' | 'ALUGUEL';
 export type ProdutoStatus = 'DISPONIVEL' | 'INDISPONIVEL' | 'DESATIVADO';
 export type FormaPagamento = 'PIX' | 'A_VISTA' | 'A_PRAZO';
 /** Andamento do pedido: nasce PENDENTE, vira CONCLUIDO só quando alguém confirma, DEVOLVIDO após a devolução (aluguel). */
-export type StatusPedido = 'PENDENTE' | 'CONCLUIDO' | 'DEVOLVIDO';
+export type StatusPedido = 'PENDENTE' | 'CONCLUIDO' | 'DEVOLVIDO' | 'CANCELADO';
 /** Situação financeira, independente do status do pedido. */
 export type StatusPagamento = 'PENDENTE' | 'PAGO';
 export type StatusDesconto = 'PENDENTE' | 'APROVADA' | 'REJEITADA';
@@ -111,6 +111,7 @@ export interface Pedido {
   fimAluguel?: string; // ISO, só aluguel: emissão + meses
   concluidoEm?: string; // ISO, preenchido quando o pedido é confirmado manualmente
   devolvidoEm?: string; // ISO, só aluguel
+  canceladoEm?: string; // ISO. Cancelado não volta atrás; estoque e crédito reservado voltaram.
   pagoEm?: string; // ISO. PIX/à vista: na criação ou na decisão do desconto. A prazo: ao registrar o pagamento.
   creditoUsado?: number; // só a prazo: quanto foi descontado do limite (volta ao registrar o pagamento)
   /**

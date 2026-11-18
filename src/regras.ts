@@ -30,6 +30,7 @@ export const ROTULO_STATUS_PEDIDO: Record<StatusPedido, string> = {
   PENDENTE: 'Pendente',
   CONCLUIDO: 'Concluído',
   DEVOLVIDO: 'Devolvido',
+  CANCELADO: 'Cancelado',
 };
 
 export const ROTULO_STATUS_PAGAMENTO: Record<StatusPagamento, string> = {
@@ -45,18 +46,19 @@ interface DadosPedido {
   solicitacao?: SolicitacaoDesconto;
   concluidoEm?: string;
   devolvidoEm?: string;
+  canceladoEm?: string; // cancelado (o "excluir" do pedido): não volta atrás
   pagoEm?: string;
   clienteInadimplente?: boolean; // inadimplente perde os 5% automáticos de VIP
 }
 
-type EstadoPedido = Pick<DadosPedido, 'solicitacao' | 'concluidoEm' | 'devolvidoEm'>;
+type EstadoPedido = Pick<DadosPedido, 'solicitacao' | 'concluidoEm' | 'devolvidoEm' | 'canceladoEm'>;
 
-type PedidoComPrazo = Pick<DadosPedido, 'pagamento' | 'pagoEm'> & { clienteId: number; vencimento: string };
+type PedidoComPrazo = Pick<DadosPedido, 'pagamento' | 'pagoEm' | 'canceladoEm'> & { clienteId: number; vencimento: string };
 
 /** Pedido a prazo que passou do vencimento sem pagamento (na data `em`, padrão: agora). */
 export function estaVencido(p: PedidoComPrazo, em: Date = new Date()): boolean {
   const pagoAte = p.pagoEm != null && new Date(p.pagoEm) <= em;
-  return p.pagamento === 'A_PRAZO' && !pagoAte && new Date(p.vencimento) < em;
+  return p.pagamento === 'A_PRAZO' && !p.canceladoEm && !pagoAte && new Date(p.vencimento) < em;
 }
 
 /** "AAAA-MM-DD" → último instante desse dia (hora local); null se a data for inválida. */
@@ -145,6 +147,7 @@ export function resumoPedido(p: DadosPedido) {
 
 /** O pedido nunca conclui sozinho: só com `concluidoEm` (botão "Confirmar pedido"). */
 export function statusDoPedido(p: EstadoPedido): StatusPedido {
+  if (p.canceladoEm) return 'CANCELADO';
   if (p.devolvidoEm) return 'DEVOLVIDO';
   if (p.concluidoEm) return 'CONCLUIDO';
   return 'PENDENTE';
@@ -178,15 +181,23 @@ export const pagoNaHora = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao'>) =>
   p.pagamento !== 'A_PRAZO' && !aguardaDesconto(p);
 
 /** Pedido a prazo ainda não pago e sem desconto aguardando decisão pode ter o pagamento registrado. */
-export const podePagar = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao' | 'pagoEm'>) =>
-  p.pagamento === 'A_PRAZO' && !p.pagoEm && !aguardaDesconto(p);
+export const podePagar = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao' | 'pagoEm' | 'canceladoEm'>) =>
+  p.pagamento === 'A_PRAZO' && !p.pagoEm && !p.canceladoEm && !aguardaDesconto(p);
 
 /**
  * Edição: só antes do pagamento (vale também para pedido já confirmado). A prazo, até registrar o
  * pagamento; PIX/à vista já nascem pagos, então só editam enquanto o desconto aguarda decisão.
  * Aluguel devolvido não edita.
  */
-export const podeEditar = (p: Pick<DadosPedido, 'pagoEm' | 'devolvidoEm'>) => !p.pagoEm && !p.devolvidoEm;
+export const podeEditar = (p: Pick<DadosPedido, 'pagoEm' | 'devolvidoEm' | 'canceladoEm'>) =>
+  !p.pagoEm && !p.devolvidoEm && !p.canceladoEm;
+
+/**
+ * Cancelar (o "excluir" do pedido): só pedido que ainda pode ser editado (não pago, não devolvido).
+ * Pedido a prazo vencido não pode ser cancelado: senão o cliente sairia da inadimplência sem pagar.
+ */
+export const podeCancelar = (p: PedidoComPrazo & Pick<DadosPedido, 'devolvidoEm'>) =>
+  podeEditar(p) && !estaVencido(p);
 
 /** Só aluguel já concluído e ainda não devolvido pode ser devolvido. */
 export const podeDevolver = (p: EstadoPedido & { tipo: TipoPedido }) =>

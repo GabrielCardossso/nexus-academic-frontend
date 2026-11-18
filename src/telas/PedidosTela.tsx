@@ -5,6 +5,7 @@ import Modal from '../components/Modal';
 import NovoPedidoForm from '../components/NovoPedidoForm';
 import PedidoCard from '../components/PedidoCard';
 import {
+  cancelarPedido,
   confirmarPedido,
   devolverPedido,
   listarClientes,
@@ -25,6 +26,7 @@ export default function PedidosTela() {
   const [editando, setEditando] = useState<Pedido | null>(null); // pedido no popup de edição
   const [enviandoNovo, setEnviandoNovo] = useState(false);
   const [devolvendo, setDevolvendo] = useState<Pedido | null>(null); // pedido no popup de devolução
+  const [cancelando, setCancelando] = useState<Pedido | null>(null); // pedido no popup de cancelamento
   const [processando, setProcessando] = useState(false);
 
   async function carregar() {
@@ -49,6 +51,7 @@ export default function PedidosTela() {
     setEditando(null);
   }, []);
   const cancelarDevolucao = useCallback(() => setDevolvendo(null), []);
+  const fecharCancelamento = useCallback(() => setCancelando(null), []);
 
   async function executar(acao: () => Promise<unknown>, sucesso: string) {
     setAviso(null);
@@ -73,6 +76,17 @@ export default function PedidosTela() {
     await executar(() => devolverPedido(devolvendo.id), `Aluguel #${devolvendo.id} devolvido. Estoque atualizado.`);
     setProcessando(false);
     setDevolvendo(null);
+  }
+
+  async function confirmarCancelamento() {
+    if (!cancelando) return;
+    setProcessando(true);
+    await executar(
+      () => cancelarPedido(cancelando.id),
+      `Pedido #${cancelando.id} cancelado. Estoque${cancelando.creditoUsado ? ' e crédito' : ''} devolvido${cancelando.creditoUsado ? 's' : ''}.`,
+    );
+    setProcessando(false);
+    setCancelando(null);
   }
 
   return (
@@ -108,6 +122,7 @@ export default function PedidosTela() {
             }
             onDevolver={setDevolvendo}
             onEditar={setEditando}
+            onCancelar={setCancelando}
           />
         ))}
       </ul>
@@ -145,6 +160,30 @@ export default function PedidosTela() {
             </p>
             <p>{devolvendo.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')}</p>
             <p>Os itens voltam ao estoque e o pedido passa para "Devolvido". Essa ação não pode ser desfeita.</p>
+          </>
+        )}
+      </ConfirmarModal>
+
+      <ConfirmarModal
+        aberto={cancelando !== null}
+        titulo="Cancelar pedido?"
+        textoConfirmar="Cancelar pedido"
+        textoCancelar="Voltar"
+        carregando={processando}
+        onConfirmar={confirmarCancelamento}
+        onCancelar={fecharCancelamento}
+      >
+        {cancelando && (
+          <>
+            <p>
+              <strong>Pedido #{cancelando.id}</strong> — {cancelando.clienteNome}
+            </p>
+            <p>{cancelando.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')}</p>
+            <p>
+              Os itens voltam ao estoque
+              {cancelando.creditoUsado ? ' e o crédito reservado volta para o limite do cliente' : ''}. O pedido
+              continua na lista como "Cancelado". Essa ação não pode ser desfeita.
+            </p>
           </>
         )}
       </ConfirmarModal>

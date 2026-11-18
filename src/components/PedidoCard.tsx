@@ -3,6 +3,7 @@ import {
   aguardaDesconto,
   estaVencido,
   linhasSolicitacao,
+  podeCancelar,
   podeConfirmar,
   podeDevolver,
   podeEditar,
@@ -21,6 +22,7 @@ interface PedidoCardProps {
   onPagar: (p: Pedido) => void;
   onDevolver: (p: Pedido) => void;
   onEditar: (p: Pedido) => void;
+  onCancelar: (p: Pedido) => void;
 }
 
 type Detalhe = { rotulo: string; valor: string; largo?: boolean };
@@ -59,17 +61,26 @@ function detalhesDo(p: Pedido): Detalhe[] {
     !!p.pagoEm && { rotulo: 'Pago em', valor: dataHoraBR(p.pagoEm) },
     !!p.concluidoEm && { rotulo: 'Concluído em', valor: dataHoraBR(p.concluidoEm) },
     !!p.devolvidoEm && { rotulo: 'Devolvido em', valor: dataHoraBR(p.devolvidoEm) },
+    !!p.canceladoEm && { rotulo: 'Cancelado em', valor: dataHoraBR(p.canceladoEm) },
   ];
   return lista.filter((d): d is Detalhe => !!d);
 }
 
 /** Card do pedido: resumo sempre visível; "Ver detalhes" abre a grade com tudo. */
-export default function PedidoCard({ pedido: p, onConfirmar, onPagar, onDevolver, onEditar }: PedidoCardProps) {
+export default function PedidoCard({
+  pedido: p,
+  onConfirmar,
+  onPagar,
+  onDevolver,
+  onEditar,
+  onCancelar,
+}: PedidoCardProps) {
   const [aberto, setAberto] = useState(false);
   const r = resumoPedido(p);
   const aluguel = p.tipo === 'ALUGUEL';
   const vencido = estaVencido(p);
-  const mostrarConfirmar = podeConfirmar(p) || aguardaDesconto(p);
+  const cancelado = r.statusPedido === 'CANCELADO';
+  const mostrarConfirmar = podeConfirmar(p) || (aguardaDesconto(p) && r.statusPedido === 'PENDENTE');
 
   const condicao = [
     ROTULO_PAGAMENTO[p.pagamento],
@@ -81,7 +92,7 @@ export default function PedidoCard({ pedido: p, onConfirmar, onPagar, onDevolver
     .join(' · ');
 
   return (
-    <li className="item">
+    <li className={`item ${cancelado ? 'inativo' : ''}`}>
       <div className="item-topo">
         <span className="item-titulo">
           #{p.id} · {ROTULO_TIPO[p.tipo]}
@@ -92,9 +103,11 @@ export default function PedidoCard({ pedido: p, onConfirmar, onPagar, onDevolver
           <span className={`selo ${r.statusPedido.toLowerCase()}`}>
             {r.statusPedido === 'PENDENTE' ? 'Pedido pendente' : ROTULO_STATUS_PEDIDO[r.statusPedido]}
           </span>
-          <span className={`selo ${r.statusPagamento.toLowerCase()}`}>
-            {r.statusPagamento === 'PAGO' ? 'Pago' : 'Pagamento pendente'}
-          </span>
+          {!cancelado && (
+            <span className={`selo ${r.statusPagamento.toLowerCase()}`}>
+              {r.statusPagamento === 'PAGO' ? 'Pago' : 'Pagamento pendente'}
+            </span>
+          )}
           {vencido && <span className="selo vencido">Vencido</span>}
         </div>
       </div>
@@ -111,7 +124,7 @@ export default function PedidoCard({ pedido: p, onConfirmar, onPagar, onDevolver
         <strong className="valor">{moeda.format(r.total)}</strong>
       </div>
 
-      {aguardaDesconto(p) && (
+      {aguardaDesconto(p) && !cancelado && (
         <p className="aviso">Desconto de {p.solicitacao!.percentual}% aguardando aprovação de um colaborador.</p>
       )}
 
@@ -141,6 +154,11 @@ export default function PedidoCard({ pedido: p, onConfirmar, onPagar, onDevolver
           {podeEditar(p) && (
             <button type="button" className="secundario" onClick={() => onEditar(p)}>
               Editar
+            </button>
+          )}
+          {podeCancelar(p) && (
+            <button type="button" className="secundario" onClick={() => onCancelar(p)}>
+              Cancelar pedido
             </button>
           )}
         </div>
