@@ -1,6 +1,7 @@
 /** Produtos: back real (/produtos) ou dados locais, conforme USAR_DADOS_LOCAIS. */
 import { ENDPOINTS, USAR_DADOS_LOCAIS } from '../../config/api';
 import type {
+  ItemAlugado,
   ProdutoCriarRequest,
   ProdutoCriarResponse,
   ProdutoEditarRequest,
@@ -11,6 +12,7 @@ import {
   cadastrarProdutoLocal,
   editarProdutoLocal,
   excluirProdutoLocal,
+  listarAlugadosLocal,
   listarProdutosLocal,
   reporEstoqueLocal,
 } from '../dadosLocais';
@@ -56,6 +58,13 @@ export async function listarProdutos(): Promise<ProdutoListarResponse[]> {
     precoAluguel: Number(p.precoAluguel ?? 0),
     status: p.statusProduto ?? null,
   }));
+}
+
+/** GET /produtos/listarAlugados: todos os itens de aluguel (devolvidos ou não). */
+export async function listarProdutosAlugados(): Promise<ItemAlugado[]> {
+  if (USAR_DADOS_LOCAIS) return listarAlugadosLocal();
+  const lista = await getLista<ItemAlugado>(ENDPOINTS.produtosAlugados);
+  return lista.map((i) => ({ ...i, quantidade: Number(i.quantidade) }));
 }
 
 /** PUT /produtos/{id}/editar (nome, descrição e preços). */

@@ -65,6 +65,14 @@ export interface Pedido {
   itens?: ItemPedido[];
 }
 
+/** GET /produtos/listarAlugados (dtos/ItemPedidoListarAlugueisResponse.java). */
+export interface ItemAlugado {
+  nomeProduto: string;
+  quantidade: number;
+  dataVencimentoAluguel: string | null;
+  dataDevolucao: string | null;
+}
+
 /** Item no corpo do POST/PUT (dtos/ItemPedidoCriarRequest.java). */
 export interface ItemPedidoCriarRequest {
   codigoIdProduto: number;

@@ -1,7 +1,13 @@
 /** Clientes: back real (/clientes) ou dados locais, conforme USAR_DADOS_LOCAIS. */
 import { ENDPOINTS, USAR_DADOS_LOCAIS } from '../../config/api';
 import { estaInadimplente } from '../../regras';
-import type { ClienteCategoria, ClienteCriarRequest, ClienteCriarResponse, ClienteListarResponse } from '../../types';
+import type {
+  ClienteCategoria,
+  ClienteCriarRequest,
+  ClienteCriarResponse,
+  ClienteEditarRequest,
+  ClienteListarResponse,
+} from '../../types';
 import {
   cadastrarClienteLocal,
   editarClienteLocal,
@@ -19,7 +25,7 @@ interface ClienteBackRequest {
   telefone: string;
   cnpj?: string; // na edição, sem CNPJ = mantém o atual
   email: string;
-  limiteDeCredito: number;
+  limiteDeCredito?: number; // na edição, sem limite = mantém o atual
   classificacao: ClienteCategoria;
 }
 /** dtos/ClienteCriarResponse.java */
@@ -40,12 +46,12 @@ interface ClienteBackListar {
   classificacao: ClienteCategoria;
 }
 
-const paraBack = (c: ClienteCriarRequest): ClienteBackRequest => ({
+const paraBack = (c: ClienteEditarRequest): ClienteBackRequest => ({
   name: c.name.trim(),
   telefone: c.telefone.trim(),
   cnpj: c.cnpj.replace(/[^0-9a-z]/gi, '').toUpperCase() || undefined,
   email: c.email.trim(),
-  limiteDeCredito: Number(c.limiteCredito),
+  limiteDeCredito: c.limiteCredito === undefined ? undefined : Number(c.limiteCredito),
   classificacao: c.categoria,
 });
 
@@ -76,7 +82,7 @@ export async function listarClientes(): Promise<ClienteListarResponse[]> {
 }
 
 /** PUT /clientes/{id}/editar */
-export async function editarCliente(id: number, cliente: ClienteCriarRequest): Promise<void> {
+export async function editarCliente(id: number, cliente: ClienteEditarRequest): Promise<void> {
   if (USAR_DADOS_LOCAIS) {
     await editarClienteLocal(id, cliente);
     return;

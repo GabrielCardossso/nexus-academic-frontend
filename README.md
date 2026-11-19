@@ -93,8 +93,10 @@ Todos os endpoints do back (repo `LionT750/Nexus`, branch `main`) estão ligados
 | Devolver aluguel | `PUT` | `/pedidos/{id}/devolucao` |
 | Pedidos vencidos (inadimplência) | `GET` | `/pedidos/vencidosEmAberto` |
 | Solicitações de desconto pendentes | `GET` | `/pedidos/solicitacoesDescontoEmAberto` |
+| Pedidos de um cliente | `GET` | `/pedidos/cliente?idCliente=` (ou `cnpjCliente=`, `emailCliente=`) |
+| Itens alugados | `GET` | `/produtos/listarAlugados` |
 
-O back também tem `GET /pedidos/cliente` e `GET /produtos/listarAlugados`, que estão em `ENDPOINTS` mas nenhuma tela usa ainda.
+`listarPedidosDoCliente` e `listarProdutosAlugados` estão prontas em `services/api`, mas nenhuma tela usa ainda.
 
 O front usa alguns nomes próprios por dentro (`categoria`, `limiteCredito`, `nome` do colaborador), e os arquivos de `src/services/api/` convertem para os nomes do back ao enviar e receber. Pedido e desconto usam exatamente os nomes e os enums do back:
 
@@ -147,7 +149,8 @@ As regras são **as do back** (`PedidoService`, `ClienteService`, `ProdutoServic
 - **Um status só:** todo pedido nasce **Pendente** e vira **Pago** em **Finalizar** (vale para à vista e a prazo). Não existe "confirmar" separado do pagamento. O enum do back também tem **Rejeitado**, mas nenhuma regra usa.
 - **Finalizar:** só pedido pendente e sem desconto aguardando decisão. No a prazo, o total volta para o limite do cliente.
 - **Total:** o back **grava** o total (soma dos itens × (1 − desconto autorizado), 2 casas). Ele é recalculado quando o pedido é editado ou o desconto é decidido.
-- **Editar:** só pedido **pendente**. O cliente não muda. Dá para mudar descrição, pagamento, vencimento, desconto e itens; os itens são **recotados pelo preço atual**. O estoque e o limite reservados pelo pedido antigo voltam antes de valer o novo.
+- **Editar:** só pedido **pendente**. O cliente não muda. Dá para mudar descrição, pagamento, desconto e itens. O back muda **só o que vem no corpo**, então o front manda os itens só quando eles mudaram: quando vão, são **recotados pelo preço atual** (o formulário mostra o total antes e depois). O estoque e o limite reservados pelo pedido antigo voltam antes de valer o novo.
+- **A prazo → à vista:** o valor reservado volta para o limite, mas o back **mantém o vencimento** no pedido; se ele não for finalizado até lá, o cliente fica inadimplente. O formulário avisa.
 - **Excluir:** só pedido **pendente**. O estoque volta e, no a prazo, o total volta ao limite. O pedido some da lista.
 - **Devolver aluguel:** devolve **todos os itens de aluguel ainda não devolvidos**, em qualquer status do pedido. O estoque volta e cada item ganha a data de devolução. O crédito não volta.
 
@@ -178,11 +181,14 @@ O cliente digita o percentual (de 0% a 15%), que vai ao back como fração (0.12
 Estas regras **não existem no back** hoje. O front mantém porque, sem elas, o cliente sai da inadimplência sem pagar ou recebe desconto indevido. Elas estão com o Lucas para decidir se viram regra no back ou se saem do front:
 
 - Pedido **vencido** não pode ser **editado** nem **excluído** (no back, mudar o vencimento ou apagar o pedido tira o cliente da inadimplência).
-- O **vencimento** de um pedido que já era a prazo não muda na edição.
+- O **vencimento** não muda na edição quando o pedido já tem um (inclusive depois de ir para à vista e voltar para a prazo).
+- Pedido com **aluguel já devolvido** não muda os produtos (o back recriaria o item como não devolvido e baixaria o estoque de novo).
 - Inadimplente editando um pedido a prazo **não pode aumentar o total**.
 - Solicitação de desconto de cliente que **ficou inadimplente** depois de pedir só pode ser **reprovada**.
 - Produto **Indisponível** ou **Desativado** não entra em pedido (o back só confere se existe e se tem estoque).
 - No cadastro de colaborador, o **CPF** não pode repetir (o back só confere na edição).
+
+Na edição de cliente, o limite de crédito só vai para o back se for alterado (o back mantém o que não vem no corpo).
 
 <img src="./.github/readme/secao-06-dados-locais.svg" width="100%" alt="Dados locais" />
 

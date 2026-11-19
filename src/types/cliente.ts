@@ -13,6 +13,9 @@ export interface ClienteCriarRequest {
   limiteCredito: number; // "limiteDeCredito" no back
 }
 
+/** PUT /clientes/{id}/editar: o limite é opcional (sem ele, o back mantém o atual). */
+export type ClienteEditarRequest = Omit<ClienteCriarRequest, 'limiteCredito'> & { limiteCredito?: number };
+
 /** Resposta do POST /clientes (dtos/ClienteCriarResponse.java). */
 export interface ClienteCriarResponse {
   id: number;

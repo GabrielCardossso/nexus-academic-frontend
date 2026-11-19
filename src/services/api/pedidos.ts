@@ -17,6 +17,7 @@ import {
   editarPedidoLocal,
   excluirPedidoLocal,
   finalizarPedidoLocal,
+  listarPedidosDoClienteLocal,
   listarPedidosLocal,
   resolverDescontoLocal,
 } from '../dadosLocais';
@@ -77,18 +78,35 @@ function doDetalhe(d: PedidoBackDetalhe, solicitado?: number): Pedido {
   };
 }
 
-/** GET /pedidos/{id} para cada pedido da lista (a listagem do back traz só o resumo). */
-async function detalhar(ids: number[]): Promise<Pedido[]> {
+/** Pedido só com o resumo da listagem (usado quando o detalhe de um pedido falha). */
+const doResumo = (p: PedidoBackListar): Pedido => ({
+  id: p.codigoPedido,
+  valorTotal: Number(p.valorTotal),
+  clienteNome: p.nomeCliente,
+  statusPedido: p.statusPedido,
+  statusAprovacaoDesconto: p.statusAprovacaoDesconto,
+  dataCriacao: '',
+});
+
+/**
+ * GET /pedidos/{id} para cada pedido da lista (a listagem do back traz só o resumo). Se o detalhe de
+ * um pedido falhar, ele aparece só com o resumo, em vez de a lista inteira dar erro.
+ */
+async function detalhar(lista: PedidoBackListar[]): Promise<Pedido[]> {
   const solicitacoes = await getLista<SolicitacaoBack>(ENDPOINTS.pedidosSolicitacoesDesconto);
-  const detalhes = await Promise.all(ids.map((id) => get<PedidoBackDetalhe>(ENDPOINTS.pedido(id))));
-  return detalhes.map((d) => doDetalhe(d, solicitacoes.find((s) => s.id === d.id)?.descontoSolicitado));
+  const detalhes = await Promise.allSettled(lista.map((p) => get<PedidoBackDetalhe>(ENDPOINTS.pedido(p.codigoPedido))));
+  return detalhes.map((r, i) =>
+    r.status === 'fulfilled'
+      ? doDetalhe(r.value, solicitacoes.find((s) => s.id === r.value.id)?.descontoSolicitado)
+      : doResumo(lista[i]),
+  );
 }
 
 /** GET /pedidos (+ detalhe de cada um). Pedido excluído não aparece. */
 export async function listarPedidos(): Promise<Pedido[]> {
   if (USAR_DADOS_LOCAIS) return listarPedidosLocal();
   const lista = await getLista<PedidoBackListar>(ENDPOINTS.pedidos);
-  const pedidos = await detalhar(lista.map((p) => p.codigoPedido));
+  const pedidos = await detalhar(lista);
   return pedidos.sort((a, b) => b.id - a.id);
 }
 
@@ -97,7 +115,18 @@ export async function listarPedidosVencidos(): Promise<Pedido[]> {
   if (USAR_DADOS_LOCAIS) return (await listarPedidosLocal()).filter((p) => estaVencido(p));
   const lista = await getLista<PedidoBackListar>(ENDPOINTS.pedidosVencidos);
   if (lista.length === 0) return [];
-  return detalhar(lista.map((p) => p.codigoPedido));
+  return detalhar(lista);
+}
+
+/** Como identificar o cliente em GET /pedidos/cliente (o back aceita um dos três). */
+export type ClienteDoPedido = { idCliente: number } | { cnpjCliente: string } | { emailCliente: string };
+
+/** GET /pedidos/cliente?idCliente= | cnpjCliente= | emailCliente=: pedidos de um cliente. */
+export async function listarPedidosDoCliente(cliente: ClienteDoPedido): Promise<Pedido[]> {
+  if (USAR_DADOS_LOCAIS) return listarPedidosDoClienteLocal(cliente);
+  const [chave, valor] = Object.entries(cliente)[0];
+  const lista = await getLista<PedidoBackListar>(`${ENDPOINTS.pedidosDoCliente}?${chave}=${encodeURIComponent(String(valor))}`);
+  return lista.length === 0 ? [] : detalhar(lista);
 }
 
 /** Quantas solicitações de desconto aguardam decisão (GET /pedidos/solicitacoesDescontoEmAberto). */

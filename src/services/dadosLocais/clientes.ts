@@ -1,6 +1,12 @@
 /** Clientes nos dados locais, iguais ao ClienteService do back: cadastrar, listar, editar, excluir e reativar. */
 import { estaInadimplente } from '../../regras';
-import type { ClienteCriarRequest, ClienteCriarResponse, ClienteListarResponse, ClienteSalvo } from '../../types';
+import type {
+  ClienteCriarRequest,
+  ClienteCriarResponse,
+  ClienteEditarRequest,
+  ClienteListarResponse,
+  ClienteSalvo,
+} from '../../types';
 import { ativos, CHAVE_CLIENTES, CHAVE_PEDIDOS, falha, ler, proximoId, salvar, substituir, type PedidoSalvo } from './armazenamento';
 import { cnpjValido } from './validacao';
 
@@ -60,11 +66,16 @@ export async function listarClientesLocal(): Promise<ClienteListarResponse[]> {
  * PUT /clientes/{id}/editar. O limite informado substitui o limite disponível (o back grava o que
  * vier). CNPJ e e-mail não podem estar em outro cliente ativo.
  */
-export async function editarClienteLocal(id: number, entrada: ClienteCriarRequest): Promise<ClienteSalvo> {
+export async function editarClienteLocal(id: number, entrada: ClienteEditarRequest): Promise<ClienteSalvo> {
   const clientes = ler<ClienteSalvo>(CHAVE_CLIENTES);
   const atual = ativos(clientes).find((c) => c.id === id);
   if (!atual) falha(`A operação não foi executada pois o cliente informado id: ${id} não existe`);
-  const dados = validarCampos(entrada);
+  // O que não vem (limite, CNPJ vazio) continua como está, igual ao ClienteMapper do back (ignora nulos).
+  const dados = validarCampos({
+    ...entrada,
+    cnpj: entrada.cnpj || atual.cnpj,
+    limiteCredito: entrada.limiteCredito ?? atual.limiteCredito,
+  });
   const outros = ativos(clientes).filter((c) => c.id !== id);
   if (outros.some((c) => c.cnpj === dados.cnpj)) falha(`O cnpj informado já está cadastrado em outro cliente ${dados.cnpj}`);
   if (outros.some((c) => c.email === dados.email)) falha(`O email informado já está cadastrado em outro cliente ${dados.email}`);

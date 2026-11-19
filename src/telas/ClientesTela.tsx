@@ -25,6 +25,7 @@ export default function ClientesTela() {
   const [formAberto, setFormAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null); // null = cadastro novo
   const [form, setForm] = useState(FORM_VAZIO);
+  const [limiteAoAbrir, setLimiteAoAbrir] = useState(''); // na edição, o limite só vai ao back se mudar
   const [erroForm, setErroForm] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -63,6 +64,7 @@ export default function ClientesTela() {
       categoria: c.categoria,
       limiteCredito: String(c.limiteCredito),
     });
+    setLimiteAoAbrir(String(c.limiteCredito));
     setEditandoId(c.id);
     setErroForm(null);
     setFormAberto(true);
@@ -79,7 +81,9 @@ export default function ClientesTela() {
     try {
       const dados = { ...form, limiteCredito: Number(form.limiteCredito) };
       if (editandoId === null) await cadastrarCliente(dados);
-      else await editarCliente(editandoId, dados);
+      // Edição: o back só muda o que vem no corpo. O limite vai só se o usuário mexeu nele; senão um
+      // pedido a prazo criado enquanto a tela estava aberta teria a reserva apagada.
+      else await editarCliente(editandoId, { ...dados, limiteCredito: form.limiteCredito === limiteAoAbrir ? undefined : dados.limiteCredito });
       setAviso({
         tipo: 'sucesso',
         texto: `Cliente "${form.name.trim()}" ${editandoId === null ? 'cadastrado' : 'atualizado'}!`,

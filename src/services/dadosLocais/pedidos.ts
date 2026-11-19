@@ -14,6 +14,7 @@ import {
 } from '../../regras';
 import type {
   ClienteSalvo,
+  ItemAlugado,
   ItemPedidoCriarRequest,
   Pedido,
   PedidoCriarRequest,
@@ -73,6 +74,43 @@ export async function listarPedidosLocal(): Promise<Pedido[]> {
   return ativos(ler<PedidoSalvo>(CHAVE_PEDIDOS))
     .map((p) => montar(p, clientes, colaboradores, produtos))
     .sort((a, b) => b.id - a.id);
+}
+
+/**
+ * GET /pedidos/cliente (PedidoService.listarPedidosDoCliente): pelo id, CNPJ ou e-mail do cliente.
+ * Cliente que não existe dá erro, como no back.
+ */
+export async function listarPedidosDoClienteLocal(
+  filtro: { idCliente: number } | { cnpjCliente: string } | { emailCliente: string },
+): Promise<Pedido[]> {
+  const clientes = ativos(ler<ClienteSalvo>(CHAVE_CLIENTES));
+  let cliente: ClienteSalvo | undefined;
+  if ('idCliente' in filtro) {
+    cliente = clientes.find((c) => c.id === filtro.idCliente);
+    if (!cliente) falha(`A operação não foi executada pois o cliente informado id: ${filtro.idCliente} não existe`);
+  } else if ('cnpjCliente' in filtro) {
+    cliente = clientes.find((c) => c.cnpj === filtro.cnpjCliente);
+    if (!cliente) falha(`A operação não foi executada pois o cliente informado CNPJ: ${filtro.cnpjCliente} não existe`);
+  } else {
+    cliente = clientes.find((c) => c.email === filtro.emailCliente);
+    if (!cliente) falha(`A operação não foi executada pois o cliente informado email: ${filtro.emailCliente} não existe`);
+  }
+  return (await listarPedidosLocal()).filter((p) => p.clienteId === cliente!.id);
+}
+
+/** GET /produtos/listarAlugados (ProdutoService.listarAlugados): itens de aluguel dos pedidos não excluídos. */
+export async function listarAlugadosLocal(): Promise<ItemAlugado[]> {
+  const produtos = ler<ProdutoSalvo>(CHAVE_PRODUTOS);
+  return ativos(ler<PedidoSalvo>(CHAVE_PEDIDOS)).flatMap((p) =>
+    p.itens
+      .filter((i) => i.isAluguel)
+      .map((i) => ({
+        nomeProduto: produtos.find((x) => x.id === i.produtoId)?.nome ?? '(produto)',
+        quantidade: i.quantidade,
+        dataVencimentoAluguel: i.dataVencimentoAluguel,
+        dataDevolucao: i.dataDevolucao,
+      })),
+  );
 }
 
 // ---------------- Ajudantes (iguais aos métodos privados do PedidoService) ----------------

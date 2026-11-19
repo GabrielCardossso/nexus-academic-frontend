@@ -74,7 +74,7 @@ export default function ColaboradoresTela() {
     setErroForm(null);
     try {
       // TRAVA DO FRONT: no cadastro o back não confere CPF repetido (só na edição); a tela confere.
-      const cpf = form.cpf.replace(/D/g, '');
+      const cpf = form.cpf.replace(/\D/g, ''); // só dígitos: "123.456.789-09" → "12345678909"
       if (editandoId === null && (colaboradores ?? []).some((c) => c.ativo !== false && c.cpf === cpf)) {
         throw new Error('Já existe um colaborador com esse CPF.');
       }

@@ -28,7 +28,7 @@ import type {
   PedidoEditarRequest,
   ProdutoListarResponse,
 } from '../../types';
-import { moeda } from '../../utils';
+import { dataBR, moeda } from '../../utils';
 
 interface PedidoFormProps {
   clientes: ClienteListarResponse[];
@@ -77,8 +77,12 @@ export default function PedidoForm({
   const [enviando, setEnviando] = useState(false);
 
   const eraAPrazo = original?.modalidadePagamento === 'A_PRAZO';
-  // TRAVA DO FRONT: o vencimento de um pedido que já era a prazo não muda (senão daria para adiar a dívida).
-  const vencimentoTravado = eraAPrazo;
+  // TRAVA DO FRONT: pedido que já tem vencimento não muda o vencimento na edição (senão daria para adiar a
+  // dívida). Olha a data e não a modalidade atual: o back guarda o vencimento quando o pedido vai para à vista,
+  // e voltar para a prazo numa segunda edição não pode liberar uma data nova.
+  const vencimentoTravado = editando && !!original!.dataVencimento;
+  // A prazo → à vista: o back mantém o vencimento e devolve ao limite o valor reservado.
+  const saiDoAPrazo = eraAPrazo && modalidade === 'A_VISTA';
 
   // ---------- Cliente ----------
   // O back não muda o cliente na edição. Cliente desativado não entra em pedido novo.
@@ -149,12 +153,8 @@ export default function PedidoForm({
       categoria,
     );
   }
-  const temPrevia = itensEditaveis && desconto !== null && itensPrevia.length > 0;
-  const subtotal = subtotalDe(itensPrevia);
-  const total = desconto ? totalComDesconto(subtotal, desconto.descontoAutorizado) : subtotal;
-  const acimaDoLimite = temPrevia && modalidade === 'A_PRAZO' && !!cliente && total > limiteDisponivel;
-  // TRAVA DO FRONT: inadimplente continuando a prazo não pode aumentar o total (seria uma compra nova a prazo).
-  const inadimplenteAumenta = temPrevia && eraAPrazo && inadimplente && modalidade === 'A_PRAZO' && total > original!.valorTotal;
+  // Na edição, os itens só vão para o back se mudaram: quando vão, o back apaga e cria de novo pelo preço
+  // atual. Se não mudaram, o back mantém os itens (e o valor) que o pedido já tinha.
   const itensMudaram =
     editando &&
     itensEditaveis &&
@@ -162,6 +162,19 @@ export default function PedidoForm({
       JSON.stringify(
         (original!.itens ?? []).map((i) => [i.produtoId, String(i.quantidade), i.isAluguel, i.isAluguel ? (i.dataVencimentoAluguel ?? '') : '']),
       );
+  const enviarItens = !editando || itensMudaram;
+  // TRAVA DO FRONT: o back recria os itens sem a data de devolução e baixa o estoque de novo, então um
+  // pedido com aluguel já devolvido não muda os produtos (pergunta enviada ao Lucas).
+  const temAluguelDevolvido = !!original?.itens?.some((i) => i.isAluguel && i.dataDevolucao);
+  const itensComDevolvido = itensMudaram && temAluguelDevolvido;
+
+  const temPrevia = itensEditaveis && desconto !== null && itensPrevia.length > 0;
+  const subtotal = enviarItens ? subtotalDe(itensPrevia) : subtotalDe(original?.itens ?? []);
+  const total = desconto ? totalComDesconto(subtotal, desconto.descontoAutorizado) : subtotal;
+  const totalMudou = editando && temPrevia && total !== original!.valorTotal;
+  const acimaDoLimite = temPrevia && modalidade === 'A_PRAZO' && !!cliente && total > limiteDisponivel;
+  // TRAVA DO FRONT: inadimplente continuando a prazo não pode aumentar o total (seria uma compra nova a prazo).
+  const inadimplenteAumenta = temPrevia && eraAPrazo && inadimplente && modalidade === 'A_PRAZO' && total > original!.valorTotal;
 
   // ---------- Pendências do back (sem id/cnpj na listagem) ----------
   const semCnpj = !editando && !!cliente && !cliente.cnpj;
@@ -190,7 +203,12 @@ export default function PedidoForm({
     if (semCnpj) {
       return setErro('O back ainda não devolve o CNPJ na listagem de clientes, e o pedido é criado pelo CNPJ.');
     }
-    if (itensEditaveis) {
+    if (itensComDevolvido) {
+      return setErro(
+        'Este pedido tem aluguel já devolvido: mudar os produtos faria o back recriar o item como não devolvido e baixar o estoque de novo. Salve sem mexer nos produtos.',
+      );
+    }
+    if (itensEditaveis && enviarItens) {
       if (linhas.length === 0) return setErro('Selecione pelo menos um produto.');
       if (!todasValidas) return setErro('Confira a quantidade dos produtos selecionados.');
       if (produtoSemId) return setErro('O back ainda não devolve o id na listagem de produtos, e o pedido usa o id.');
@@ -217,7 +235,7 @@ export default function PedidoForm({
           modalidadePagamento: modalidade,
           ...(modalidade === 'A_PRAZO' && !vencimentoTravado ? { dataVencimento } : {}),
           ...(enviarDesconto ? { descontoSolicitado: fracao } : {}),
-          ...(itensEditaveis ? { itensPedido: itensParaEnviar() } : {}),
+          ...(itensMudaram ? { itensPedido: itensParaEnviar() } : {}),
         };
         await editarPedido(original.id, corpo);
         onSalvo(`Pedido #${original.id} atualizado!`);
@@ -271,7 +289,8 @@ export default function PedidoForm({
             <p className="aviso erro">
               Cliente inadimplente: tem pedido pendente com vencimento antes de hoje.{' '}
               {eraAPrazo ? 'Este pedido pode continuar a prazo, sem aumentar o total.' : 'Não pode fazer pedido a prazo.'}{' '}
-              {MSG_INADIMPLENTE_SEM_DESCONTO}
+              {/* Na edição o back não recalcula a inadimplência: o desconto que o pedido já tem continua. */}
+              {editando ? 'O desconto que este pedido já tem não muda, e não dá para pedir outro.' : MSG_INADIMPLENTE_SEM_DESCONTO}
             </p>
           )}
           {semCnpj && (
@@ -408,7 +427,7 @@ export default function PedidoForm({
               {
                 valor: 'A_PRAZO',
                 rotulo: 'A prazo',
-                detalhe: eraAPrazo ? 'vencimento mantido' : inadimplente ? 'indisponível (inadimplente)' : 'escolha o vencimento',
+                detalhe: vencimentoTravado ? 'vencimento mantido' : inadimplente ? 'indisponível (inadimplente)' : 'escolha o vencimento',
                 desabilitada: inadimplente && !eraAPrazo,
               },
             ]}
@@ -423,7 +442,7 @@ export default function PedidoForm({
               value={dataVencimento}
               onChange={(e) => setDataVencimento(e.target.value)}
               disabled={vencimentoTravado}
-              title={vencimentoTravado ? 'O vencimento de um pedido a prazo não pode ser alterado.' : undefined}
+              title={vencimentoTravado ? 'O vencimento de um pedido não muda na edição.' : undefined}
               required
             />
           </label>
@@ -493,6 +512,28 @@ export default function PedidoForm({
         <span>O pedido fica pendente até alguém clicar em "Finalizar" (registra o pagamento).</span>
       </div>
       {modalidade === 'A_PRAZO' && <p className="dica">O total fica reservado no limite de crédito do cliente até ser finalizado.</p>}
+      {vencimentoTravado && modalidade === 'A_PRAZO' && (
+        <p className="dica">O vencimento do pedido não muda na edição (fica {dataBR(original!.dataVencimento)}).</p>
+      )}
+      {saiDoAPrazo && (
+        <p className="aviso">
+          Atenção: indo para à vista, {moeda.format(original!.valorTotal)} reservados voltam para o limite do cliente, mas o
+          vencimento {dataBR(original!.dataVencimento)} continua no pedido (regra do back): se ele não for finalizado até lá, o
+          cliente fica inadimplente.
+        </p>
+      )}
+      {totalMudou && (
+        <p className="aviso">
+          O total vai de {moeda.format(original!.valorTotal)} para {moeda.format(total)}
+          {itensMudaram ? ' (os itens são recalculados pelo preço atual dos produtos)' : ''}.
+        </p>
+      )}
+      {itensComDevolvido && (
+        <p className="msg erro">
+          Este pedido tem aluguel já devolvido: não dá para mudar os produtos (o back recriaria o item como não devolvido e
+          baixaria o estoque de novo).
+        </p>
+      )}
       {acimaDoLimite && <p className="msg erro">Total acima do limite de crédito do cliente.</p>}
       {inadimplenteAumenta && <p className="msg erro">{MSG_INADIMPLENTE_NAO_AUMENTA}</p>}
 
