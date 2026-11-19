@@ -1,6 +1,6 @@
-# nexus-academic-frontend
+<img src="./.github/readme/header.svg" width="100%" alt="nexus-academic-frontend: Projeto acadêmico · SENAC" />
 
-Front-end do sistema **Nexus**, desenvolvido como **projeto acadêmico no SENAC**.
+<img src="./.github/readme/sobre.svg" width="100%" alt="Sobre o projeto: Front-end do sistema Nexus, projeto acadêmico do SENAC: cadastros de clientes, produtos e colaboradores e pedidos de venda e aluguel, consumindo uma API em Java / Spring Boot." />
 
 Este repositório guarda **apenas a parte do front**. O sistema completo é dividido em três repositórios:
 
