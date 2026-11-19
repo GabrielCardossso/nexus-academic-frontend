@@ -8,17 +8,20 @@ import {
   listarColaboradoresLocal,
   reativarColaboradorLocal,
 } from '../dadosLocais';
-import { del, exigirId, getLista, idProvisorio, post, put } from './http';
+import { del, getLista, post, put } from './http';
 
-/** dtos/ColaboradorCriarRequest.java e ColaboradorListarResponse.java (a listagem não traz id). */
-interface ColaboradorBack {
-  id?: number;
+/** dtos/ColaboradorCriarRequest.java */
+interface ColaboradorBackRequest {
   name: string;
   cpf: string;
   email: string;
 }
+/** dtos/ColaboradorListarResponse.java */
+interface ColaboradorBackListar extends ColaboradorBackRequest {
+  id: number;
+}
 
-const paraBack = (c: ColaboradorCriarRequest): ColaboradorBack => ({
+const paraBack = (c: ColaboradorCriarRequest): ColaboradorBackRequest => ({
   name: c.nome.trim(),
   cpf: c.cpf.replace(/\D/g, ''),
   email: c.email.trim(),
@@ -27,8 +30,8 @@ const paraBack = (c: ColaboradorCriarRequest): ColaboradorBack => ({
 /** GET /colaboradores (só os ativos no back). */
 export async function listarColaboradores(): Promise<Colaborador[]> {
   if (USAR_DADOS_LOCAIS) return listarColaboradoresLocal();
-  const lista = await getLista<ColaboradorBack>(ENDPOINTS.colaboradores);
-  return lista.map((c, i) => ({ id: idProvisorio(c.id, i), nome: c.name, cpf: c.cpf, email: c.email }));
+  const lista = await getLista<ColaboradorBackListar>(ENDPOINTS.colaboradores);
+  return lista.map((c) => ({ id: c.id, nome: c.name, cpf: c.cpf, email: c.email }));
 }
 
 /** POST /colaboradores */
@@ -46,7 +49,7 @@ export async function editarColaborador(id: number, colaborador: ColaboradorCria
     await editarColaboradorLocal(id, colaborador);
     return;
   }
-  await put(ENDPOINTS.colaboradorEditar(exigirId(id, 'Editar colaborador')), paraBack(colaborador));
+  await put(ENDPOINTS.colaboradorEditar(id), paraBack(colaborador));
 }
 
 /** DELETE /colaboradores/{id} (soft delete: some da listagem). */
@@ -55,7 +58,7 @@ export async function excluirColaborador(id: number): Promise<void> {
     await excluirColaboradorLocal(id);
     return;
   }
-  await del(ENDPOINTS.colaborador(exigirId(id, 'Desativar colaborador')));
+  await del(ENDPOINTS.colaborador(id));
 }
 
 /** PUT /colaboradores/{id}/reativar */
@@ -64,5 +67,5 @@ export async function reativarColaborador(id: number): Promise<void> {
     await reativarColaboradorLocal(id);
     return;
   }
-  await put(ENDPOINTS.colaboradorReativar(exigirId(id, 'Reativar colaborador')));
+  await put(ENDPOINTS.colaboradorReativar(id));
 }

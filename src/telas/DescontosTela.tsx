@@ -99,7 +99,7 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
             onChange={setColaboradorId}
             disabled={colaboradores.length === 0}
             placeholder="Nenhum colaborador"
-            opcoes={colaboradores.map((c) => ({ valor: String(c.id), rotulo: c.nome, detalhe: c.id > 0 ? `ID ${c.id}` : undefined }))}
+            opcoes={colaboradores.map((c) => ({ valor: String(c.id), rotulo: c.nome, detalhe: `ID ${c.id}` }))}
           />
         </label>
       </div>
@@ -109,12 +109,6 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
       {pedidos && colaboradores.length === 0 && (
         <p className="aviso erro">
           Cadastre ou reative um colaborador (Gestão &gt; Colaboradores) para poder decidir os descontos.
-        </p>
-      )}
-      {colaborador && colaborador.id <= 0 && (
-        <p className="aviso erro">
-          O back ainda não devolve o id na listagem de colaboradores, e a decisão de desconto exige o id: não dá para aprovar
-          nem reprovar pela tela até o back incluir esse campo.
         </p>
       )}
 
@@ -195,7 +189,7 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                     <button
                       type="button"
                       className="rejeitar"
-                      disabled={!colaborador || colaborador.id <= 0 || decidindo === p.id}
+                      disabled={!colaborador || decidindo === p.id}
                       onClick={() => decidir(p, 'REPROVADO')}
                     >
                       Reprovar
@@ -203,7 +197,7 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                     <button
                       type="button"
                       className="confirmar"
-                      disabled={!colaborador || colaborador.id <= 0 || decidindo === p.id || devendo}
+                      disabled={!colaborador || decidindo === p.id || devendo}
                       onClick={() => decidir(p, 'APROVADO')}
                     >
                       Aprovar{p.descontoSolicitado != null ? ` ${percentual(p.descontoSolicitado)}` : ''}

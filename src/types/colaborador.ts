@@ -8,8 +8,8 @@ export interface ColaboradorCriarRequest {
 }
 
 /**
- * GET /colaboradores devolve name, cpf e email. O `id` (que a decisão de desconto exige) e o `ativo`
- * vêm dos dados locais; com o back real o id é provisório (negativo) até o back devolver.
+ * GET /colaboradores devolve id, name, cpf e email. O `ativo` só os dados locais preenchem (o back não
+ * lista desativados).
  */
 export interface Colaborador extends ColaboradorCriarRequest {
   id: number;

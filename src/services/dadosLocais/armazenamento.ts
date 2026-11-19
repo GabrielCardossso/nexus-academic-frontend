@@ -20,7 +20,7 @@ export const CHAVE_PRODUTOS = 'nexus:v9:produtos';
 export const CHAVE_PEDIDOS = 'nexus:v9:pedidos';
 export const CHAVE_COLABORADORES = 'nexus:v9:colaboradores';
 
-/** Tabela produto (entity/Produto.java). O cadastro do back não define status: fica null. */
+/** Tabela produto (entity/Produto.java). O cadastro do back grava DISPONIVEL; null só em produto antigo. */
 export interface ProdutoSalvo {
   id: number;
   nome: string;

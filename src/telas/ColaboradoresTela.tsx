@@ -105,12 +105,12 @@ export default function ColaboradoresTela() {
     }
   }
 
-  /** Quantas solicitações de desconto o colaborador já decidiu (pelo id; com o back real, pelo nome, que é único). */
+  /** Quantas solicitações de desconto o colaborador já decidiu. */
   const decisoesDe = (c: Colaborador) =>
     pedidos.filter(
       (p) =>
         decididoPorColaborador(p.statusAprovacaoDesconto) &&
-        (c.id > 0 && p.colaboradorDescontoId != null ? p.colaboradorDescontoId === c.id : p.colaboradorDescontoNome === c.nome),
+        p.colaboradorDescontoId === c.id,
     ).length;
 
   return (

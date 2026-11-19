@@ -52,7 +52,7 @@ export default function PedidoForm({
   onEnviando,
 }: PedidoFormProps) {
   const editando = !!original;
-  // Com o back real, GET /pedidos/{id} não traz os itens: na edição eles ficam como estão.
+  // Se o detalhe do pedido não carregou (sem itens), a edição não mexe nos produtos.
   const itensEditaveis = !original || !!original.itens;
   const descontoInicial =
     original?.descontoSolicitado != null && original.descontoSolicitado > 0
@@ -176,9 +176,6 @@ export default function PedidoForm({
   // TRAVA DO FRONT: inadimplente continuando a prazo não pode aumentar o total (seria uma compra nova a prazo).
   const inadimplenteAumenta = temPrevia && eraAPrazo && inadimplente && modalidade === 'A_PRAZO' && total > original!.valorTotal;
 
-  // ---------- Pendências do back (sem id/cnpj na listagem) ----------
-  const semCnpj = !editando && !!cliente && !cliente.cnpj;
-  const produtoSemId = linhas.some((l) => l.produtoId <= 0);
 
   function escolherCliente(id: string) {
     setClienteId(id);
@@ -200,9 +197,6 @@ export default function PedidoForm({
     e.preventDefault();
     setErro(null);
     if (!cliente && !editando) return setErro('Selecione um cliente.');
-    if (semCnpj) {
-      return setErro('O back ainda não devolve o CNPJ na listagem de clientes, e o pedido é criado pelo CNPJ.');
-    }
     if (itensComDevolvido) {
       return setErro(
         'Este pedido tem aluguel já devolvido: mudar os produtos faria o back recriar o item como não devolvido e baixar o estoque de novo. Salve sem mexer nos produtos.',
@@ -211,7 +205,6 @@ export default function PedidoForm({
     if (itensEditaveis && enviarItens) {
       if (linhas.length === 0) return setErro('Selecione pelo menos um produto.');
       if (!todasValidas) return setErro('Confira a quantidade dos produtos selecionados.');
-      if (produtoSemId) return setErro('O back ainda não devolve o id na listagem de produtos, e o pedido usa o id.');
       for (const l of linhas) {
         if (!l.aluguel) continue;
         const erroData = erroDataFutura(l.ate, `a data de devolução do aluguel de ${produtoDe(l.produtoId)?.nome}`);
@@ -241,7 +234,7 @@ export default function PedidoForm({
         onSalvo(`Pedido #${original.id} atualizado!`);
       } else {
         const r = await criarPedido({
-          CNPJcliente: cliente!.cnpj!,
+          CNPJcliente: cliente!.cnpj,
           descontoSolicitado: fracao,
           itensPedido: itensParaEnviar(),
           modalidadePagamento: modalidade,
@@ -293,19 +286,13 @@ export default function PedidoForm({
               {editando ? 'O desconto que este pedido já tem não muda, e não dá para pedir outro.' : MSG_INADIMPLENTE_SEM_DESCONTO}
             </p>
           )}
-          {semCnpj && (
-            <p className="aviso erro">
-              O back ainda não devolve o CNPJ na listagem de clientes, e o pedido é criado pelo CNPJ: não dá para criar
-              pedido pela tela até o back incluir esse campo.
-            </p>
-          )}
         </>
       )}
 
       <h3 className="secao-titulo">Produtos</h3>
       {!itensEditaveis && (
         <p className="dica">
-          O back ainda não devolve os itens do pedido: os produtos ficam como estão. Os outros campos podem ser alterados.
+          Não foi possível carregar os itens deste pedido: os produtos ficam como estão. Os outros campos podem ser alterados.
         </p>
       )}
       {itensEditaveis && disponiveis.length === 0 && <p className="vazio">Nenhum produto disponível com estoque.</p>}

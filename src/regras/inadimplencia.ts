@@ -15,14 +15,15 @@ export function estaVencido(p: PedidoComPrazo, hoje: string = hojeAAAAMMDD()): b
 
 /**
  * Inadimplente: tem pelo menos um pedido vencido. Não é campo do cadastro.
- * O cliente é reconhecido pelo id ou, quando o id não vem (back real), pelo e-mail (que é único).
+ * O cliente é reconhecido pelo id ou, quando o pedido não traz clienteId (o detalhe dele não carregou e a
+ * tela ficou só com o resumo da listagem), pelo e-mail (que é único).
  */
 export function estaInadimplente(
   cliente: { id?: number; email?: string },
   pedidos: (PedidoComPrazo & Pick<Pedido, 'clienteId' | 'clienteEmail'>)[],
   hoje: string = hojeAAAAMMDD(),
 ): boolean {
-  const temId = cliente.id != null && cliente.id > 0; // id negativo = provisório (back real)
+  const temId = cliente.id != null && cliente.id > 0;
   const mesmoCliente = (p: Pick<Pedido, 'clienteId' | 'clienteEmail'>) =>
     temId && p.clienteId != null
       ? p.clienteId === cliente.id

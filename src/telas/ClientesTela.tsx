@@ -58,7 +58,7 @@ export default function ClientesTela() {
   function abrirEditar(c: ClienteListarResponse) {
     setForm({
       name: c.name,
-      cnpj: c.cnpj ?? '',
+      cnpj: c.cnpj,
       telefone: c.telefone ?? '',
       email: c.email,
       categoria: c.categoria,
@@ -193,8 +193,7 @@ export default function ClientesTela() {
                 value={form.cnpj}
                 onChange={onChange}
                 maxLength={18}
-                required={editandoId === null}
-                placeholder={editandoId !== null && !form.cnpj ? 'Em branco: mantém o atual' : undefined}
+                required
               />
             </label>
             <label className="campo">
@@ -233,7 +232,6 @@ export default function ClientesTela() {
             <p className="dica">
               Os pedidos mostram os dados atuais do cliente. A categoria nova vale para os próximos pedidos; o total dos
               pedidos já feitos não muda.
-              {!form.cnpj && ' O back ainda não devolve o CNPJ na listagem: deixe em branco para manter o atual.'}
             </p>
           )}
           {erroForm && <p className="msg erro">{erroForm}</p>}

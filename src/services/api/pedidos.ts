@@ -21,7 +21,7 @@ import {
   listarPedidosLocal,
   resolverDescontoLocal,
 } from '../dadosLocais';
-import { del, exigirId, get, getLista, post, put } from './http';
+import { del, get, getLista, post, put } from './http';
 
 // DTOs do back (records Java) — nomes exatamente como lá
 /** dtos/PedidoListarResponse.java */
@@ -32,18 +32,32 @@ interface PedidoBackListar {
   statusAprovacaoDesconto: StatusAprovacaoDesconto;
   statusPedido: StatusPedido;
 }
-/** dtos/PedidoDetailResponse.java (não traz itens nem os percentuais de desconto). */
+/** dtos/ItemPedidoDetailResponse.java */
+interface ItemBackDetalhe {
+  id: number;
+  codigoIdProduto: number;
+  nomeProduto: string;
+  quantidade: number;
+  valorItem: number;
+  isAluguel: boolean;
+  dataVencimentoAluguel: string | null;
+  dataDevolucao: string | null;
+}
+/** dtos/PedidoDetailResponse.java */
 interface PedidoBackDetalhe {
   id: number;
   descricao: string | null;
   valorTotal: number;
+  descontoSolicitado: number;
+  descontoAutorizado: number;
   dataCriacao: string;
   dataVencimento: string | null;
   statusPedido: StatusPedido;
   statusAprovacaoDesconto: StatusAprovacaoDesconto;
   modalidadePagamento: ModalidadePagamento;
   cliente: { id: number; name: string; email: string; classificacao: ClienteCategoria } | null;
-  colaboradorDesconto: { name: string; cpf: string; email: string } | null;
+  colaboradorDesconto: { id: number; name: string; cpf: string; email: string } | null;
+  itensPedido: ItemBackDetalhe[] | null;
 }
 /** dtos/SolicitacaoDescontoListarResponse.java */
 interface SolicitacaoBack {
@@ -59,7 +73,7 @@ interface PedidoBackCriarResponse {
   nomeCliente: string;
 }
 
-function doDetalhe(d: PedidoBackDetalhe, solicitado?: number): Pedido {
+function doDetalhe(d: PedidoBackDetalhe): Pedido {
   return {
     id: d.id,
     descricao: d.descricao,
@@ -69,12 +83,24 @@ function doDetalhe(d: PedidoBackDetalhe, solicitado?: number): Pedido {
     statusPedido: d.statusPedido,
     statusAprovacaoDesconto: d.statusAprovacaoDesconto,
     modalidadePagamento: d.modalidadePagamento,
-    descontoSolicitado: solicitado,
+    descontoSolicitado: Number(d.descontoSolicitado),
+    descontoAutorizado: Number(d.descontoAutorizado),
     clienteId: d.cliente?.id,
     clienteNome: d.cliente?.name ?? '',
     clienteEmail: d.cliente?.email,
     clienteClassificacao: d.cliente?.classificacao,
+    colaboradorDescontoId: d.colaboradorDesconto?.id,
     colaboradorDescontoNome: d.colaboradorDesconto?.name ?? null,
+    // Sem itensPedido, fica undefined: a edição cai no caminho "itens não carregados" e não mexe nos produtos.
+    itens: d.itensPedido?.map((i) => ({
+      produtoId: i.codigoIdProduto,
+      nomeProduto: i.nomeProduto,
+      quantidade: Number(i.quantidade),
+      valorItem: Number(i.valorItem),
+      isAluguel: i.isAluguel,
+      dataVencimentoAluguel: i.dataVencimentoAluguel,
+      dataDevolucao: i.dataDevolucao,
+    })),
   };
 }
 
@@ -93,13 +119,8 @@ const doResumo = (p: PedidoBackListar): Pedido => ({
  * um pedido falhar, ele aparece só com o resumo, em vez de a lista inteira dar erro.
  */
 async function detalhar(lista: PedidoBackListar[]): Promise<Pedido[]> {
-  const solicitacoes = await getLista<SolicitacaoBack>(ENDPOINTS.pedidosSolicitacoesDesconto);
   const detalhes = await Promise.allSettled(lista.map((p) => get<PedidoBackDetalhe>(ENDPOINTS.pedido(p.codigoPedido))));
-  return detalhes.map((r, i) =>
-    r.status === 'fulfilled'
-      ? doDetalhe(r.value, solicitacoes.find((s) => s.id === r.value.id)?.descontoSolicitado)
-      : doResumo(lista[i]),
-  );
+  return detalhes.map((r, i) => (r.status === 'fulfilled' ? doDetalhe(r.value) : doResumo(lista[i])));
 }
 
 /** GET /pedidos (+ detalhe de cada um). Pedido excluído não aparece. */
@@ -188,7 +209,7 @@ export async function resolverDesconto(pedidoId: number, idColaborador: number, 
     return;
   }
   await put(ENDPOINTS.pedidoDesconto(pedidoId), {
-    idColaborador: exigirId(idColaborador, 'Decidir desconto'),
+    idColaborador,
     statusAprovacaoDesconto: decisao,
   });
 }

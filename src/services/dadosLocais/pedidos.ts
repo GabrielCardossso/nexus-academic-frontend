@@ -66,7 +66,7 @@ function montar(p: PedidoSalvo, clientes: ClienteSalvo[], colaboradores: Colabor
   };
 }
 
-/** GET /pedidos (excluídos não aparecem), já com os dados que o back ainda não devolve (itens, descontos). */
+/** GET /pedidos (excluídos não aparecem), já com o detalhe de cada um (como o GET /pedidos/{id}). */
 export async function listarPedidosLocal(): Promise<Pedido[]> {
   const clientes = ler<ClienteSalvo>(CHAVE_CLIENTES);
   const colaboradores = ler<ColaboradorSalvo>(CHAVE_COLABORADORES);

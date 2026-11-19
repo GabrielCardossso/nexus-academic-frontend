@@ -15,7 +15,7 @@ import {
   listarClientesLocal,
   reativarClienteLocal,
 } from '../dadosLocais';
-import { del, exigirId, getLista, idProvisorio, post, put } from './http';
+import { del, getLista, post, put } from './http';
 import { listarPedidosVencidos } from './pedidos';
 
 // DTOs do back (records Java) — nomes exatamente como lá
@@ -35,10 +35,10 @@ interface ClienteBackCriarResponse {
   email: string;
   classificacao: ClienteCategoria;
 }
-/** dtos/ClienteListarResponse.java (sem id e sem cnpj: ver README > pendências do back). */
+/** dtos/ClienteListarResponse.java */
 interface ClienteBackListar {
-  id?: number;
-  cnpj?: string;
+  id: number;
+  cnpj: string;
   name: string;
   telefone: string;
   email: string;
@@ -62,15 +62,12 @@ export async function cadastrarCliente(cliente: ClienteCriarRequest): Promise<Cl
   return { id: r.id, name: r.name, email: r.email, categoria: r.classificacao, limiteCredito: Number(cliente.limiteCredito) };
 }
 
-/**
- * GET /clientes. Com o back real, a situação (inadimplente) vem de GET /pedidos/vencidosEmAberto,
- * comparando pelo e-mail (a listagem de clientes não traz o id).
- */
+/** GET /clientes. A situação (inadimplente) vem de GET /pedidos/vencidosEmAberto. */
 export async function listarClientes(): Promise<ClienteListarResponse[]> {
   if (USAR_DADOS_LOCAIS) return listarClientesLocal();
   const [lista, vencidos] = await Promise.all([getLista<ClienteBackListar>(ENDPOINTS.clientes), listarPedidosVencidos()]);
-  return lista.map((c, i) => ({
-    id: idProvisorio(c.id, i),
+  return lista.map((c) => ({
+    id: c.id,
     cnpj: c.cnpj,
     name: c.name,
     telefone: c.telefone,
@@ -87,7 +84,7 @@ export async function editarCliente(id: number, cliente: ClienteEditarRequest): 
     await editarClienteLocal(id, cliente);
     return;
   }
-  await put(ENDPOINTS.clienteEditar(exigirId(id, 'Editar cliente')), paraBack(cliente));
+  await put(ENDPOINTS.clienteEditar(id), paraBack(cliente));
 }
 
 /** DELETE /clientes/{id} (soft delete: some da listagem). Bloqueado se o cliente tiver pedido pendente. */
@@ -96,7 +93,7 @@ export async function excluirCliente(id: number): Promise<void> {
     await excluirClienteLocal(id);
     return;
   }
-  await del(ENDPOINTS.cliente(exigirId(id, 'Desativar cliente')));
+  await del(ENDPOINTS.cliente(id));
 }
 
 /** PUT /clientes/{id}/reativar */
@@ -105,5 +102,5 @@ export async function reativarCliente(id: number): Promise<void> {
     await reativarClienteLocal(id);
     return;
   }
-  await put(ENDPOINTS.clienteReativar(exigirId(id, 'Reativar cliente')));
+  await put(ENDPOINTS.clienteReativar(id));
 }

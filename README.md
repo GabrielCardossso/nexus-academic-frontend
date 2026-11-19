@@ -63,15 +63,15 @@ O endereço do back-end fica no arquivo `.env`, que **não vai para o Git** (use
 VITE_PROXY_BACK=http://localhost:8080
 ```
 
-O back ainda **não libera CORS**, então o navegador bloqueia as chamadas diretas de `localhost:5173` para `localhost:8080`. Para contornar isso sem mexer no back, o `npm run dev` usa um **proxy**: o front chama `/api/v1/...` no próprio endereço e o Vite repassa para o `VITE_PROXY_BACK`. Sem o `.env`, o proxy aponta para `http://localhost:8080`.
+No `npm run dev`, o front usa um **proxy**: chama `/api/v1/...` no próprio endereço e o Vite repassa para o `VITE_PROXY_BACK`. Sem o `.env`, o proxy aponta para `http://localhost:8080`. Abra o front em `http://localhost:5173` (a porta é fixa no `vite.config.ts`): o CORS do back só libera essa origem, e o navegador manda a origem também pelo proxy, então em outra porta cadastrar, editar e excluir dão erro 403.
 
-Quando o back liberar o CORS (ou no build de produção), defina `VITE_API_URL=http://endereco-do-back` e o front passa a chamar o back direto, sem o proxy. Essa configuração só vale com `USAR_DADOS_LOCAIS = false`.
+Para chamar o back direto (sem o proxy, por exemplo no build), defina `VITE_API_URL=http://endereco-do-back`. O **CORS** do back libera só a origem `http://localhost:5173`; outro endereço do front (como o de produção) precisa ser incluído no `SecurityConf` do back. Essa configuração só vale com `USAR_DADOS_LOCAIS = false`.
 
 > Nunca suba o `.env` para o repositório. Ele já está no `.gitignore`.
 
 ### Endpoints usados
 
-Todos os endpoints do back (repo `LionT750/Nexus`, branch `main`) estão ligados. O prefixo é **`/api/v1`** (context-path no `application.yml`), e os caminhos ficam em `src/config/api.ts`. Swagger: `http://localhost:8080/api/v1/swagger-ui/index.html`.
+Todos os endpoints do back (repo `LionT750/Nexus`, branch `main`, commit `e4bd699`) estão ligados. O prefixo é **`/api/v1`** (context-path no `application.yml`), e os caminhos ficam em `src/config/api.ts`. Swagger: `http://localhost:8080/api/v1/swagger-ui/index.html`.
 
 | Ação | Método | Caminho |
 |---|---|---|
@@ -129,7 +129,7 @@ Em **Clientes**, **Produtos**, **Pedidos** e **Colaboradores**, a lista ocupa a 
 | Grupo | Tela | O que faz |
 |---|---|---|
 | Cadastros | **Clientes** | Cadastra, **edita**, **desativa** e **reativa** cliente (nome ou razão social, CNPJ, telefone, e-mail, categoria **Normal** ou **VIP** e limite de crédito) e mostra a situação (**em dia** ou **inadimplente**). |
-| Cadastros | **Produtos** | Cadastra, **edita** (nome, descrição e preços), **repõe estoque** e **exclui** produto. O status (**Disponível**, **Indisponível**, **Desativado**) só aparece; o back não recebe status e produto novo fica **sem status**. |
+| Cadastros | **Produtos** | Cadastra, **edita** (nome, descrição e preços), **repõe estoque** e **exclui** produto. O status (**Disponível**, **Indisponível**, **Desativado**) só aparece: o back não recebe status, e produto novo entra como **Disponível**. |
 | Vendas | **Pedidos** | Monta o pedido (cliente, produtos, pagamento **à vista** ou **a prazo**, desconto e descrição). **Cada item** pode ser **venda** ou **aluguel**; no aluguel, informa até quando. Mostra a prévia com subtotal, desconto e total calculados com as regras do back. Permite **finalizar** (registrar o pagamento), **editar** e **excluir** pedido pendente e **devolver** aluguel. |
 | Gestão | **Colaboradores** | Cadastra, **edita**, **desativa** e **reativa** colaborador (nome, **CPF** e e-mail), com quantas solicitações de desconto cada um decidiu. |
 | Gestão | **Descontos** | Escolhe quem está aprovando (**Aprovando como**) e mostra as solicitações em duas abas: **Pendentes**, com **Aprovar** e **Reprovar** e o total de cada caso, e **Decididas**. O menu mostra quantas estão pendentes. |
@@ -192,7 +192,7 @@ Na edição de cliente, o limite de crédito só vai para o back se for alterado
 
 <img src="./.github/readme/secao-06-dados-locais.svg" width="100%" alt="Dados locais" />
 
-Em `src/config/api.ts`, a constante `USAR_DADOS_LOCAIS` está como `true`: tudo é salvo e lido do **localStorage** pela pasta `src/services/dadosLocais/`, que faz o papel do back-end com as mesmas regras e mensagens. A diferença é que ela devolve também os campos que o back ainda **não devolve** (ids, CNPJ, status do produto, itens e percentuais de desconto do pedido) e lista os cadastros desativados, para poder reativar.
+Em `src/config/api.ts`, a constante `USAR_DADOS_LOCAIS` está como `true`: tudo é salvo e lido do **localStorage** pela pasta `src/services/dadosLocais/`, que faz o papel do back-end com as mesmas regras e mensagens. A diferença é que ela lista também os cadastros desativados, para poder reativar (o back não lista).
 
 - Os dados ficam nas chaves `nexus:v9:clientes`, `nexus:v9:produtos`, `nexus:v9:pedidos` e `nexus:v9:colaboradores`. Para recomeçar do zero, abra **F12 > Application > Local Storage**, apague as chaves `nexus:*` e recarregue a página.
 - **Dados de exemplo** (`CARREGAR_MOCKS = true`): os **mesmos** 6 clientes, 10 produtos e 4 colaboradores dos mocks do back, mais 10 pedidos que cobrem os cenários da tela: VIP com 5% automático, VIP e Normal aguardando decisão, desconto aprovado e reprovado, aluguel para devolver e já devolvido, pedido pago e o **Mercado Bom Preco** inadimplente por um pedido a prazo vencido. Estoque e limite de crédito já vêm coerentes com esses pedidos.
@@ -209,16 +209,12 @@ Para rodar com o back real:
 4. **Conversão de campos** em `src/services/api/` (um arquivo por entidade, com os tipos `*Back*` iguais aos records Java), se o back mudar algum nome.
 5. **Autenticação:** hoje o back libera tudo (`permitAll`). Se passar a exigir token, ajuste `getAuthHeaders()` em `src/services/api/http.ts`.
 
-### Ainda falta no back para a integração completa
+### Ainda falta no back
 
-Com o back real, o front já chama todas as rotas, mas algumas telas ficam limitadas porque o back não devolve estes campos:
+O back devolve tudo o que as telas precisam (ids, CNPJ, status do produto, itens e descontos do pedido) e libera CORS para `http://localhost:5173`. Ainda faltam:
 
-- **`id`** nas listagens de clientes, produtos e colaboradores. Sem ele não dá para editar, excluir, reativar, repor estoque, montar pedido (usa o id do produto) nem decidir desconto (usa o id do colaborador). A tela usa um id provisório (negativo) só para mostrar a lista e avisa quando a ação precisa do id real.
-- **`cnpj`** na listagem de clientes: o pedido é criado pelo CNPJ.
-- **`statusProduto`** na listagem de produtos (e o cadastro não define status).
-- **Itens**, **percentuais de desconto** (`descontoSolicitado` e `descontoAutorizado`) e **id do colaborador** em `GET /pedidos/{id}`: sem os itens, a edição do pedido não mexe nos produtos, e a prévia do total não aparece.
-- Listagem dos **desativados** (para reativar) e rota de **reativar produto**.
-- **CORS** liberado para o endereço do front (o proxy do Vite resolve só no `npm run dev`).
+- Listagem dos **desativados** (para reativar pela tela com o back real) e rota de **reativar produto**.
+- As regras de **editar e excluir pedido** (pedido vencido, vencimento, aluguel já devolvido): o Lucas confirmou que vai ajustar. Até lá valem as travas do front (seção "Regras de negócio").
 
 <img src="./.github/readme/secao-08-estrutura.svg" width="100%" alt="Estrutura detalhada" />
 
@@ -252,7 +248,7 @@ src/
 │   └── formulario.ts         # helper de formulário e tipo do aviso
 ├── services/
 │   ├── api/                  # o que as telas chamam: back real ou dados locais
-│   │   ├── http.ts           # GET/POST/PUT/DELETE, erro do Spring e a trava do id provisório
+│   │   ├── http.ts           # GET/POST/PUT/DELETE e leitura do erro do Spring
 │   │   ├── clientes.ts       # (cada arquivo traz os DTOs do back daquela entidade)
 │   │   ├── produtos.ts
 │   │   ├── colaboradores.ts
@@ -287,9 +283,10 @@ src/
 
 - [x] Caminhos `/api/v1` e nomes de campos do back (clientes, produtos e colaboradores)
 - [x] Regras do front iguais às do back (pedido, desconto, inadimplência, soft delete) e todas as rotas ligadas
-- [x] Proxy do Vite para testar com o back sem CORS
-- [ ] Back: devolver `id` nas listagens, `cnpj` do cliente, `statusProduto`, itens e descontos do pedido
-- [ ] Back: listar desativados, reativar produto e liberar CORS
+- [x] Proxy do Vite para o `npm run dev`
+- [x] Back: `id` nas listagens, `cnpj` do cliente, `statusProduto`, itens e descontos do pedido, CORS
+- [ ] Back: listar desativados e reativar produto
+- [ ] Back: regras de editar e excluir pedido (o Lucas vai ajustar; depois, rever as travas do front)
 - [ ] Decidir com o Lucas as travas que só o front tem (ver "Regras de negócio")
 - [ ] Validação de formulário campo a campo
 - [ ] Autenticação (se exigida pelo back)

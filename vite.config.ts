@@ -6,9 +6,12 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
+      // O CORS do back só libera http://localhost:5173, e o navegador manda essa origem também pelo
+      // proxy: em outra porta, cadastrar/editar/excluir dá 403. Por isso a porta é fixa (strictPort).
       port: 5173,
-      // O back ainda não libera CORS: no "npm run dev", o front chama /api/v1 no próprio endereço
-      // e o Vite repassa para o back. O endereço do back vem de VITE_PROXY_BACK (padrão: 8080).
+      strictPort: true,
+      // No "npm run dev", o front chama /api/v1 no próprio endereço e o Vite repassa para o back
+      // (VITE_PROXY_BACK, padrão 8080).
       proxy: {
         '/api/v1': { target: env.VITE_PROXY_BACK || 'http://localhost:8080', changeOrigin: true },
       },

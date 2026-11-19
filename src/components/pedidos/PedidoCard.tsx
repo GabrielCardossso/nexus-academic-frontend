@@ -39,7 +39,7 @@ function detalhesDo(p: Pedido): Detalhe[] {
     { rotulo: 'Cliente', valor: `${p.clienteNome}${p.clienteClassificacao ? ` (${p.clienteClassificacao})` : ''}`, largo: true },
     p.itens
       ? { rotulo: 'Itens', valor: p.itens.map(textoItem).join('; '), largo: true }
-      : { rotulo: 'Itens', valor: 'O back ainda não devolve os itens do pedido.', largo: true },
+      : { rotulo: 'Itens', valor: 'Não foi possível carregar os itens deste pedido.', largo: true },
     !!p.descricao && { rotulo: 'Descrição', valor: p.descricao, largo: true },
     {
       rotulo: 'Desconto',

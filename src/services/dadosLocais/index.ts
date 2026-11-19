@@ -4,7 +4,7 @@
  * ============================================================
  * Reproduz o back (repo LionT750/Nexus, branch main): mesmas regras, validações e mensagens de erro.
  * Usado com USAR_DADOS_LOCAIS = true em config/api.ts. A diferença é que devolve também os campos
- * que o back ainda não devolve (ids, cnpj, status do produto, itens e descontos do pedido).
+ * que o back não lista: os cadastros desativados (para poder reativar).
  *
  *  - armazenamento.ts  chaves do localStorage, formato das "tabelas" e ajudantes comuns
  *  - validacao.ts      CNPJ e CPF

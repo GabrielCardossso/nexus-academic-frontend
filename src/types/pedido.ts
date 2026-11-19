@@ -37,9 +37,8 @@ export interface ItemPedido {
 }
 
 /**
- * Pedido como o front usa. Os campos são os da entidade do back. Os marcados com "?" o back ainda
- * não devolve em GET /pedidos/{id} (por exemplo os itens e os descontos): os dados locais preenchem,
- * e com o back real eles ficam vazios até o Lucas incluir na resposta.
+ * Pedido como o front usa: os campos do GET /pedidos/{id} (dtos/PedidoDetailResponse.java). Os
+ * opcionais ficam vazios só quando o detalhe de um pedido não carrega e a tela usa o resumo da listagem.
  */
 export interface Pedido {
   id: number;
