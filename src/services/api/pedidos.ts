@@ -57,7 +57,7 @@ interface PedidoBackDetalhe {
   modalidadePagamento: ModalidadePagamento;
   cliente: { id: number; name: string; email: string; classificacao: ClienteCategoria } | null;
   colaboradorDesconto: { id: number; name: string; cpf: string; email: string } | null;
-  itensPedido: ItemBackDetalhe[];
+  itensPedido: ItemBackDetalhe[] | null;
 }
 /** dtos/SolicitacaoDescontoListarResponse.java */
 interface SolicitacaoBack {
@@ -91,7 +91,8 @@ function doDetalhe(d: PedidoBackDetalhe): Pedido {
     clienteClassificacao: d.cliente?.classificacao,
     colaboradorDescontoId: d.colaboradorDesconto?.id,
     colaboradorDescontoNome: d.colaboradorDesconto?.name ?? null,
-    itens: (d.itensPedido ?? []).map((i) => ({
+    // Sem itensPedido, fica undefined: a edição cai no caminho "itens não carregados" e não mexe nos produtos.
+    itens: d.itensPedido?.map((i) => ({
       produtoId: i.codigoIdProduto,
       nomeProduto: i.nomeProduto,
       quantidade: Number(i.quantidade),

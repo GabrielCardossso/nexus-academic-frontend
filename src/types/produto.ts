@@ -18,9 +18,8 @@ export interface ProdutoCriarResponse extends ProdutoCriarRequest {
 }
 
 /**
- * GET /produtos (dtos/ProdutoListarResponse.java). O back devolve só nome, descrição, estoque e
- * preços. `id` e `status` vêm dos dados locais; com o back real o id é provisório (negativo) e o
- * status fica vazio até o back devolver.
+ * GET /produtos (dtos/ProdutoListarResponse.java), com id e statusProduto. O status só vem nulo em
+ * produto gravado antes de o back passar a gravar DISPONIVEL no cadastro.
  */
 export interface ProdutoListarResponse extends ProdutoCriarRequest {
   id: number;

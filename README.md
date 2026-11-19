@@ -63,7 +63,7 @@ O endereço do back-end fica no arquivo `.env`, que **não vai para o Git** (use
 VITE_PROXY_BACK=http://localhost:8080
 ```
 
-No `npm run dev`, o front usa um **proxy**: chama `/api/v1/...` no próprio endereço e o Vite repassa para o `VITE_PROXY_BACK`. Sem o `.env`, o proxy aponta para `http://localhost:8080`. Assim o front funciona em qualquer porta.
+No `npm run dev`, o front usa um **proxy**: chama `/api/v1/...` no próprio endereço e o Vite repassa para o `VITE_PROXY_BACK`. Sem o `.env`, o proxy aponta para `http://localhost:8080`. Abra o front em `http://localhost:5173` (a porta é fixa no `vite.config.ts`): o CORS do back só libera essa origem, e o navegador manda a origem também pelo proxy, então em outra porta cadastrar, editar e excluir dão erro 403.
 
 Para chamar o back direto (sem o proxy, por exemplo no build), defina `VITE_API_URL=http://endereco-do-back`. O **CORS** do back libera só a origem `http://localhost:5173`; outro endereço do front (como o de produção) precisa ser incluído no `SecurityConf` do back. Essa configuração só vale com `USAR_DADOS_LOCAIS = false`.
 

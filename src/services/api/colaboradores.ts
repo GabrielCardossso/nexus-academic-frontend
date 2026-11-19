@@ -10,15 +10,18 @@ import {
 } from '../dadosLocais';
 import { del, getLista, post, put } from './http';
 
-/** dtos/ColaboradorCriarRequest.java e ColaboradorListarResponse.java. */
-interface ColaboradorBack {
-  id?: number; // vem na listagem; no cadastro (POST) o front não manda
+/** dtos/ColaboradorCriarRequest.java */
+interface ColaboradorBackRequest {
   name: string;
   cpf: string;
   email: string;
 }
+/** dtos/ColaboradorListarResponse.java */
+interface ColaboradorBackListar extends ColaboradorBackRequest {
+  id: number;
+}
 
-const paraBack = (c: ColaboradorCriarRequest): ColaboradorBack => ({
+const paraBack = (c: ColaboradorCriarRequest): ColaboradorBackRequest => ({
   name: c.nome.trim(),
   cpf: c.cpf.replace(/\D/g, ''),
   email: c.email.trim(),
@@ -27,8 +30,8 @@ const paraBack = (c: ColaboradorCriarRequest): ColaboradorBack => ({
 /** GET /colaboradores (só os ativos no back). */
 export async function listarColaboradores(): Promise<Colaborador[]> {
   if (USAR_DADOS_LOCAIS) return listarColaboradoresLocal();
-  const lista = await getLista<ColaboradorBack>(ENDPOINTS.colaboradores);
-  return lista.map((c) => ({ id: c.id!, nome: c.name, cpf: c.cpf, email: c.email }));
+  const lista = await getLista<ColaboradorBackListar>(ENDPOINTS.colaboradores);
+  return lista.map((c) => ({ id: c.id, nome: c.name, cpf: c.cpf, email: c.email }));
 }
 
 /** POST /colaboradores */
