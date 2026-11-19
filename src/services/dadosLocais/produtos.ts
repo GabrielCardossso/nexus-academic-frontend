@@ -26,7 +26,7 @@ function validarPreco(valor: number, rotulo: string): number {
   return n;
 }
 
-/** POST /produtos. O back não recebe status: o produto novo fica sem status (null). */
+/** POST /produtos. O back não recebe status: o produto novo entra como DISPONIVEL. */
 export async function cadastrarProdutoLocal(dados: ProdutoCriarRequest): Promise<ProdutoCriarResponse> {
   const nome = dados.nome.trim();
   if (!nome) falha('Informe o nome do produto.');
@@ -40,14 +40,14 @@ export async function cadastrarProdutoLocal(dados: ProdutoCriarRequest): Promise
     estoque,
     precoVenda: validarPreco(dados.precoVenda, 'Preço de venda'),
     precoAluguel: validarPreco(dados.precoAluguel, 'Preço de aluguel'),
-    status: null,
+    status: 'DISPONIVEL',
   };
   salvar(CHAVE_PRODUTOS, [...produtos, novo]);
   const { id, descricao, precoVenda, precoAluguel } = novo;
   return { id, nome, descricao, estoque, precoVenda, precoAluguel };
 }
 
-/** GET /produtos: só os não excluídos. O id e o status vêm a mais (o back ainda não devolve). */
+/** GET /produtos: só os não excluídos. */
 export async function listarProdutosLocal(): Promise<ProdutoListarResponse[]> {
   return ativos(ler<ProdutoSalvo>(CHAVE_PRODUTOS)).map(({ excluido: _, ...p }) => p);
 }

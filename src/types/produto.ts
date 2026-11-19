@@ -1,6 +1,6 @@
 /** Tipos de produto. Espelham os DTOs do back (records Java), com os nomes que o front usa por dentro. */
 
-/** enums/StatusProduto.java. O cadastro do back não define status (fica nulo). */
+/** enums/StatusProduto.java. O cadastro do back não recebe status: grava DISPONIVEL. */
 export type ProdutoStatus = 'DISPONIVEL' | 'INDISPONIVEL' | 'DESATIVADO';
 
 /** POST /produtos (dtos/ProdutoCriarRequest.java). */

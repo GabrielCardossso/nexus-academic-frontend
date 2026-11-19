@@ -7,7 +7,7 @@ import { cadastrarProduto, editarProduto, excluirProduto, listarProdutos, reporE
 import type { ProdutoListarResponse } from '../types';
 import { campo, moeda, type Mensagem } from '../utils';
 
-// Sem status: o back não recebe nem no cadastro nem na edição.
+// Sem status: o back não recebe nem no cadastro (grava DISPONIVEL) nem na edição.
 const FORM_VAZIO = {
   nome: '',
   descricao: '',
@@ -165,7 +165,7 @@ export default function ProdutosTela() {
               {p.status ? (
                 <span className={`selo ${p.status.toLowerCase()}`}>{ROTULO_STATUS_PRODUTO[p.status]}</span>
               ) : (
-                <span className="selo neutro" title="O back não define status no cadastro nem devolve na listagem.">
+                <span className="selo neutro" title="Produto sem status no banco.">
                   Sem status
                 </span>
               )}
@@ -232,7 +232,7 @@ export default function ProdutosTela() {
           <p className="dica">
             {editando
               ? `Estoque atual: ${editando.estoque}. Para aumentar, use "Repor estoque". O status não é editável (o back não recebe). Pedidos já feitos mantêm o valor do momento; na edição de um pedido, os itens são recalculados pelo preço atual.`
-              : 'O back não define status no cadastro: o produto novo fica sem status.'}
+              : 'O produto novo entra como disponível.'}
           </p>
           {erroForm && <p className="msg erro">{erroForm}</p>}
           <div className="modal-acoes">

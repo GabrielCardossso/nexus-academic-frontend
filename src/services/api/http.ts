@@ -45,7 +45,7 @@ async function requisicao<T>(metodo: string, endpoint: string, body?: unknown): 
     });
   } catch {
     throw new Error(
-      'Não foi possível falar com o back-end. Confira se ele está rodando e, fora do "npm run dev", se o CORS libera este endereço.',
+      'Não foi possível falar com o back-end. Confira se ele está rodando (porta 8080) e se o front está em http://localhost:5173, que é a origem liberada no CORS do back.',
     );
   }
   if (!response.ok) throw await erroDaResposta(response);
@@ -66,16 +66,3 @@ export async function getLista<T>(endpoint: string): Promise<T[]> {
   return Array.isArray(content) ? (content as T[]) : [];
 }
 
-/** Enquanto o back não devolve id nas listagens, a tela usa um id negativo provisório só para mostrar. */
-export const idProvisorio = (id: number | undefined, i: number) => id ?? -(i + 1);
-
-/**
- * Ações que precisam do id (editar, excluir, reativar, repor estoque, decidir desconto) não podem
- * usar o id provisório: avisa em vez de chamar a API com um id que não existe.
- */
-export function exigirId(id: number, oQue: string): number {
-  if (id <= 0) {
-    throw new Error(`${oQue}: o back ainda não devolve o id na listagem, então essa ação não pode ser feita pela tela.`);
-  }
-  return id;
-}

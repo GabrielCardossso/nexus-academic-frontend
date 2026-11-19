@@ -16,7 +16,7 @@ import {
   listarProdutosLocal,
   reporEstoqueLocal,
 } from '../dadosLocais';
-import { del, exigirId, getLista, idProvisorio, post, put } from './http';
+import { del, getLista, post, put } from './http';
 
 // DTOs do back (records Java) — nomes exatamente como lá
 /** dtos/ProdutoCriarRequest.java */
@@ -27,10 +27,10 @@ interface ProdutoBackRequest {
   precoVenda: number;
   precoAluguel: number;
 }
-/** dtos/ProdutoListarResponse.java (sem id e sem status: ver README > pendências do back). */
+/** dtos/ProdutoListarResponse.java */
 interface ProdutoBackListar extends ProdutoBackRequest {
-  id?: number;
-  statusProduto?: ProdutoStatus | null;
+  id: number;
+  statusProduto: ProdutoStatus | null;
 }
 /** dtos/ProdutoAdicionarEstoqueRequest.java */
 interface ProdutoBackAdicionarEstoque {
@@ -38,7 +38,7 @@ interface ProdutoBackAdicionarEstoque {
   qtdAdicionar: number;
 }
 
-/** POST /produtos (sem status: o back não recebe). */
+/** POST /produtos (sem status: o back não recebe e grava DISPONIVEL). */
 export async function cadastrarProduto(produto: ProdutoCriarRequest): Promise<ProdutoCriarResponse> {
   if (USAR_DADOS_LOCAIS) return cadastrarProdutoLocal(produto);
   const corpo: ProdutoBackRequest = { ...produto, nome: produto.nome.trim(), descricao: produto.descricao.trim() };
@@ -49,8 +49,8 @@ export async function cadastrarProduto(produto: ProdutoCriarRequest): Promise<Pr
 export async function listarProdutos(): Promise<ProdutoListarResponse[]> {
   if (USAR_DADOS_LOCAIS) return listarProdutosLocal();
   const lista = await getLista<ProdutoBackListar>(ENDPOINTS.produtos);
-  return lista.map((p, i) => ({
-    id: idProvisorio(p.id, i),
+  return lista.map((p) => ({
+    id: p.id,
     nome: p.nome,
     descricao: p.descricao ?? '',
     estoque: Number(p.estoque ?? 0),
@@ -73,13 +73,13 @@ export async function editarProduto(id: number, produto: ProdutoEditarRequest): 
     await editarProdutoLocal(id, produto);
     return;
   }
-  await put(ENDPOINTS.produtoEditar(exigirId(id, 'Editar produto')), { ...produto, nome: produto.nome.trim() });
+  await put(ENDPOINTS.produtoEditar(id), { ...produto, nome: produto.nome.trim() });
 }
 
 /** PUT /produtos/adicionarEstoque: soma ao estoque. Devolve o estoque novo. */
 export async function reporEstoque(id: number, quantidade: number): Promise<number> {
   if (USAR_DADOS_LOCAIS) return (await reporEstoqueLocal(id, quantidade)).estoque;
-  const corpo: ProdutoBackAdicionarEstoque = { idProduto: exigirId(id, 'Repor estoque'), qtdAdicionar: quantidade };
+  const corpo: ProdutoBackAdicionarEstoque = { idProduto: id, qtdAdicionar: quantidade };
   const r = await put<{ estoque: number }>(ENDPOINTS.produtoAdicionarEstoque, corpo);
   return Number(r.estoque);
 }
@@ -90,5 +90,5 @@ export async function excluirProduto(id: number): Promise<void> {
     await excluirProdutoLocal(id);
     return;
   }
-  await del(ENDPOINTS.produto(exigirId(id, 'Excluir produto')));
+  await del(ENDPOINTS.produto(id));
 }

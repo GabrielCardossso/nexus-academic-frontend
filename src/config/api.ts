@@ -5,8 +5,8 @@
  *
  * URL base do back-end: vem do arquivo ".env" (VITE_API_URL).
  * Sem VITE_API_URL, as chamadas vão para o próprio endereço do front ("/api/v1/..."), e no
- * "npm run dev" o Vite repassa para o back (proxy em vite.config.ts). Isso contorna o CORS que o
- * back ainda não libera.
+ * "npm run dev" o Vite repassa para o back (proxy em vite.config.ts). Com VITE_API_URL, o front chama
+ * o back direto: o back libera CORS só para http://localhost:5173.
  */
 export const API_BASE_URL: string = import.meta.env.VITE_API_URL ?? '';
 

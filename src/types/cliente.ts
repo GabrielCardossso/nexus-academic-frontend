@@ -26,9 +26,9 @@ export interface ClienteCriarResponse {
 }
 
 /**
- * GET /clientes (dtos/ClienteListarResponse.java): name, telefone, email, limiteDeCredito e classificacao.
- * Os outros campos o back ainda não devolve: os dados locais preenchem; com o back real o `id` é
- * provisório (negativo), e o `cnpj` e o `ativo` ficam vazios (desativado nem aparece na listagem).
+ * GET /clientes (dtos/ClienteListarResponse.java): id, name, cnpj, telefone, email, limiteDeCredito e
+ * classificacao. `inadimplente` é calculado pelo front; `ativo` só os dados locais preenchem (o back
+ * não lista desativados).
  */
 export interface ClienteListarResponse {
   id: number;
@@ -37,7 +37,7 @@ export interface ClienteListarResponse {
   email: string;
   categoria: ClienteCategoria;
   limiteCredito: number; // limite disponível (os pedidos a prazo pendentes já foram descontados)
-  cnpj?: string; // o pedido é criado pelo CNPJ do cliente
+  cnpj: string; // o pedido é criado pelo CNPJ do cliente
   inadimplente?: boolean; // calculado: tem pedido pendente com vencimento antes de hoje
   ativo?: boolean; // false = desativado (soft delete no back). Ausente = ativo.
 }
