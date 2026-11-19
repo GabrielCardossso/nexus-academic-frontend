@@ -167,7 +167,7 @@ O cliente digita o percentual (de 0% a 15%), que vai ao back como fração (0.12
 | **Inadimplente** | qualquer valor | O pedido é registrado como **reprovado por inadimplência**, sem desconto. |
 
 - Aprovado: vale o percentual solicitado. No a prazo, a diferença volta para o limite.
-- Na edição, pedir **mais** do que o autorizado volta a **aguardar** decisão. Pedir **igual ou menos** mantém o desconto já decidido (por exemplo, aprovado 12% e agora pedindo 3%: continuam os 12%). O formulário avisa quando um desconto aprovado vai continuar valendo depois de mudar os produtos.
+- Na edição, pedir **mais** do que o autorizado volta a **aguardar** decisão. Pedir **igual ou menos** mantém o desconto já decidido (por exemplo, aprovado 12% e agora pedindo 3%: continuam os 12%). É intencional, confirmado pelo Lucas: o cliente não se prejudica pedindo um desconto pior. O formulário avisa quando o desconto pedido é menor que o autorizado e quando um desconto aprovado vai continuar valendo depois de mudar os produtos.
 
 ### Cliente inadimplente
 
@@ -214,7 +214,8 @@ Para rodar com o back real:
 O back devolve tudo o que as telas precisam (ids, CNPJ, status do produto, itens e descontos do pedido) e libera CORS para `http://localhost:5173`. Ainda faltam:
 
 - Listagem dos **desativados** (para reativar pela tela com o back real) e rota de **reativar produto**.
-- As regras de **editar e excluir pedido** (pedido vencido, vencimento, aluguel já devolvido): o Lucas confirmou que vai ajustar. Até lá valem as travas do front (seção "Regras de negócio").
+- As regras de **editar e excluir pedido** (pedido vencido, vencimento, aluguel já devolvido) e a troca **a prazo → à vista**, que hoje mantém o vencimento antigo: o Lucas confirmou que vai ajustar. Até lá valem as travas do front (seção "Regras de negócio").
+- Status **cancelado** para pedido lançado errado (o Lucas pretende criar; hoje a saída seria excluir).
 
 <img src="./.github/readme/secao-08-estrutura.svg" width="100%" alt="Estrutura detalhada" />
 
