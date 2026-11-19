@@ -473,6 +473,15 @@ export default function PedidoForm({
       {categoria === 'NORMAL' && !descontoBloqueado && fracao > TETO_NORMAL && (
         <p className="aviso">O desconto solicitado vai ser limitado a {percentual(TETO_NORMAL)} (regra do back).</p>
       )}
+      {editando &&
+        enviarDesconto &&
+        (original!.descontoAutorizado ?? 0) > 0 &&
+        fracao < (original!.descontoAutorizado ?? 0) && (
+          <p className="aviso">
+            O desconto já autorizado ({percentual(original!.descontoAutorizado!)}) é maior e continua valendo: um pedido
+            não perde desconto pedindo um menor (regra do back).
+          </p>
+        )}
       {editando && itensMudaram && original!.statusAprovacaoDesconto === 'APROVADO' && (
         <p className="aviso">
           Atenção: o desconto já aprovado ({percentual(original!.descontoAutorizado)}) continua valendo depois desta edição,
