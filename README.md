@@ -4,7 +4,7 @@
 
 <img src="./.github/readme/stack.svg" width="100%" alt="Stack: React 18, TypeScript, CSS, HTML, Vite, Node.js 18+, Java, Spring Boot" />
 
-<img src="./.github/readme/funcionalidades.svg" width="100%" alt="Funcionalidades: Cadastros (Clientes Normal ou VIP, produtos e colaboradores: cadastra, edita e desativa/reativa, com CNPJ e CPF validados.); Pedidos de venda e aluguel (Prévia com subtotal, desconto e total; PIX, à vista ou a prazo com limite de crédito.); Aprovação de descontos (Solicitações pendentes e decididas, aprovadas ou rejeitadas por um colaborador ativo.); Inadimplência calculada (Cliente com pedido a prazo vencido fica inadimplente: sem a prazo e sem desconto.); Nada é excluído (Cadastros são desativados e pedidos cancelados; o histórico guarda nome e preço do momento.); Modo local (Back-end &quot;de mentira&quot; no localStorage, com 17 pedidos de exemplo cobrindo todos os cenários.)" />
+<img src="./.github/readme/funcionalidades.svg" width="100%" alt="Funcionalidades: Cadastros (Clientes Normal ou VIP, produtos e colaboradores: cadastra, edita e desativa/reativa, com CNPJ e CPF validados.); Pedidos de venda e aluguel (Cada item é venda ou aluguel; à vista ou a prazo com limite de crédito.); Aprovação de descontos (Solicitações pendentes e decididas, aprovadas ou reprovadas por um colaborador ativo.); Inadimplência calculada (Cliente com pedido pendente vencido fica inadimplente: sem a prazo e sem desconto.); Exclusão lógica (Excluir é soft delete, igual ao back: o registro sai da lista e continua no banco.); Modo local (Back-end &quot;de mentira&quot; no localStorage, com as mesmas regras e mensagens do back.)" />
 
 <img src="./.github/readme/estrutura.svg" width="100%" alt="Estrutura de pastas: src/ (código da aplicação), telas/ (uma tela por item do menu), components/ (modal, aviso, seleção e pedidos), regras/ (regras de negócio (funções puras)), services/ (API real e dados locais), config/ (URL, endpoints e flags), types/ (tipos (DTOs) por assunto), public/icons/ (ícones do menu lateral), .env.example (modelo da URL do back-end), vite.config.ts (configuração do Vite)" />
 
@@ -39,7 +39,7 @@ cd nexus-academic-frontend
 # 2. Instalar as dependências
 npm install
 
-# 3. Criar o arquivo de ambiente (veja "Configuração")
+# 3. Criar o arquivo de ambiente (veja "Configuração"; opcional no modo local)
 cp .env.example .env
 
 # 4. Rodar em modo de desenvolvimento
@@ -57,171 +57,168 @@ npm run preview   # serve localmente a versão gerada pelo build
 
 <img src="./.github/readme/secao-03-configuracao.svg" width="100%" alt="Configuração" />
 
-A URL do back-end é definida no arquivo `.env` (que **não vai para o Git**):
+O endereço do back-end fica no arquivo `.env`, que **não vai para o Git** (use o `.env.example` como modelo):
 
 ```env
-VITE_API_URL=http://localhost:8080
+VITE_PROXY_BACK=http://localhost:8080
 ```
 
-Se o `.env` não existir, o front usa `http://localhost:8080` (porta padrão do Spring Boot). Use o `.env.example` como modelo. Essa URL só é usada com `USAR_DADOS_LOCAIS = false`.
+O back ainda **não libera CORS**, então o navegador bloqueia as chamadas diretas de `localhost:5173` para `localhost:8080`. Para contornar isso sem mexer no back, o `npm run dev` usa um **proxy**: o front chama `/api/v1/...` no próprio endereço e o Vite repassa para o `VITE_PROXY_BACK`. Sem o `.env`, o proxy aponta para `http://localhost:8080`.
+
+Quando o back liberar o CORS (ou no build de produção), defina `VITE_API_URL=http://endereco-do-back` e o front passa a chamar o back direto, sem o proxy. Essa configuração só vale com `USAR_DADOS_LOCAIS = false`.
 
 > Nunca suba o `.env` para o repositório. Ele já está no `.gitignore`.
 
 ### Endpoints usados
 
-O back usa o prefixo **`/api/v1`** (context-path no `application.yml`). Os caminhos ficam em `src/config/api.ts`:
+Todos os endpoints do back (repo `LionT750/Nexus`, branch `main`) estão ligados. O prefixo é **`/api/v1`** (context-path no `application.yml`), e os caminhos ficam em `src/config/api.ts`. Swagger: `http://localhost:8080/api/v1/swagger-ui/index.html`.
 
 | Ação | Método | Caminho |
 |---|---|---|
-| Cadastrar / listar clientes | `POST` / `GET` | `/api/v1/clientes` |
-| Cadastrar / listar produtos | `POST` / `GET` | `/api/v1/produtos` |
-| Cadastrar / listar colaboradores | `POST` / `GET` | `/api/v1/colaboradores` |
+| Cadastrar / listar clientes | `POST` / `GET` | `/clientes` |
+| Editar cliente | `PUT` | `/clientes/{id}/editar` |
+| Desativar / reativar cliente | `DELETE` / `PUT` | `/clientes/{id}` · `/clientes/{id}/reativar` |
+| Cadastrar / listar produtos | `POST` / `GET` | `/produtos` |
+| Editar produto | `PUT` | `/produtos/{id}/editar` |
+| Repor estoque | `PUT` | `/produtos/adicionarEstoque` |
+| Excluir produto | `DELETE` | `/produtos/{id}` |
+| Cadastrar / listar colaboradores | `POST` / `GET` | `/colaboradores` |
+| Editar colaborador | `PUT` | `/colaboradores/{id}/editar` |
+| Desativar / reativar colaborador | `DELETE` / `PUT` | `/colaboradores/{id}` · `/colaboradores/{id}/reativar` |
+| Criar / listar pedidos | `POST` / `GET` | `/pedidos` |
+| Detalhe / excluir pedido | `GET` / `DELETE` | `/pedidos/{id}` |
+| Editar pedido | `PUT` | `/pedidos/{id}/editar` |
+| Aprovar / reprovar desconto | `PUT` | `/pedidos/{id}/desconto` |
+| Finalizar (registrar pagamento) | `PUT` | `/pedidos/{id}/finalizar` |
+| Devolver aluguel | `PUT` | `/pedidos/{id}/devolucao` |
+| Pedidos vencidos (inadimplência) | `GET` | `/pedidos/vencidosEmAberto` |
+| Solicitações de desconto pendentes | `GET` | `/pedidos/solicitacoesDescontoEmAberto` |
+| Pedidos de um cliente | `GET` | `/pedidos/cliente?idCliente=` (ou `cnpjCliente=`, `emailCliente=`) |
+| Itens alugados | `GET` | `/produtos/listarAlugados` |
 
-O back também já tem rotas de pedido (`/api/v1/pedidos`, `/{id}`, `/vencidosEmAberto`, `/solicitacoesDescontoEmAberto`, `/cliente`, `/{id}/desconto`, `/{id}/finalizar`, `/{id}/devolucao`) e `/api/v1/produtos/listarAlugados`. O front ainda não usa essas rotas porque as regras de pedido estão sendo alinhadas.
+`listarPedidosDoCliente` e `listarProdutosAlugados` estão prontas em `services/api`, mas nenhuma tela usa ainda.
 
-O front usa nomes próprios por dentro (`categoria`, `limiteCredito`, `nome`), e os arquivos de `src/services/api/` convertem para os nomes do back ao enviar e receber:
+O front usa alguns nomes próprios por dentro (`categoria`, `limiteCredito`, `nome` do colaborador), e os arquivos de `src/services/api/` convertem para os nomes do back ao enviar e receber. Pedido e desconto usam exatamente os nomes e os enums do back:
 
 ```json
-// POST /api/v1/clientes
+// POST /api/v1/pedidos (o cliente vai pelo CNPJ; desconto em fração: 0.12 = 12%)
 {
-  "name": "Maria Souza",
-  "telefone": "11999999999",
-  "cnpj": "11222333000181",
-  "email": "maria@email.com",
-  "limiteDeCredito": 5000,
-  "classificacao": "NORMAL"
+  "CNPJcliente": "88447294000145",
+  "descontoSolicitado": 0.12,
+  "modalidadePagamento": "A_PRAZO",
+  "dataVencimento": "2026-12-20",
+  "descricao": "Obra do centro",
+  "itensPedido": [
+    { "codigoIdProduto": 1, "quantidade": 2, "isAluguel": false },
+    { "codigoIdProduto": 3, "quantidade": 1, "isAluguel": true, "dataVencimentoAluguel": "2026-12-05" }
+  ]
 }
 
-// POST /api/v1/produtos (sem status: o back não recebe)
-{
-  "nome": "Furadeira de Impacto 650W",
-  "descricao": "Furadeira profissional com maleta",
-  "estoque": 25,
-  "precoVenda": 389.9,
-  "precoAluguel": 45.0
-}
-
-// POST /api/v1/colaboradores
-{
-  "name": "Ana Souza",
-  "cpf": "12345678909",
-  "email": "ana.souza@nexus.com.br"
-}
+// PUT /api/v1/pedidos/{id}/desconto
+{ "idColaborador": 1, "statusAprovacaoDesconto": "APROVADO" }
 ```
 
-Os erros do back vêm no formato `ProblemDetail` do Spring (`detail` e `errors`), e o front mostra essas mensagens no aviso.
+Os erros do back vêm no formato `ProblemDetail` do Spring (`detail`, `errors` e, em enum inválido, `allowedValues`), e o front mostra essas mensagens no aviso.
 
 <img src="./.github/readme/secao-04-telas.svg" width="100%" alt="Telas" />
 
 Aplicação com **menu lateral** (que pode ser recolhido para mostrar só os ícones) e cinco telas.
 
-Em **Clientes**, **Produtos**, **Pedidos** e **Colaboradores**, a lista ocupa a tela e carrega sozinha. Não há busca nem filtro: o back-end ainda não oferece isso, então o front mostra a lista completa que a API devolve. O botão **+ Novo** no topo abre o formulário de cadastro num **popup**, que fecha com Esc, com o "×" ou clicando fora. Mensagens de sucesso e erro aparecem num aviso no canto da tela, que some sozinho. As caixas de seleção são um componente próprio (`Selecao`), com a lista estilizada e funcionando por teclado (setas, Enter, Esc e a letra inicial da opção).
+Em **Clientes**, **Produtos**, **Pedidos** e **Colaboradores**, a lista ocupa a tela e carrega sozinha. Não há busca nem filtro: o back-end ainda não oferece isso. O botão **+ Novo** no topo abre o formulário num **popup**, que fecha com Esc, com o "×" ou clicando fora. Mensagens de sucesso e erro aparecem num aviso no canto da tela. As caixas de seleção são um componente próprio (`Selecao`), que funciona por teclado (setas, Enter, Esc e a letra inicial da opção).
 
 | Grupo | Tela | O que faz |
 |---|---|---|
-| Cadastros | **Clientes** | Cadastra, **edita** e **desativa/reativa** cliente (nome ou razão social, CNPJ, telefone, e-mail, categoria **Normal** ou **VIP** e limite de crédito) e lista os clientes cadastrados, com a situação (**em dia** ou **inadimplente**). |
-| Cadastros | **Produtos** | Cadastra, **edita** (nome, descrição, preços e status), **repõe estoque** e **desativa/reativa** produto, e lista os produtos com o status (**Disponível**, **Indisponível** ou **Desativado**). O cadastro não pede status, igual ao back: produto novo entra como disponível. |
-| Vendas | **Pedidos** | Monta um pedido de **venda** ou de **aluguel** (cliente, produtos e quantidades, forma de pagamento) e mostra a prévia com subtotal, desconto e total. Os produtos entram um por vez: **+ Selecionar produto** abre a lista de produtos disponíveis; depois de escolher e informar a quantidade, o botão aparece de novo para o próximo. A lista de pedidos mostra um resumo de cada um (cliente, itens, total, status do pedido e do pagamento), e **Ver detalhes** abre todos os dados em grade. Permite **editar** e **cancelar** o pedido enquanto não foi pago, **confirmar** o pedido, **registrar o pagamento** dos pedidos a prazo e **devolver** os aluguéis. |
-| Gestão | **Colaboradores** | Cadastra, **edita** e **desativa/reativa** colaborador (nome, **CPF** e e-mail) e lista os colaboradores, com quantas solicitações de desconto cada um já decidiu. O CPF é validado, e CPF e e-mail não podem se repetir. |
-| Gestão | **Descontos** | Escolhe quem está aprovando (**Aprovando como**, só colaboradores ativos) e mostra as solicitações de desconto em duas abas: **Pendentes**, com os botões **Aprovar** e **Rejeitar** e o total antes e depois do desconto, e **Decididas**, com quem aprovou ou rejeitou. O menu mostra quantas estão pendentes. |
+| Cadastros | **Clientes** | Cadastra, **edita**, **desativa** e **reativa** cliente (nome ou razão social, CNPJ, telefone, e-mail, categoria **Normal** ou **VIP** e limite de crédito) e mostra a situação (**em dia** ou **inadimplente**). |
+| Cadastros | **Produtos** | Cadastra, **edita** (nome, descrição e preços), **repõe estoque** e **exclui** produto. O status (**Disponível**, **Indisponível**, **Desativado**) só aparece; o back não recebe status e produto novo fica **sem status**. |
+| Vendas | **Pedidos** | Monta o pedido (cliente, produtos, pagamento **à vista** ou **a prazo**, desconto e descrição). **Cada item** pode ser **venda** ou **aluguel**; no aluguel, informa até quando. Mostra a prévia com subtotal, desconto e total calculados com as regras do back. Permite **finalizar** (registrar o pagamento), **editar** e **excluir** pedido pendente e **devolver** aluguel. |
+| Gestão | **Colaboradores** | Cadastra, **edita**, **desativa** e **reativa** colaborador (nome, **CPF** e e-mail), com quantas solicitações de desconto cada um decidiu. |
+| Gestão | **Descontos** | Escolhe quem está aprovando (**Aprovando como**) e mostra as solicitações em duas abas: **Pendentes**, com **Aprovar** e **Reprovar** e o total de cada caso, e **Decididas**. O menu mostra quantas estão pendentes. |
 
-**Nada é excluído de verdade.** O "excluir" de clientes, produtos e colaboradores é **Desativar** (só pelo botão, com popup de confirmação), e o cadastro pode ser **Reativado**. O "excluir" do pedido é **Cancelar pedido** (veja as regras abaixo). Cliente desativado não aparece para pedido novo; produto desativado não entra em pedido; colaborador desativado não decide descontos. Os pedidos e decisões antigos continuam como estavam (guardam o nome, a categoria e o preço do momento).
+**Excluir é soft delete**, igual ao back: cliente, colaborador, produto e pedido excluídos **somem das listagens**, mas continuam no banco. O back tem **reativar** para cliente e colaborador, mas **não para produto**.
 
-Os selos de status (pedido, pagamento, categoria, situação do cliente, status do produto) usam cores sólidas com texto branco: verde para concluído, pago, em dia, disponível e aprovado; laranja para pendente e indisponível; vermelho para vencido, inadimplente e rejeitado; roxo para VIP; cinza para os neutros.
+Os selos de status usam cores sólidas: verde para pago, em dia, disponível e aprovado; laranja para pendente e indisponível; vermelho para vencido, inadimplente e reprovado; roxo para VIP; cinza para os neutros.
 
 <img src="./.github/readme/secao-05-regras-de-negocio.svg" width="100%" alt="Regras de negócio" />
 
-As regras ficam em funções puras na pasta `src/regras/` (um arquivo por assunto), usadas tanto pela prévia na tela quanto pelos dados locais:
+As regras são **as do back** (`PedidoService`, `ClienteService`, `ProdutoService` e `ColaboradorService`), escritas em funções puras na pasta `src/regras/` e usadas pela prévia na tela e pelos dados locais. A pasta `services/dadosLocais/` reproduz o back passo a passo, com as mesmas validações, a mesma ordem e as mesmas mensagens de erro.
 
-- **Produtos:** só entram no pedido produtos com status *Disponível* e estoque maior que zero. A quantidade não pode passar do estoque, e o estoque é baixado quando o pedido é feito (venda ou aluguel).
-- **Tipo do pedido:** *Venda* usa o preço de venda do produto. *Aluguel* usa o preço de aluguel **por mês**.
-- **Aluguel:** o cliente informa a duração em **meses**. O início é a data do pedido e o fim do aluguel é calculado pela quantidade de meses. O valor é **preço por mês × meses × quantidade**.
-- **Formas de pagamento:** PIX, à vista ou a prazo (valem para venda e aluguel).
-  - PIX e à vista: o pagamento já fica **Pago**, a não ser que exista uma solicitação de desconto ainda pendente (aí fica pago quando o colaborador decide).
-  - A prazo: o pagamento fica **Pendente** até alguém clicar em **Registrar pagamento**, e o total não pode ultrapassar o **limite de crédito** do cliente. A **data de vencimento** é escolhida no pedido: obrigatória e precisa ser depois de hoje (igual ao `@Future` do back). O pedido também tem um campo opcional de **descrição**.
-- **Limite de crédito:** todo pedido a prazo (venda ou aluguel) **reserva o total no limite do cliente** assim que é criado. Se o desconto de um pedido a prazo for aprovado, a diferença volta para o limite. Ao **registrar o pagamento**, o valor reservado volta inteiro para o limite. Na devolução do aluguel o crédito não volta (só o estoque).
-- **Repor estoque:** o botão **Repor estoque** do produto **soma** a quantidade informada (inteira, maior que zero) ao estoque atual. Não muda o status do produto: um produto indisponível que recebe estoque continua indisponível até alguém mudar o status na edição.
-- **Editar pedido:** o botão **Editar** aparece enquanto o pedido **não foi pago**, inclusive se já foi confirmado. Dá para mudar praticamente tudo (tipo, produtos, quantidades, meses, pagamento, desconto e descrição).
-  - A prazo: só até **Registrar pagamento**, e **nunca depois de vencido** (pedido vencido só tem o pagamento registrado). PIX e à vista já nascem pagos, então só editam enquanto o desconto aguarda decisão. Aluguel devolvido e pedido cancelado não editam.
-  - Pedido **a prazo**: o **cliente** e o **vencimento** não podem ser alterados (senão daria para passar a dívida para outro cliente ou adiar o vencimento). Ele só sai do a prazo se for **pago na hora** (PIX ou à vista sem solicitação de desconto).
-  - Se o cliente estiver inadimplente, o pedido a prazo pode ser editado e continuar a prazo, mas o **total não pode aumentar** (seria uma compra nova a prazo).
-  - Na edição, o pedido antigo é desfeito (o estoque e o crédito reservado voltam) e o novo passa pelas mesmas validações do cadastro. Um item que já estava no pedido mantém o **preço do momento do pedido** se a quantidade ficar igual ou menor; se a quantidade **aumentar**, o item é recotado pelo **preço atual**. Itens novos usam o preço atual.
-  - A solicitação de desconto (e a decisão já tomada) só continua se o cliente, o percentual, o tipo, o pagamento, os meses, os produtos e as quantidades forem os mesmos. Se algo disso mudar, ela volta a ficar **pendente**.
-  - A forma de pagamento nunca muda sozinha. Se a edição trocar para PIX ou à vista (sem desconto pendente), o formulário avisa antes de salvar que o pedido vai ficar **Pago**.
-- **Cancelar pedido:** o "excluir" do pedido. O botão **Cancelar pedido** abre um popup de confirmação e só aparece em pedido **não pago** e não devolvido (inclusive já confirmado). Ao cancelar, os itens voltam ao estoque e o crédito reservado volta para o limite; o pedido continua na lista como **Cancelado** (não dá para desfazer). A solicitação de desconto dele sai dos pendentes e vai para a aba **Decididas** com o selo "Pedido cancelado".
-  - Pedido **a prazo vencido** não pode ser cancelado: o cliente precisa pagar (senão sairia da inadimplência sem pagar).
+### Pedido
+
+- **Itens:** cada item é **venda** (preço de venda × quantidade) ou **aluguel** (preço de aluguel × quantidade). O aluguel exige a **data de devolução** (`dataVencimentoAluguel`, futura), e o valor **não muda com o tempo**. O estoque baixa quando o pedido é criado.
+- **Pagamento:** **à vista** ou **a prazo** (não existe PIX no back). A prazo exige **data de vencimento** futura e reserva o total no **limite de crédito** do cliente; se o total passar do limite, o pedido é recusado.
+- **Um status só:** todo pedido nasce **Pendente** e vira **Pago** em **Finalizar** (vale para à vista e a prazo). Não existe "confirmar" separado do pagamento. O enum do back também tem **Rejeitado**, mas nenhuma regra usa.
+- **Finalizar:** só pedido pendente e sem desconto aguardando decisão. No a prazo, o total volta para o limite do cliente.
+- **Total:** o back **grava** o total (soma dos itens × (1 − desconto autorizado), 2 casas). Ele é recalculado quando o pedido é editado ou o desconto é decidido.
+- **Editar:** só pedido **pendente**. O cliente não muda. Dá para mudar descrição, pagamento, desconto e itens. O back muda **só o que vem no corpo**, então o front manda os itens só quando eles mudaram: quando vão, são **recotados pelo preço atual** (o formulário mostra o total antes e depois). O estoque e o limite reservados pelo pedido antigo voltam antes de valer o novo.
+- **A prazo → à vista:** o valor reservado volta para o limite, mas o back **mantém o vencimento** no pedido; se ele não for finalizado até lá, o cliente fica inadimplente. O formulário avisa.
+- **Excluir:** só pedido **pendente**. O estoque volta e, no a prazo, o total volta ao limite. O pedido some da lista.
+- **Devolver aluguel:** devolve **todos os itens de aluguel ainda não devolvidos**, em qualquer status do pedido. O estoque volta e cada item ganha a data de devolução. O crédito não volta.
 
 ### Descontos
 
-O cliente digita o percentual (número inteiro) que quer solicitar. Toda solicitação depende de um colaborador **aprovar**; se for rejeitada, vale o desconto que o cliente já teria sem ela.
+O cliente digita o percentual (de 0% a 15%), que vai ao back como fração (0.12 = 12%).
 
-| Cliente | Desconto automático | Pode solicitar |
+| Cliente | Pedindo | Resultado |
 |---|---|---|
-| **Normal** | — | de **1% a 10%** |
-| **VIP** em dia | **5%**, em qualquer forma de pagamento | de **10% a 15%**. Se aprovado, **substitui** os 5% (não soma): passa de 5% para 12%, por exemplo. |
-| **Inadimplente** (Normal ou VIP) | — (VIP perde os 5%) | **Não pode solicitar.** Fica sem desconto nenhum, nem com aprovação de colaborador. |
+| **Normal** | 0% | Sem desconto |
+| **Normal** | mais de 0% | **Aguarda** um colaborador. Acima de 10%, o back **limita em 10%**. |
+| **VIP** | até 5% | **5% aprovados na hora** (automático) |
+| **VIP** | de 5% a 15% | **Aguarda** um colaborador, e o pedido fica **sem desconto** até a decisão. Se reprovado, volta a **5%**. |
+| **Inadimplente** | qualquer valor | O pedido é registrado como **reprovado por inadimplência**, sem desconto. |
+
+- Aprovado: vale o percentual solicitado. No a prazo, a diferença volta para o limite.
+- Na edição, pedir **mais** do que o autorizado volta a **aguardar** decisão. Pedir **igual ou menos** mantém o desconto já decidido (por exemplo, aprovado 12% e agora pedindo 3%: continuam os 12%). O formulário avisa quando um desconto aprovado vai continuar valendo depois de mudar os produtos.
 
 ### Cliente inadimplente
 
-- O cliente é **inadimplente** quando tem pelo menos um **pedido a prazo vencido e não pago**. Não é um campo do cadastro: é calculado a partir dos pedidos. Ao registrar o pagamento dos pedidos vencidos, ele volta a ficar em dia.
-- Inadimplente **não pode fazer pedido a prazo**: o pedido é bloqueado antes de ser criado. Pode comprar com **PIX** ou **à vista**. Um pedido que **já era a prazo** (e ainda não venceu) pode ser editado e continuar a prazo, sem o total aumentar.
-- Inadimplente **fica sem desconto nenhum**: o VIP perde os 5% automáticos, ninguém pode solicitar desconto, e nem uma solicitação aprovada vale.
-- A perda do desconto vale para os pedidos do cliente **ainda não pagos**, inclusive os antigos. Os pedidos já pagos ficam com o valor do momento do pagamento.
-- Solicitação que ficou pendente de antes de o cliente virar inadimplente só pode ser **rejeitada** (o botão Aprovar fica bloqueado na tela de Descontos).
-- O pedido vencido **não pode ser editado nem cancelado**. Para sair da inadimplência, o cliente paga: **Registrar pagamento**.
-- Na tela de pedidos, o inadimplente aparece marcado na lista de clientes, e a opção *A prazo* (em pedido novo) e o campo de desconto ficam bloqueados. Pedido a prazo vencido ganha o selo **Vencido**.
+- **Inadimplente** é quem tem pelo menos um pedido **pendente com vencimento antes de hoje**, em qualquer modalidade. Não é um campo do cadastro. Ao finalizar os pedidos vencidos, ele volta a ficar em dia.
+- Não pode criar pedido a prazo nem trocar um pedido para a prazo. Um pedido que já era a prazo continua a prazo.
+- O pedido novo dele fica **sem desconto** (reprovado por inadimplência).
+- Cliente com pedido pendente **não pode ser desativado**.
 
-### Status do pedido e status do pagamento
+### Travas que só o front tem
 
-Cada pedido tem **dois status independentes**, mostrados como selos na lista:
+Estas regras **não existem no back** hoje. O front mantém porque, sem elas, o cliente sai da inadimplência sem pagar ou recebe desconto indevido. Elas estão com o Lucas para decidir se viram regra no back ou se saem do front:
 
-| Status do pedido | Quando |
-|---|---|
-| **Pendente** | Todo pedido nasce assim. Nenhum pedido conclui sozinho (nem de cliente VIP, nem com desconto aprovado). |
-| **Concluído** | Depois que alguém clica em **Confirmar pedido**. O botão fica bloqueado enquanto houver solicitação de desconto aguardando decisão. |
-| **Devolvido** | Só aluguel: depois da devolução. |
-| **Cancelado** | Depois de **Cancelar pedido** (só pedido não pago). Não mostra status de pagamento. |
+- Pedido **vencido** não pode ser **editado** nem **excluído** (no back, mudar o vencimento ou apagar o pedido tira o cliente da inadimplência).
+- O **vencimento** não muda na edição quando o pedido já tem um (inclusive depois de ir para à vista e voltar para a prazo).
+- Pedido com **aluguel já devolvido** não muda os produtos (o back recriaria o item como não devolvido e baixaria o estoque de novo).
+- Inadimplente editando um pedido a prazo **não pode aumentar o total**.
+- Solicitação de desconto de cliente que **ficou inadimplente** depois de pedir só pode ser **reprovada**.
+- Produto **Indisponível** ou **Desativado** não entra em pedido (o back só confere se existe e se tem estoque).
+- No cadastro de colaborador, o **CPF** não pode repetir (o back só confere na edição).
 
-| Status do pagamento | Quando |
-|---|---|
-| **Pago** | PIX ou à vista sem desconto aguardando aprovação, ou a prazo depois de **Registrar pagamento**. |
-| **Pendente** | A prazo ainda não pago, ou PIX/à vista com desconto aguardando aprovação. |
-
-- **Registrar pagamento:** aparece nos pedidos a prazo ainda não pagos (bloqueado enquanto houver desconto aguardando decisão). Marca o pagamento como *Pago* e devolve ao limite o crédito reservado.
-
-- **Devolução:** só um aluguel **Concluído** pode ser devolvido. O botão **Devolver** abre um popup de confirmação; ao confirmar, os itens voltam ao estoque e o pedido passa para *Devolvido* (não dá para desfazer).
-- Subtotal, desconto, total e os dois status **não são salvos**: são sempre calculados a partir dos itens, da categoria e da situação do cliente, da forma de pagamento, da duração (aluguel), da solicitação e das datas de confirmação (`concluidoEm`), pagamento (`pagoEm`), devolução (`devolvidoEm`) e cancelamento (`canceladoEm`).
+Na edição de cliente, o limite de crédito só vai para o back se for alterado (o back mantém o que não vem no corpo).
 
 <img src="./.github/readme/secao-06-dados-locais.svg" width="100%" alt="Dados locais" />
 
-Por enquanto o front funciona sozinho. Em `src/config/api.ts` a constante `USAR_DADOS_LOCAIS` está como `true`, e então tudo é salvo e lido do **localStorage** do navegador pela pasta `src/services/dadosLocais/`, que faz o papel do back-end:
+Em `src/config/api.ts`, a constante `USAR_DADOS_LOCAIS` está como `true`: tudo é salvo e lido do **localStorage** pela pasta `src/services/dadosLocais/`, que faz o papel do back-end com as mesmas regras e mensagens. A diferença é que ela devolve também os campos que o back ainda **não devolve** (ids, CNPJ, status do produto, itens e percentuais de desconto do pedido) e lista os cadastros desativados, para poder reativar.
 
-- Gera os IDs sozinho (maior ID atual + 1).
-- Valida o **CNPJ** (dígitos verificadores, aceitando também o CNPJ alfanumérico) e não deixa cadastrar nem editar dois clientes com o mesmo CNPJ ou o mesmo e-mail.
-- Valida o **CPF** do colaborador e não deixa repetir CPF nem e-mail.
-- Guarda os dados nas chaves `nexus:v8:clientes`, `nexus:v8:produtos`, `nexus:v8:pedidos` e `nexus:v8:colaboradores`. Para limpar, abra o navegador em **F12 > Application > Local Storage** e apague as chaves `nexus:*`.
-- **Dados de exemplo:** com `CARREGAR_MOCKS = true` (em `src/config/api.ts`), na primeira vez que o app abre com o localStorage vazio ele grava os dados de `src/services/dadosLocais/mocks.ts`: 7 clientes, 9 produtos, 4 colaboradores (Ana Souza, Carlos Lima, Beatriz Rocha e Marcos Dias) e 17 pedidos que cobrem todos os cenários da tela (desconto pendente, aprovado e rejeitado, VIP pedindo de 10% a 15%, venda e aluguel a prazo, pedido a prazo já pago, aluguel para devolver e aluguel já devolvido, pedido cancelado e pedido cancelado com desconto pendente). A **Tech Solutions Informática** (VIP) vem **inadimplente**, por uma venda a prazo vencida e não paga: ela compra no PIX sem desconto, e o aluguel a prazo dela (ainda não vencido) pode ser editado sem aumentar. Vêm também desativados, para testar o reativar: o cliente **Distribuidora Litoral**, o colaborador **Marcos Dias** e o produto **Tablet Samsung**. Estoque e limite de crédito já vêm coerentes com esses pedidos. Para recomeçar do zero, apague as chaves `nexus:*` e recarregue a página.
+- Os dados ficam nas chaves `nexus:v9:clientes`, `nexus:v9:produtos`, `nexus:v9:pedidos` e `nexus:v9:colaboradores`. Para recomeçar do zero, abra **F12 > Application > Local Storage**, apague as chaves `nexus:*` e recarregue a página.
+- **Dados de exemplo** (`CARREGAR_MOCKS = true`): os **mesmos** 6 clientes, 10 produtos e 4 colaboradores dos mocks do back, mais 10 pedidos que cobrem os cenários da tela: VIP com 5% automático, VIP e Normal aguardando decisão, desconto aprovado e reprovado, aluguel para devolver e já devolvido, pedido pago e o **Mercado Bom Preco** inadimplente por um pedido a prazo vencido. Estoque e limite de crédito já vêm coerentes com esses pedidos.
 
-Para usar o back-end real, troque para `USAR_DADOS_LOCAIS = false` em `src/config/api.ts`. Nesse modo, **clientes, produtos e colaboradores** (cadastro e listagem) chamam a API. **Pedidos, descontos, pagamento e devolução** continuam **só no modo local**: o back já tem essas rotas, mas as regras ainda estão sendo alinhadas (o Lucas está terminando inadimplente e faixas de desconto). Com a flag desligada, essas telas mostram o erro "ainda não estão ligados ao back-end".
+Para usar o back-end real, troque para `USAR_DADOS_LOCAIS = false`.
 
 <img src="./.github/readme/secao-07-integracao.svg" width="100%" alt="Integração com o back" />
 
-Para casar o front com a API real:
+Para rodar com o back real:
 
-1. **`USAR_DADOS_LOCAIS = false`** em `src/config/api.ts`, para o front parar de usar o localStorage.
-2. **Caminhos** em `src/config/api.ts` (Swagger do back: `http://localhost:8080/api/v1/swagger-ui/index.html`).
-3. **Conversão de campos** em `src/services/api/` (clientes.ts, produtos.ts e colaboradores.ts; tipos `ClienteBack*`, `ProdutoBack*` e `ColaboradorBack`), se o back mudar algum nome.
-4. **Autenticação:** hoje o back libera tudo (`permitAll`). Se passar a exigir token, ajustar `getAuthHeaders()` em `src/services/api/http.ts`.
-5. **Pedidos e descontos:** quando as regras estiverem iguais nos dois lados, trocar `exigirModoLocal()` pelas chamadas às rotas de `/pedidos` em `src/services/api/pedidos.ts`.
-6. **CORS:** o back precisa liberar a origem `http://localhost:5173`. Se aparecer `Failed to fetch` no front e erro de CORS no console do navegador (F12), o ajuste é feito no Spring.
+1. Suba o back (porta 8080) e confira o Swagger em `http://localhost:8080/api/v1/swagger-ui/index.html`.
+2. **`USAR_DADOS_LOCAIS = false`** em `src/config/api.ts`.
+3. `npm run dev`: o proxy do Vite leva `/api/v1` até o back (veja "Configuração").
+4. **Conversão de campos** em `src/services/api/` (um arquivo por entidade, com os tipos `*Back*` iguais aos records Java), se o back mudar algum nome.
+5. **Autenticação:** hoje o back libera tudo (`permitAll`). Se passar a exigir token, ajuste `getAuthHeaders()` em `src/services/api/http.ts`.
 
 ### Ainda falta no back para a integração completa
 
-- As listagens de clientes, produtos e colaboradores não devolvem o `id`, e a de clientes também não devolve o `cnpj`. O pedido precisa do `id` do produto e do `cnpj` do cliente, e a aprovação de desconto precisa do `idColaborador`. Enquanto isso, o front usa um id provisório (negativo) só para mostrar a lista.
-- A listagem de produtos devolve um campo `preco` que não existe na entidade, e não devolve `precoVenda`, `precoAluguel` nem o status.
-- O cadastro de produto não define o status (fica nulo).
-- Não há liberação de CORS para `http://localhost:5173`.
-- Não há rotas de **editar**, **desativar/reativar**, **repor estoque** nem **cancelar pedido**. Essas ações só funcionam com os dados locais; com `USAR_DADOS_LOCAIS = false` elas mostram o erro "ainda não existe no back-end". Também falta no back a regra nova do inadimplente (sem desconto e sem poder solicitar).
+Com o back real, o front já chama todas as rotas, mas algumas telas ficam limitadas porque o back não devolve estes campos:
+
+- **`id`** nas listagens de clientes, produtos e colaboradores. Sem ele não dá para editar, excluir, reativar, repor estoque, montar pedido (usa o id do produto) nem decidir desconto (usa o id do colaborador). A tela usa um id provisório (negativo) só para mostrar a lista e avisa quando a ação precisa do id real.
+- **`cnpj`** na listagem de clientes: o pedido é criado pelo CNPJ.
+- **`statusProduto`** na listagem de produtos (e o cadastro não define status).
+- **Itens**, **percentuais de desconto** (`descontoSolicitado` e `descontoAutorizado`) e **id do colaborador** em `GET /pedidos/{id}`: sem os itens, a edição do pedido não mexe nos produtos, e a prévia do total não aparece.
+- Listagem dos **desativados** (para reativar) e rota de **reativar produto**.
+- **CORS** liberado para o endereço do front (o proxy do Vite resolve só no `npm run dev`).
 
 <img src="./.github/readme/secao-08-estrutura.svg" width="100%" alt="Estrutura detalhada" />
 
@@ -230,6 +227,7 @@ As pastas `types`, `regras`, `utils`, `services/api` e `services/dadosLocais` t�
 ```
 public/
 └── icons/                    # ícones SVG do menu lateral
+vite.config.ts                # porta 5173 e o proxy /api/v1 para o back
 src/
 ├── main.tsx                  # ponto de entrada da aplicação
 ├── App.tsx                   # layout: menu lateral + troca de telas
@@ -241,37 +239,37 @@ src/
 │   ├── cliente.ts
 │   ├── produto.ts
 │   ├── colaborador.ts
-│   └── pedido.ts             # pedido, itens e solicitação de desconto
+│   └── pedido.ts             # pedido, itens (venda ou aluguel) e enums do back
 ├── regras/                   # regras de negócio (funções puras), usadas pela tela e pelos dados locais
-│   ├── pedido.ts             # total, status e o que o pedido pode fazer (confirmar, pagar, editar, cancelar, devolver)
-│   ├── descontos.ts          # desconto de VIP, faixas de solicitação e textos da decisão
+│   ├── pedido.ts             # valor dos itens, total e o que o pedido pode fazer (finalizar, editar, excluir, devolver)
+│   ├── descontos.ts          # desconto na criação, na edição e na decisão (iguais ao back)
 │   ├── inadimplencia.ts      # pedido vencido e cliente inadimplente
-│   ├── datas.ts              # vencimento e conversões de data
-│   ├── mensagens.ts          # mensagens de regra (tela e dados locais)
-│   └── rotulos.ts            # textos de cada valor (pagamento, tipo, status)
+│   ├── datas.ts              # datas AAAA-MM-DD e o @Future
+│   ├── mensagens.ts          # mensagens de regra, inclusive as travas que só o front tem
+│   └── rotulos.ts            # textos e cores de cada valor dos enums
 ├── utils/                    # utilitários sem regra de negócio
 │   ├── formatacao.ts         # moeda, datas, CPF e arredondamento
 │   └── formulario.ts         # helper de formulário e tipo do aviso
 ├── services/
 │   ├── api/                  # o que as telas chamam: back real ou dados locais
-│   │   ├── http.ts           # GET/POST, erro do Spring e as travas do modo local
+│   │   ├── http.ts           # GET/POST/PUT/DELETE, erro do Spring e a trava do id provisório
 │   │   ├── clientes.ts       # (cada arquivo traz os DTOs do back daquela entidade)
 │   │   ├── produtos.ts
 │   │   ├── colaboradores.ts
-│   │   └── pedidos.ts        # pedidos e descontos
-│   └── dadosLocais/          # back-end "de mentira" no localStorage
-│       ├── armazenamento.ts  # chaves nexus:v8:*, ler/salvar e ajudantes comuns
+│   │   └── pedidos.ts        # pedidos, descontos, finalizar, devolver e excluir
+│   └── dadosLocais/          # back-end "de mentira" no localStorage, com as regras do back
+│       ├── armazenamento.ts  # chaves nexus:v9:*, formato das tabelas e ajudantes comuns
 │       ├── validacao.ts      # CNPJ e CPF
 │       ├── clientes.ts
 │       ├── produtos.ts
 │       ├── colaboradores.ts
-│       ├── pedidos.ts        # criar, editar, cancelar, confirmar, pagar e devolver
-│       ├── descontos.ts      # aprovar ou rejeitar desconto
-│       └── mocks.ts          # dados de exemplo carregados na primeira execução
+│       ├── pedidos.ts        # criar, editar, excluir, finalizar e devolver (PedidoService)
+│       ├── descontos.ts      # aprovar ou reprovar desconto
+│       └── mocks.ts          # dados de exemplo (cadastros iguais aos mocks do back)
 ├── components/
 │   ├── comum/                # peças reaproveitadas em várias telas
 │   │   ├── Modal.tsx         # popup genérico (formulários)
-│   │   ├── ConfirmarModal.tsx # popup de confirmação (desativar, cancelar, devolver)
+│   │   ├── ConfirmarModal.tsx # popup de confirmação (desativar, excluir, finalizar, devolver)
 │   │   ├── Aviso.tsx         # aviso flutuante de sucesso/erro
 │   │   └── Selecao.tsx       # caixa de seleção própria (substitui o <select> nativo)
 │   └── pedidos/
@@ -288,12 +286,11 @@ src/
 <img src="./.github/readme/secao-09-proximos-passos.svg" width="100%" alt="Próximos passos" />
 
 - [x] Caminhos `/api/v1` e nomes de campos do back (clientes, produtos e colaboradores)
-- [x] Função de pagar o pedido (devolver o crédito ao cliente)
-- [ ] Back: devolver `id` (e `cnpj` do cliente) nas listagens, preços e status na listagem de produtos, liberar CORS
-- [ ] Back: inadimplente e faixas de desconto (em andamento com o Lucas)
-- [ ] Ligar pedidos e descontos às rotas `/pedidos` do back quando as regras estiverem iguais
-- [x] Editar e desativar/reativar registros (só nos dados locais)
-- [ ] Back: rotas de editar, desativar/reativar, repor estoque e cancelar pedido
+- [x] Regras do front iguais às do back (pedido, desconto, inadimplência, soft delete) e todas as rotas ligadas
+- [x] Proxy do Vite para testar com o back sem CORS
+- [ ] Back: devolver `id` nas listagens, `cnpj` do cliente, `statusProduto`, itens e descontos do pedido
+- [ ] Back: listar desativados, reativar produto e liberar CORS
+- [ ] Decidir com o Lucas as travas que só o front tem (ver "Regras de negócio")
 - [ ] Validação de formulário campo a campo
 - [ ] Autenticação (se exigida pelo back)
 

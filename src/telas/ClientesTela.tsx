@@ -3,7 +3,7 @@ import Aviso from '../components/comum/Aviso';
 import ConfirmarModal from '../components/comum/ConfirmarModal';
 import Modal from '../components/comum/Modal';
 import Selecao from '../components/comum/Selecao';
-import { cadastrarCliente, definirClienteAtivo, editarCliente, listarClientes } from '../services/api';
+import { cadastrarCliente, editarCliente, excluirCliente, listarClientes, reativarCliente } from '../services/api';
 import type { ClienteCategoria, ClienteListarResponse } from '../types';
 import { campo, moeda, type Mensagem } from '../utils';
 
@@ -25,6 +25,7 @@ export default function ClientesTela() {
   const [formAberto, setFormAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null); // null = cadastro novo
   const [form, setForm] = useState(FORM_VAZIO);
+  const [limiteAoAbrir, setLimiteAoAbrir] = useState(''); // na edição, o limite só vai ao back se mudar
   const [erroForm, setErroForm] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -63,6 +64,7 @@ export default function ClientesTela() {
       categoria: c.categoria,
       limiteCredito: String(c.limiteCredito),
     });
+    setLimiteAoAbrir(String(c.limiteCredito));
     setEditandoId(c.id);
     setErroForm(null);
     setFormAberto(true);
@@ -79,7 +81,9 @@ export default function ClientesTela() {
     try {
       const dados = { ...form, limiteCredito: Number(form.limiteCredito) };
       if (editandoId === null) await cadastrarCliente(dados);
-      else await editarCliente(editandoId, dados);
+      // Edição: o back só muda o que vem no corpo. O limite vai só se o usuário mexeu nele; senão um
+      // pedido a prazo criado enquanto a tela estava aberta teria a reserva apagada.
+      else await editarCliente(editandoId, { ...dados, limiteCredito: form.limiteCredito === limiteAoAbrir ? undefined : dados.limiteCredito });
       setAviso({
         tipo: 'sucesso',
         texto: `Cliente "${form.name.trim()}" ${editandoId === null ? 'cadastrado' : 'atualizado'}!`,
@@ -97,7 +101,7 @@ export default function ClientesTela() {
     setAviso(null);
     setProcessando(true);
     try {
-      await definirClienteAtivo(c.id, ativo);
+      await (ativo ? reativarCliente(c.id) : excluirCliente(c.id));
       setAviso({ tipo: 'sucesso', texto: `Cliente "${c.name}" ${ativo ? 'reativado' : 'desativado'}.` });
       await carregar();
     } catch (err) {
@@ -183,7 +187,15 @@ export default function ClientesTela() {
             </label>
             <label className="campo">
               <span>CNPJ</span>
-              <input name="cnpj" type="text" value={form.cnpj} onChange={onChange} maxLength={18} required />
+              <input
+                name="cnpj"
+                type="text"
+                value={form.cnpj}
+                onChange={onChange}
+                maxLength={18}
+                required={editandoId === null}
+                placeholder={editandoId !== null && !form.cnpj ? 'Em branco: mantém o atual' : undefined}
+              />
             </label>
             <label className="campo">
               <span>Telefone</span>
@@ -219,7 +231,9 @@ export default function ClientesTela() {
           </div>
           {editandoId !== null && (
             <p className="dica">
-              Os pedidos já feitos continuam com o nome e a categoria do momento do pedido.
+              Os pedidos mostram os dados atuais do cliente. A categoria nova vale para os próximos pedidos; o total dos
+              pedidos já feitos não muda.
+              {!form.cnpj && ' O back ainda não devolve o CNPJ na listagem: deixe em branco para manter o atual.'}
             </p>
           )}
           {erroForm && <p className="msg erro">{erroForm}</p>}
@@ -248,8 +262,8 @@ export default function ClientesTela() {
               <strong>{desativando.name}</strong>
             </p>
             <p>
-              O cliente não aparece mais para novos pedidos. Os pedidos dele continuam na lista e o cadastro pode ser
-              reativado depois.
+              O cliente sai da lista e não aparece para novos pedidos. Os pedidos dele continuam na lista e o cadastro
+              pode ser reativado depois. Não é possível desativar cliente com pedido pendente.
             </p>
           </>
         )}

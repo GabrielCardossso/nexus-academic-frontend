@@ -1,5 +1,5 @@
-/** Chamadas HTTP ao back-end (GET/POST), leitura de erro do Spring e as travas do modo local. */
-import { API_BASE_URL, USAR_DADOS_LOCAIS } from '../../config/api';
+/** Chamadas HTTP ao back-end (GET/POST/PUT/DELETE) e leitura do erro do Spring (ProblemDetail). */
+import { API_BASE_URL } from '../../config/api';
 
 /**
  * Autenticação (Spring Security).
@@ -10,13 +10,24 @@ function getAuthHeaders(): Record<string, string> {
   return {};
 }
 
-/** Erro do Spring vem como ProblemDetail: { title, detail, errors: [{ field, message }] }. */
+interface ProblemDetail {
+  title?: string;
+  detail?: string;
+  /** Erros de validação (@Valid): GlobalExceptionHandler.criarErro. */
+  errors?: { field?: string; rejectedValue?: string; message?: string }[];
+  /** Valor inválido num enum: GlobalExceptionHandler.handleHttpMessageNotReadable. */
+  field?: string;
+  allowedValues?: string[];
+}
+
+/** Monta a mensagem do erro a partir do ProblemDetail do back (detail, errors e allowedValues). */
 async function erroDaResposta(response: Response): Promise<Error> {
   const texto = await response.text();
   try {
-    const p = JSON.parse(texto) as { title?: string; detail?: string; errors?: { field?: string; message?: string }[] };
+    const p = JSON.parse(texto) as ProblemDetail;
     const campos = p.errors?.map((e) => [e.field, e.message].filter(Boolean).join(': ')).join('; ');
-    const msg = [p.detail, campos].filter(Boolean).join(' — ') || p.title;
+    const enumInvalido = p.field && p.allowedValues ? `${p.field}: use ${p.allowedValues.join(', ')}` : '';
+    const msg = [p.detail, campos, enumInvalido].filter(Boolean).join(' — ') || p.title;
     if (msg) return new Error(msg);
   } catch {
     // não é JSON: usa o texto puro
@@ -24,45 +35,47 @@ async function erroDaResposta(response: Response): Promise<Error> {
   return new Error(`Erro ${response.status}: ${texto || response.statusText}`);
 }
 
-export async function post<T>(endpoint: string, body: unknown): Promise<T | null> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    body: JSON.stringify(body),
-  });
+async function requisicao<T>(metodo: string, endpoint: string, body?: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: metodo,
+      headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...getAuthHeaders() },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error(
+      'Não foi possível falar com o back-end. Confira se ele está rodando e, fora do "npm run dev", se o CORS libera este endereço.',
+    );
+  }
   if (!response.ok) throw await erroDaResposta(response);
-  // Alguns endpoints retornam 201/204 sem corpo
   const texto = await response.text();
-  return texto ? (JSON.parse(texto) as T) : null;
+  return (texto ? JSON.parse(texto) : null) as T;
 }
 
-export async function get<T>(endpoint: string): Promise<T[]> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, { method: 'GET', headers: getAuthHeaders() });
-  if (!response.ok) throw await erroDaResposta(response);
+export const get = <T>(endpoint: string) => requisicao<T>('GET', endpoint);
+export const post = <T>(endpoint: string, body: unknown) => requisicao<T>('POST', endpoint, body);
+export const put = <T>(endpoint: string, body?: unknown) => requisicao<T>('PUT', endpoint, body);
+export const del = <T>(endpoint: string) => requisicao<T>('DELETE', endpoint);
 
-  const dados: unknown = await response.json();
-  if (Array.isArray(dados)) return dados as T[]; // lista simples
-  const content = (dados as { content?: unknown } | null)?.content; // paginação do Spring (Page<T>)
+/** Lista do back (array simples; se um dia vier paginado, lê o "content" do Page<T>). */
+export async function getLista<T>(endpoint: string): Promise<T[]> {
+  const dados = await get<unknown>(endpoint);
+  if (Array.isArray(dados)) return dados as T[];
+  const content = (dados as { content?: unknown } | null)?.content;
   return Array.isArray(content) ? (content as T[]) : [];
 }
 
-/** Enquanto o back não devolve id, usa um id negativo provisório só para a tela (não serve para pedido). */
+/** Enquanto o back não devolve id nas listagens, a tela usa um id negativo provisório só para mostrar. */
 export const idProvisorio = (id: number | undefined, i: number) => id ?? -(i + 1);
 
 /**
- * O back já tem rotas de pedido (POST/GET /pedidos, /{id}/desconto, /{id}/finalizar, /{id}/devolucao),
- * mas as regras ainda estão diferentes das do front (o Lucas está terminando). Por isso pedidos e
- * descontos continuam só no modo local por enquanto.
+ * Ações que precisam do id (editar, excluir, reativar, repor estoque, decidir desconto) não podem
+ * usar o id provisório: avisa em vez de chamar a API com um id que não existe.
  */
-export function exigirModoLocal() {
-  if (!USAR_DADOS_LOCAIS) {
-    throw new Error('Pedidos e descontos ainda não estão ligados ao back-end (só funcionam com os dados locais).');
+export function exigirId(id: number, oQue: string): number {
+  if (id <= 0) {
+    throw new Error(`${oQue}: o back ainda não devolve o id na listagem, então essa ação não pode ser feita pela tela.`);
   }
-}
-
-/** O back ainda não tem rotas de editar, desativar nem repor estoque: por enquanto só nos dados locais. */
-export function exigirLocal(acao: string) {
-  if (!USAR_DADOS_LOCAIS) {
-    throw new Error(`${acao} ainda não existe no back-end (só funciona com os dados locais).`);
-  }
+  return id;
 }

@@ -1,16 +1,25 @@
-/** Produtos: back real (POST/GET /produtos) ou dados locais, conforme USAR_DADOS_LOCAIS. */
+/** Produtos: back real (/produtos) ou dados locais, conforme USAR_DADOS_LOCAIS. */
 import { ENDPOINTS, USAR_DADOS_LOCAIS } from '../../config/api';
 import type {
+  ItemAlugado,
   ProdutoCriarRequest,
   ProdutoCriarResponse,
   ProdutoEditarRequest,
   ProdutoListarResponse,
   ProdutoStatus,
 } from '../../types';
-import { cadastrarProdutoLocal, editarProdutoLocal, listarProdutosLocal, reporEstoqueLocal } from '../dadosLocais';
-import { exigirLocal, get, idProvisorio, post } from './http';
+import {
+  cadastrarProdutoLocal,
+  editarProdutoLocal,
+  excluirProdutoLocal,
+  listarAlugadosLocal,
+  listarProdutosLocal,
+  reporEstoqueLocal,
+} from '../dadosLocais';
+import { del, exigirId, getLista, idProvisorio, post, put } from './http';
 
 // DTOs do back (records Java) — nomes exatamente como lá
+/** dtos/ProdutoCriarRequest.java */
 interface ProdutoBackRequest {
   nome: string;
   descricao: string;
@@ -18,46 +27,68 @@ interface ProdutoBackRequest {
   precoVenda: number;
   precoAluguel: number;
 }
-type ProdutoBackCriarResponse = ProdutoBackRequest & { id: number };
-/** A listagem do back hoje devolve só nome, descricao, estoque e "preco"; id, preços e status ainda faltam. */
-interface ProdutoBackListar {
+/** dtos/ProdutoListarResponse.java (sem id e sem status: ver README > pendências do back). */
+interface ProdutoBackListar extends ProdutoBackRequest {
   id?: number;
-  nome: string;
-  descricao: string;
-  estoque: number;
-  preco?: number;
-  precoVenda?: number;
-  precoAluguel?: number;
-  statusProduto?: ProdutoStatus;
+  statusProduto?: ProdutoStatus | null;
+}
+/** dtos/ProdutoAdicionarEstoqueRequest.java */
+interface ProdutoBackAdicionarEstoque {
+  idProduto: number;
+  qtdAdicionar: number;
 }
 
-export async function cadastrarProduto(produto: ProdutoCriarRequest): Promise<ProdutoCriarResponse | null> {
+/** POST /produtos (sem status: o back não recebe). */
+export async function cadastrarProduto(produto: ProdutoCriarRequest): Promise<ProdutoCriarResponse> {
   if (USAR_DADOS_LOCAIS) return cadastrarProdutoLocal(produto);
-  const corpo: ProdutoBackRequest = { ...produto };
-  const r = await post<ProdutoBackCriarResponse>(ENDPOINTS.produtos, corpo);
-  return r && { ...r, status: 'DISPONIVEL' };
+  const corpo: ProdutoBackRequest = { ...produto, nome: produto.nome.trim(), descricao: produto.descricao.trim() };
+  return post<ProdutoCriarResponse>(ENDPOINTS.produtos, corpo);
 }
 
+/** GET /produtos (só os não excluídos). */
 export async function listarProdutos(): Promise<ProdutoListarResponse[]> {
   if (USAR_DADOS_LOCAIS) return listarProdutosLocal();
-  const lista = await get<ProdutoBackListar>(ENDPOINTS.produtos);
+  const lista = await getLista<ProdutoBackListar>(ENDPOINTS.produtos);
   return lista.map((p, i) => ({
     id: idProvisorio(p.id, i),
     nome: p.nome,
     descricao: p.descricao ?? '',
     estoque: Number(p.estoque ?? 0),
-    precoVenda: Number(p.precoVenda ?? p.preco ?? 0),
+    precoVenda: Number(p.precoVenda ?? 0),
     precoAluguel: Number(p.precoAluguel ?? 0),
-    status: p.statusProduto ?? 'DISPONIVEL',
+    status: p.statusProduto ?? null,
   }));
 }
 
-export async function editarProduto(id: number, produto: ProdutoEditarRequest) {
-  exigirLocal('Editar produto');
-  return editarProdutoLocal(id, produto);
+/** GET /produtos/listarAlugados: todos os itens de aluguel (devolvidos ou não). */
+export async function listarProdutosAlugados(): Promise<ItemAlugado[]> {
+  if (USAR_DADOS_LOCAIS) return listarAlugadosLocal();
+  const lista = await getLista<ItemAlugado>(ENDPOINTS.produtosAlugados);
+  return lista.map((i) => ({ ...i, quantidade: Number(i.quantidade) }));
 }
 
-export async function reporEstoque(id: number, quantidade: number) {
-  exigirLocal('Repor estoque');
-  return reporEstoqueLocal(id, quantidade);
+/** PUT /produtos/{id}/editar (nome, descrição e preços). */
+export async function editarProduto(id: number, produto: ProdutoEditarRequest): Promise<void> {
+  if (USAR_DADOS_LOCAIS) {
+    await editarProdutoLocal(id, produto);
+    return;
+  }
+  await put(ENDPOINTS.produtoEditar(exigirId(id, 'Editar produto')), { ...produto, nome: produto.nome.trim() });
+}
+
+/** PUT /produtos/adicionarEstoque: soma ao estoque. Devolve o estoque novo. */
+export async function reporEstoque(id: number, quantidade: number): Promise<number> {
+  if (USAR_DADOS_LOCAIS) return (await reporEstoqueLocal(id, quantidade)).estoque;
+  const corpo: ProdutoBackAdicionarEstoque = { idProduto: exigirId(id, 'Repor estoque'), qtdAdicionar: quantidade };
+  const r = await put<{ estoque: number }>(ENDPOINTS.produtoAdicionarEstoque, corpo);
+  return Number(r.estoque);
+}
+
+/** DELETE /produtos/{id} (soft delete: some da listagem; o back não tem reativar produto). */
+export async function excluirProduto(id: number): Promise<void> {
+  if (USAR_DADOS_LOCAIS) {
+    await excluirProdutoLocal(id);
+    return;
+  }
+  await del(ENDPOINTS.produto(exigirId(id, 'Excluir produto')));
 }

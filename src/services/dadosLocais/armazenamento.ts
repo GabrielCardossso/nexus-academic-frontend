@@ -1,34 +1,84 @@
 /**
- * Onde os dados locais ficam guardados (localStorage) e os ajudantes usados por todos os arquivos
- * desta pasta: ler, salvar, gerar id, trocar um registro e ajustar o limite de crédito.
+ * Onde os dados locais ficam guardados (localStorage), no formato das tabelas do back, e os
+ * ajudantes usados por todos os arquivos desta pasta.
  * Para limpar os dados: F12 > Application > Local Storage > apagar "nexus:*".
  */
 import { CARREGAR_MOCKS } from '../../config/api';
-import { estaInadimplente } from '../../regras';
-import type { ClienteSalvo, Pedido } from '../../types';
-import { arredondar } from '../../utils';
-import { COLABORADORES_MOCK, gerarMocks } from './mocks';
+import type {
+  ClienteSalvo,
+  ModalidadePagamento,
+  ProdutoStatus,
+  StatusAprovacaoDesconto,
+  StatusPedido,
+} from '../../types';
+import { gerarMocks } from './mocks';
 
-// "v8": dados de exemplo com as regras novas (inadimplente sem desconto, cancelados e desativados).
+// "v9": modelo do back (aluguel por item, um status de pedido, desconto em fração, soft delete).
 // Dados de versões antigas ficam de lado e os de exemplo são recriados.
-export const CHAVE_CLIENTES = 'nexus:v8:clientes';
-export const CHAVE_PRODUTOS = 'nexus:v8:produtos';
-export const CHAVE_PEDIDOS = 'nexus:v8:pedidos';
-export const CHAVE_COLABORADORES = 'nexus:v8:colaboradores';
+export const CHAVE_CLIENTES = 'nexus:v9:clientes';
+export const CHAVE_PRODUTOS = 'nexus:v9:produtos';
+export const CHAVE_PEDIDOS = 'nexus:v9:pedidos';
+export const CHAVE_COLABORADORES = 'nexus:v9:colaboradores';
+
+/** Tabela produto (entity/Produto.java). O cadastro do back não define status: fica null. */
+export interface ProdutoSalvo {
+  id: number;
+  nome: string;
+  descricao: string;
+  estoque: number;
+  precoVenda: number;
+  precoAluguel: number;
+  status: ProdutoStatus | null;
+  excluido?: boolean; // @SoftDelete
+}
+
+/** Tabela colaborador (entity/Colaborador.java). */
+export interface ColaboradorSalvo {
+  id: number;
+  nome: string;
+  cpf: string;
+  email: string;
+  excluido?: boolean; // @SoftDelete
+}
+
+/** Tabela item_pedido (entity/ItemPedido.java). */
+export interface ItemSalvo {
+  produtoId: number;
+  quantidade: number;
+  valorItem: number;
+  isAluguel: boolean;
+  dataVencimentoAluguel: string | null;
+  dataDevolucao: string | null;
+}
+
+/** Tabela pedido (entity/Pedido.java). */
+export interface PedidoSalvo {
+  id: number;
+  descricao: string | null;
+  valorTotal: number;
+  dataCriacao: string;
+  dataVencimento: string | null;
+  dataAtualizacaoDesconto: string | null;
+  descontoAutorizado: number;
+  descontoSolicitado: number;
+  statusPedido: StatusPedido;
+  statusAprovacaoDesconto: StatusAprovacaoDesconto;
+  modalidadePagamento: ModalidadePagamento;
+  clienteId: number;
+  colaboradorDescontoId: number | null;
+  itens: ItemSalvo[];
+  excluido?: boolean; // @SoftDelete (DELETE /pedidos/{id})
+}
 
 /** Primeira execução (nada salvo ainda): grava os dados de exemplo de mocks.ts. */
 function carregarMocksSeVazio() {
   try {
-    // Colaboradores têm chave própria (vieram depois): os de exemplo entram mesmo se o resto já existir,
-    // porque as decisões de desconto dos pedidos de exemplo apontam para eles.
-    if (CARREGAR_MOCKS && localStorage.getItem(CHAVE_COLABORADORES) === null) {
-      salvar(CHAVE_COLABORADORES, COLABORADORES_MOCK);
-    }
-    const vazio = [CHAVE_CLIENTES, CHAVE_PRODUTOS, CHAVE_PEDIDOS].every((c) => localStorage.getItem(c) === null);
-    if (!CARREGAR_MOCKS || !vazio) return;
-    const { clientes, produtos, pedidos } = gerarMocks();
+    const chaves = [CHAVE_CLIENTES, CHAVE_PRODUTOS, CHAVE_PEDIDOS, CHAVE_COLABORADORES];
+    if (!CARREGAR_MOCKS || chaves.some((c) => localStorage.getItem(c) !== null)) return;
+    const { clientes, produtos, colaboradores, pedidos } = gerarMocks();
     salvar(CHAVE_CLIENTES, clientes);
     salvar(CHAVE_PRODUTOS, produtos);
+    salvar(CHAVE_COLABORADORES, colaboradores);
     salvar(CHAVE_PEDIDOS, pedidos);
   } catch {
     // localStorage indisponível: segue sem mocks
@@ -49,18 +99,10 @@ export function salvar<T>(chave: string, itens: T[]) {
   localStorage.setItem(chave, JSON.stringify(itens));
 }
 
-/**
- * Lê os pedidos com a situação do cliente preenchida: nos ainda não pagos, a situação atual
- * (inadimplente ou em dia); nos pagos ou cancelados, fica a situação gravada naquele momento.
- */
-export function lerPedidos(): Pedido[] {
-  const pedidos = ler<Pedido>(CHAVE_PEDIDOS);
-  return pedidos.map((p) =>
-    p.pagoEm || p.canceladoEm ? p : { ...p, clienteInadimplente: estaInadimplente(p.clienteId, pedidos) },
-  );
-}
+/** Registros não excluídos (o filtro que o @SoftDelete faz em todas as consultas do back). */
+export const ativos = <T extends { excluido?: boolean }>(lista: T[]) => lista.filter((x) => !x.excluido);
 
-/** Simula o @GeneratedValue(IDENTITY): maior id atual + 1. */
+/** Simula o @GeneratedValue(IDENTITY): maior id já usado (inclusive excluídos) + 1. */
 export function proximoId(itens: { id: number }[]): number {
   return itens.reduce((maior, item) => Math.max(maior, item.id), 0) + 1;
 }
@@ -71,12 +113,9 @@ export function substituir<T extends { id: number }>(chave: string, lista: T[], 
   return atualizado;
 }
 
-/** Soma ao limite de crédito do cliente (valor negativo desconta). */
-export function ajustarCredito(clienteId: number, valor: number) {
-  salvar(
-    CHAVE_CLIENTES,
-    ler<ClienteSalvo>(CHAVE_CLIENTES).map((c) =>
-      c.id === clienteId ? { ...c, limiteCredito: arredondar(c.limiteCredito + valor) } : c,
-    ),
-  );
+/** Erro no formato do back: a tela mostra o "detail" do ProblemDetail. */
+export function falha(detail: string): never {
+  throw new Error(detail);
 }
+
+export type { ClienteSalvo };

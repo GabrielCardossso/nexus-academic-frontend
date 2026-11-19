@@ -1,67 +1,61 @@
 import { useState } from 'react';
 import {
   aguardaDesconto,
+  CLASSE_STATUS_DESCONTO,
   estaVencido,
-  linhasSolicitacao,
-  podeCancelar,
-  podeConfirmar,
+  percentual,
   podeDevolver,
   podeEditar,
-  podePagar,
-  resumoPedido,
+  podeExcluir,
+  podeFinalizar,
   ROTULO_PAGAMENTO,
+  ROTULO_STATUS_DESCONTO,
   ROTULO_STATUS_PEDIDO,
-  ROTULO_TIPO,
+  subtotalDe,
+  tipoDoPedido,
 } from '../../regras';
-import type { Pedido } from '../../types';
-import { dataBR, dataHoraBR, moeda } from '../../utils';
+import type { ItemPedido, Pedido } from '../../types';
+import { dataBR, moeda } from '../../utils';
 
 interface PedidoCardProps {
   pedido: Pedido;
-  onConfirmar: (p: Pedido) => void;
-  onPagar: (p: Pedido) => void;
+  /** Cliente do pedido está inadimplente (tem pedido pendente vencido). */
+  clienteInadimplente: boolean;
+  onFinalizar: (p: Pedido) => void;
   onDevolver: (p: Pedido) => void;
   onEditar: (p: Pedido) => void;
-  onCancelar: (p: Pedido) => void;
+  onExcluir: (p: Pedido) => void;
 }
 
 type Detalhe = { rotulo: string; valor: string; largo?: boolean };
 
+const textoItem = (i: ItemPedido) =>
+  `${i.quantidade}× ${i.nomeProduto} (${i.isAluguel ? 'aluguel' : 'venda'}, ${moeda.format(i.valorItem)})` +
+  (i.isAluguel ? (i.dataDevolucao ? ` devolvido em ${dataBR(i.dataDevolucao)}` : ` até ${dataBR(i.dataVencimentoAluguel)}`) : '');
+
 function detalhesDo(p: Pedido): Detalhe[] {
-  const r = resumoPedido(p);
-  const aluguel = p.tipo === 'ALUGUEL';
-  const porMes = aluguel ? '/mês' : '';
   const lista: (Detalhe | false)[] = [
     // Itens largos primeiro, para a grade de 4 colunas não quebrar.
-    {
-      rotulo: 'Cliente',
-      valor: `${p.clienteNome} (${p.clienteCategoria}${p.clienteInadimplente ? ', inadimplente' : ''})`,
-      largo: true,
-    },
-    {
-      rotulo: 'Itens',
-      valor: p.itens.map((i) => `${i.quantidade}× ${i.nome} (${moeda.format(i.precoUnitario)}${porMes})`).join('; '),
-      largo: true,
-    },
+    { rotulo: 'Cliente', valor: `${p.clienteNome}${p.clienteClassificacao ? ` (${p.clienteClassificacao})` : ''}`, largo: true },
+    p.itens
+      ? { rotulo: 'Itens', valor: p.itens.map(textoItem).join('; '), largo: true }
+      : { rotulo: 'Itens', valor: 'O back ainda não devolve os itens do pedido.', largo: true },
     !!p.descricao && { rotulo: 'Descrição', valor: p.descricao, largo: true },
-    !!p.solicitacao && { rotulo: 'Desconto solicitado', valor: linhasSolicitacao(p.solicitacao).join(' — '), largo: true },
-    { rotulo: 'Tipo', valor: `${ROTULO_TIPO[p.tipo]}${aluguel ? ` (${p.meses} ${p.meses === 1 ? 'mês' : 'meses'})` : ''}` },
-    { rotulo: 'Pagamento', valor: ROTULO_PAGAMENTO[p.pagamento] },
-    { rotulo: 'Subtotal', valor: moeda.format(r.subtotal) },
-    { rotulo: 'Desconto', valor: `${r.percentual}% (− ${moeda.format(r.valorDesconto)})` },
-    { rotulo: 'Total', valor: moeda.format(r.total) },
-    p.pagamento === 'A_PRAZO' && {
-      rotulo: 'Crédito usado',
-      valor: `${moeda.format(p.creditoUsado ?? r.total)}${p.pagoEm || p.canceladoEm ? ' (devolvido)' : ''}`,
+    {
+      rotulo: 'Desconto',
+      valor:
+        ROTULO_STATUS_DESCONTO[p.statusAprovacaoDesconto] +
+        (p.descontoSolicitado != null ? ` · solicitado ${percentual(p.descontoSolicitado)}` : '') +
+        (p.descontoAutorizado != null ? ` · autorizado ${percentual(p.descontoAutorizado)}` : '') +
+        (p.colaboradorDescontoNome ? ` · por ${p.colaboradorDescontoNome}` : ''),
+      largo: true,
     },
-    { rotulo: 'Criado em', valor: dataHoraBR(p.criadoEm) },
-    { rotulo: aluguel ? 'Início' : 'Emissão', valor: dataBR(p.emissao) },
-    aluguel && { rotulo: 'Fim do aluguel', valor: dataBR(p.fimAluguel ?? p.vencimento) },
-    p.pagamento === 'A_PRAZO' && { rotulo: 'Vencimento', valor: dataBR(p.vencimento) },
-    !!p.pagoEm && { rotulo: 'Pago em', valor: dataHoraBR(p.pagoEm) },
-    !!p.concluidoEm && { rotulo: 'Concluído em', valor: dataHoraBR(p.concluidoEm) },
-    !!p.devolvidoEm && { rotulo: 'Devolvido em', valor: dataHoraBR(p.devolvidoEm) },
-    !!p.canceladoEm && { rotulo: 'Cancelado em', valor: dataHoraBR(p.canceladoEm) },
+    !!p.modalidadePagamento && { rotulo: 'Pagamento', valor: ROTULO_PAGAMENTO[p.modalidadePagamento] },
+    !!p.itens && { rotulo: 'Subtotal', valor: moeda.format(subtotalDe(p.itens)) },
+    { rotulo: 'Total', valor: moeda.format(p.valorTotal) },
+    { rotulo: 'Criado em', valor: dataBR(p.dataCriacao) },
+    !!p.dataVencimento && { rotulo: 'Vencimento', valor: dataBR(p.dataVencimento) },
+    !!p.dataAtualizacaoDesconto && { rotulo: 'Desconto decidido em', valor: dataBR(p.dataAtualizacaoDesconto) },
   ];
   return lista.filter((d): d is Detalhe => !!d);
 }
@@ -69,43 +63,39 @@ function detalhesDo(p: Pedido): Detalhe[] {
 /** Card do pedido: resumo sempre visível; "Ver detalhes" abre a grade com tudo. */
 export default function PedidoCard({
   pedido: p,
-  onConfirmar,
-  onPagar,
+  clienteInadimplente,
+  onFinalizar,
   onDevolver,
   onEditar,
-  onCancelar,
+  onExcluir,
 }: PedidoCardProps) {
   const [aberto, setAberto] = useState(false);
-  const r = resumoPedido(p);
-  const aluguel = p.tipo === 'ALUGUEL';
   const vencido = estaVencido(p);
-  const cancelado = r.statusPedido === 'CANCELADO';
-  const mostrarConfirmar = podeConfirmar(p) || (aguardaDesconto(p) && r.statusPedido === 'PENDENTE');
+  const tipo = tipoDoPedido(p.itens);
+  const pendente = p.statusPedido === 'PENDENTE';
 
   const condicao = [
-    ROTULO_PAGAMENTO[p.pagamento],
-    p.pagamento === 'A_PRAZO' ? `vence ${dataBR(p.vencimento)}` : '',
-    aluguel ? `aluguel até ${dataBR(p.fimAluguel ?? p.vencimento)}` : '',
-    r.percentual > 0 ? `${r.percentual}% de desconto` : '',
+    p.modalidadePagamento ? ROTULO_PAGAMENTO[p.modalidadePagamento] : '',
+    p.dataVencimento ? `vence ${dataBR(p.dataVencimento)}` : '',
+    p.descontoAutorizado ? `${percentual(p.descontoAutorizado)} de desconto` : '',
   ]
     .filter(Boolean)
     .join(' · ');
 
   return (
-    <li className={`item ${cancelado ? 'inativo' : ''}`}>
+    <li className="item">
       <div className="item-topo">
         <span className="item-titulo">
-          #{p.id} · {ROTULO_TIPO[p.tipo]}
-          {aluguel && ` (${p.meses} ${p.meses === 1 ? 'mês' : 'meses'})`}{' '}
-          <span className="item-sub">· {dataBR(p.criadoEm)}</span>
+          #{p.id}
+          {tipo && ` · ${tipo}`} <span className="item-sub">· {dataBR(p.dataCriacao)}</span>
         </span>
         <div className="selos">
-          <span className={`selo ${r.statusPedido.toLowerCase()}`}>
-            {r.statusPedido === 'PENDENTE' ? 'Pedido pendente' : ROTULO_STATUS_PEDIDO[r.statusPedido]}
+          <span className={`selo ${p.statusPedido.toLowerCase()}`}>
+            {pendente ? 'Pedido pendente' : ROTULO_STATUS_PEDIDO[p.statusPedido]}
           </span>
-          {!cancelado && (
-            <span className={`selo ${r.statusPagamento.toLowerCase()}`}>
-              {r.statusPagamento === 'PAGO' ? 'Pago' : 'Pagamento pendente'}
+          {p.statusAprovacaoDesconto !== 'NAO_SOLICITADO' && (
+            <span className={`selo ${CLASSE_STATUS_DESCONTO[p.statusAprovacaoDesconto]}`}>
+              {ROTULO_STATUS_DESCONTO[p.statusAprovacaoDesconto]}
             </span>
           )}
           {vencido && <span className="selo vencido">Vencido</span>}
@@ -114,41 +104,44 @@ export default function PedidoCard({
 
       <div className="item-linha">
         <strong>{p.clienteNome}</strong>
-        {p.clienteCategoria === 'VIP' && <span className="selo vip">VIP</span>}
-        {p.clienteInadimplente && <span className="selo inadimplente">Inadimplente</span>}
+        {p.clienteClassificacao === 'VIP' && <span className="selo vip">VIP</span>}
+        {clienteInadimplente && <span className="selo inadimplente">Inadimplente</span>}
       </div>
       {p.descricao && <p className="item-info">{p.descricao}</p>}
-      <p className="item-info">{p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')}</p>
+      {p.itens && (
+        <p className="item-info">
+          {p.itens.map((i) => `${i.quantidade}× ${i.nomeProduto}${i.isAluguel ? ' (aluguel)' : ''}`).join(', ')}
+        </p>
+      )}
       <div className="item-linha entre">
         <span className="item-info">{condicao}</span>
-        <strong className="valor">{moeda.format(r.total)}</strong>
+        <strong className="valor">{moeda.format(p.valorTotal)}</strong>
       </div>
 
-      {aguardaDesconto(p) && !cancelado && (
-        <p className="aviso">Desconto de {p.solicitacao!.percentual}% aguardando aprovação de um colaborador.</p>
+      {aguardaDesconto(p) && pendente && (
+        <p className="aviso">
+          Desconto{p.descontoSolicitado != null ? ` de ${percentual(p.descontoSolicitado)}` : ''} aguardando a decisão de um
+          colaborador: o pedido só pode ser finalizado depois.
+        </p>
       )}
+      {vencido && <p className="aviso erro">Pedido vencido: só pode ser finalizado (registrar o pagamento).</p>}
 
       <div className="item-rodape">
         <div className="acoes">
-          {mostrarConfirmar && (
+          {pendente && (
             <button
               type="button"
               className="confirmar"
-              disabled={!podeConfirmar(p)}
-              title={podeConfirmar(p) ? undefined : 'Aguardando aprovação do desconto'}
-              onClick={() => onConfirmar(p)}
+              disabled={!podeFinalizar(p)}
+              title={podeFinalizar(p) ? 'Registra o pagamento e marca o pedido como pago' : 'Aguardando a decisão do desconto'}
+              onClick={() => onFinalizar(p)}
             >
-              Confirmar pedido
-            </button>
-          )}
-          {podePagar(p) && (
-            <button type="button" className="confirmar" onClick={() => onPagar(p)}>
-              Registrar pagamento
+              Finalizar (pago)
             </button>
           )}
           {podeDevolver(p) && (
             <button type="button" onClick={() => onDevolver(p)}>
-              Devolver
+              Devolver aluguel
             </button>
           )}
           {podeEditar(p) && (
@@ -156,9 +149,9 @@ export default function PedidoCard({
               Editar
             </button>
           )}
-          {podeCancelar(p) && (
-            <button type="button" className="secundario" onClick={() => onCancelar(p)}>
-              Cancelar pedido
+          {podeExcluir(p) && (
+            <button type="button" className="secundario" onClick={() => onExcluir(p)}>
+              Excluir pedido
             </button>
           )}
         </div>

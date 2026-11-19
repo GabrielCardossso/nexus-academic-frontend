@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Aviso from '../components/comum/Aviso';
 import ConfirmarModal from '../components/comum/ConfirmarModal';
 import Modal from '../components/comum/Modal';
-import Selecao from '../components/comum/Selecao';
-import { cadastrarProduto, editarProduto, listarProdutos, reporEstoque } from '../services/api';
-import type { ProdutoListarResponse, ProdutoStatus } from '../types';
+import { ROTULO_STATUS_PRODUTO } from '../regras';
+import { cadastrarProduto, editarProduto, excluirProduto, listarProdutos, reporEstoque } from '../services/api';
+import type { ProdutoListarResponse } from '../types';
 import { campo, moeda, type Mensagem } from '../utils';
 
-// Sem status: o back não recebe no cadastro (produto novo entra como disponível).
+// Sem status: o back não recebe nem no cadastro nem na edição.
 const FORM_VAZIO = {
   nome: '',
   descricao: '',
@@ -15,21 +15,6 @@ const FORM_VAZIO = {
   precoVenda: '',
   precoAluguel: '',
 };
-
-const ROTULO_STATUS: Record<ProdutoStatus, string> = {
-  DISPONIVEL: 'Disponível',
-  INDISPONIVEL: 'Indisponível',
-  DESATIVADO: 'Desativado',
-};
-
-/** Dados de um produto que vão para o PUT (o estoque fica de fora: só muda por reposição e pedidos). */
-const dadosDe = (p: ProdutoListarResponse, status: ProdutoStatus = p.status) => ({
-  nome: p.nome,
-  descricao: p.descricao ?? '',
-  precoVenda: Number(p.precoVenda),
-  precoAluguel: Number(p.precoAluguel),
-  status,
-});
 
 export default function ProdutosTela() {
   const [produtos, setProdutos] = useState<ProdutoListarResponse[] | null>(null); // null = carregando
@@ -39,7 +24,6 @@ export default function ProdutosTela() {
   const [formAberto, setFormAberto] = useState(false);
   const [editando, setEditando] = useState<ProdutoListarResponse | null>(null); // null = cadastro novo
   const [form, setForm] = useState(FORM_VAZIO);
-  const [status, setStatus] = useState<ProdutoStatus>('DISPONIVEL'); // só na edição
   const [erroForm, setErroForm] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -47,7 +31,7 @@ export default function ProdutosTela() {
   const [quantidade, setQuantidade] = useState('');
   const [erroRepor, setErroRepor] = useState<string | null>(null);
 
-  const [desativando, setDesativando] = useState<ProdutoListarResponse | null>(null);
+  const [excluindo, setExcluindo] = useState<ProdutoListarResponse | null>(null);
   const [processando, setProcessando] = useState(false);
 
   const onChange = campo(setForm);
@@ -81,7 +65,6 @@ export default function ProdutosTela() {
       precoVenda: String(p.precoVenda),
       precoAluguel: String(p.precoAluguel),
     });
-    setStatus(p.status);
     setEditando(p);
     setErroForm(null);
     setFormAberto(true);
@@ -96,7 +79,7 @@ export default function ProdutosTela() {
   const fecharForm = useCallback(() => setFormAberto(false), []);
   const fecharRepor = useCallback(() => setRepondo(null), []);
   const fecharAviso = useCallback(() => setAviso(null), []);
-  const cancelarDesativar = useCallback(() => setDesativando(null), []);
+  const fecharExclusao = useCallback(() => setExcluindo(null), []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -105,7 +88,7 @@ export default function ProdutosTela() {
     try {
       const precos = { precoVenda: Number(form.precoVenda), precoAluguel: Number(form.precoAluguel) };
       if (editando) {
-        await editarProduto(editando.id, { nome: form.nome, descricao: form.descricao, ...precos, status });
+        await editarProduto(editando.id, { nome: form.nome, descricao: form.descricao, ...precos });
       } else {
         await cadastrarProduto({ ...form, ...precos, estoque: Number(form.estoque) });
       }
@@ -127,11 +110,8 @@ export default function ProdutosTela() {
     setEnviando(true);
     setErroRepor(null);
     try {
-      const atualizado = await reporEstoque(repondo.id, qtd);
-      setAviso({
-        tipo: 'sucesso',
-        texto: `Estoque de "${atualizado.nome}" reposto: +${qtd} (agora ${atualizado.estoque}).`,
-      });
+      const estoque = await reporEstoque(repondo.id, qtd);
+      setAviso({ tipo: 'sucesso', texto: `Estoque de "${repondo.nome}" reposto: +${qtd} (agora ${estoque}).` });
       setRepondo(null);
       await carregar();
     } catch (err) {
@@ -141,18 +121,19 @@ export default function ProdutosTela() {
     }
   }
 
-  async function mudarStatus(p: ProdutoListarResponse, novo: ProdutoStatus) {
+  async function confirmarExclusao() {
+    if (!excluindo) return;
     setAviso(null);
     setProcessando(true);
     try {
-      await editarProduto(p.id, dadosDe(p, novo));
-      setAviso({ tipo: 'sucesso', texto: `Produto "${p.nome}" ${novo === 'DESATIVADO' ? 'desativado' : 'reativado'}.` });
+      await excluirProduto(excluindo.id);
+      setAviso({ tipo: 'sucesso', texto: `Produto "${excluindo.nome}" excluído.` });
       await carregar();
     } catch (err) {
       setAviso({ tipo: 'erro', texto: (err as Error).message });
     } finally {
       setProcessando(false);
-      setDesativando(null);
+      setExcluindo(null);
     }
   }
 
@@ -177,44 +158,36 @@ export default function ProdutosTela() {
       {produtos && produtos.length === 0 && <p className="vazio">Nenhum produto cadastrado ainda.</p>}
 
       <ul className="itens">
-        {(produtos ?? []).map((p) => {
-          const desativado = p.status === 'DESATIVADO';
-          return (
-            <li key={p.id} className={`item ${desativado ? 'inativo' : ''}`}>
-              <div className="item-topo">
-                <span className="item-titulo">{p.nome}</span>
-                <span className={`selo ${p.status.toLowerCase()}`}>{ROTULO_STATUS[p.status]}</span>
-              </div>
-              {p.descricao && <p className="item-info">{p.descricao}</p>}
-              <p className="item-info">
-                Estoque: {p.estoque} · Venda: {moeda.format(Number(p.precoVenda))} · Aluguel:{' '}
-                {moeda.format(Number(p.precoAluguel))}/mês
-              </p>
-              <div className="acoes">
-                <button type="button" className="confirmar" onClick={() => abrirRepor(p)}>
-                  Repor estoque
-                </button>
-                <button type="button" className="secundario" onClick={() => abrirEditar(p)}>
-                  Editar
-                </button>
-                {desativado ? (
-                  <button
-                    type="button"
-                    className="secundario"
-                    disabled={processando}
-                    onClick={() => mudarStatus(p, 'DISPONIVEL')}
-                  >
-                    Reativar
-                  </button>
-                ) : (
-                  <button type="button" className="secundario" onClick={() => setDesativando(p)}>
-                    Desativar
-                  </button>
-                )}
-              </div>
-            </li>
-          );
-        })}
+        {(produtos ?? []).map((p) => (
+          <li key={p.id} className={`item ${p.status === 'DESATIVADO' ? 'inativo' : ''}`}>
+            <div className="item-topo">
+              <span className="item-titulo">{p.nome}</span>
+              {p.status ? (
+                <span className={`selo ${p.status.toLowerCase()}`}>{ROTULO_STATUS_PRODUTO[p.status]}</span>
+              ) : (
+                <span className="selo neutro" title="O back não define status no cadastro nem devolve na listagem.">
+                  Sem status
+                </span>
+              )}
+            </div>
+            {p.descricao && <p className="item-info">{p.descricao}</p>}
+            <p className="item-info">
+              Estoque: {p.estoque} · Venda: {moeda.format(Number(p.precoVenda))} · Aluguel:{' '}
+              {moeda.format(Number(p.precoAluguel))}
+            </p>
+            <div className="acoes">
+              <button type="button" className="confirmar" onClick={() => abrirRepor(p)}>
+                Repor estoque
+              </button>
+              <button type="button" className="secundario" onClick={() => abrirEditar(p)}>
+                Editar
+              </button>
+              <button type="button" className="secundario" onClick={() => setExcluindo(p)}>
+                Excluir
+              </button>
+            </div>
+          </li>
+        ))}
       </ul>
 
       <Modal
@@ -238,7 +211,7 @@ export default function ProdutosTela() {
               <input name="precoVenda" type="number" value={form.precoVenda} onChange={onChange} min={0} step="0.01" required />
             </label>
             <label className="campo">
-              <span>Aluguel por mês (R$)</span>
+              <span>Preço de aluguel (R$)</span>
               <input
                 name="precoAluguel"
                 type="number"
@@ -249,24 +222,7 @@ export default function ProdutosTela() {
                 required
               />
             </label>
-            {editando ? (
-              <label className="campo">
-                <span>Status</span>
-                <Selecao<ProdutoStatus>
-                  value={status}
-                  onChange={setStatus}
-                  // Desativar só pelo botão "Desativar", que pede confirmação. Se o produto já está
-                  // desativado, a opção aparece para manter o status atual.
-                  opcoes={[
-                    { valor: 'DISPONIVEL', rotulo: 'Disponível' },
-                    { valor: 'INDISPONIVEL', rotulo: 'Indisponível' },
-                    ...(editando.status === 'DESATIVADO'
-                      ? [{ valor: 'DESATIVADO' as ProdutoStatus, rotulo: 'Desativado' }]
-                      : []),
-                  ]}
-                />
-              </label>
-            ) : (
+            {!editando && (
               <label className="campo">
                 <span>Estoque</span>
                 <input name="estoque" type="number" value={form.estoque} onChange={onChange} min={0} step={1} required />
@@ -275,8 +231,8 @@ export default function ProdutosTela() {
           </div>
           <p className="dica">
             {editando
-              ? `Estoque atual: ${editando.estoque}. Para aumentar, use "Repor estoque"; para desativar, use o botão "Desativar". Pedidos já feitos mantêm o preço do momento do pedido.`
-              : 'O produto novo entra como disponível.'}
+              ? `Estoque atual: ${editando.estoque}. Para aumentar, use "Repor estoque". O status não é editável (o back não recebe). Pedidos já feitos mantêm o valor do momento; na edição de um pedido, os itens são recalculados pelo preço atual.`
+              : 'O back não define status no cadastro: o produto novo fica sem status.'}
           </p>
           {erroForm && <p className="msg erro">{erroForm}</p>}
           <div className="modal-acoes">
@@ -325,21 +281,22 @@ export default function ProdutosTela() {
       </Modal>
 
       <ConfirmarModal
-        aberto={desativando !== null}
-        titulo="Desativar produto?"
-        textoConfirmar="Desativar"
+        aberto={excluindo !== null}
+        titulo="Excluir produto?"
+        textoConfirmar="Excluir"
         carregando={processando}
-        onConfirmar={() => desativando && mudarStatus(desativando, 'DESATIVADO')}
-        onCancelar={cancelarDesativar}
+        onConfirmar={confirmarExclusao}
+        onCancelar={fecharExclusao}
       >
-        {desativando && (
+        {excluindo && (
           <>
             <p>
-              <strong>{desativando.nome}</strong>
+              <strong>{excluindo.nome}</strong>
             </p>
             <p>
-              O produto não aparece mais para novos pedidos. Os pedidos já feitos não mudam e o produto pode ser
-              reativado depois.
+              O produto sai da lista e não entra em pedidos novos. Os pedidos já feitos não mudam. Não é possível excluir
+              produto que esteja em pedido pendente ou em aluguel ainda não devolvido. O back ainda não tem como reativar
+              um produto excluído.
             </p>
           </>
         )}

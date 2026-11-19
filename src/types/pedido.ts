@@ -1,69 +1,107 @@
 /**
- * Tipos de pedido e de solicitação de desconto.
- * ATENÇÃO: tudo de Pedido/Desconto (incluindo tipo, meses e devolução do aluguel) ainda NÃO existe
- * igual nos records do back — alinhar com o Lucas quando forem criados.
+ * Tipos de pedido. Espelham a entidade `Pedido`/`ItemPedido` e os enums do back
+ * (repo LionT750/Nexus, branch main): os nomes dos campos e dos valores são os mesmos.
  */
 import type { ClienteCategoria } from './cliente';
 
-export type TipoPedido = 'VENDA' | 'ALUGUEL';
-export type FormaPagamento = 'PIX' | 'A_VISTA' | 'A_PRAZO';
-/** Andamento do pedido: nasce PENDENTE, vira CONCLUIDO só quando alguém confirma, DEVOLVIDO (aluguel) ou CANCELADO. */
-export type StatusPedido = 'PENDENTE' | 'CONCLUIDO' | 'DEVOLVIDO' | 'CANCELADO';
-/** Situação financeira, independente do status do pedido. */
-export type StatusPagamento = 'PENDENTE' | 'PAGO';
-export type StatusDesconto = 'PENDENTE' | 'APROVADA' | 'REJEITADA';
+/** enums/ModalidadePagamento.java (não existe PIX no back). */
+export type ModalidadePagamento = 'A_VISTA' | 'A_PRAZO';
 
+/**
+ * enums/StatusPedido.java. Um status só: o pedido nasce PENDENTE e vira PAGO em "Finalizar".
+ * REJEITADO existe no enum do back, mas nenhuma regra usa (hoje nenhum pedido fica assim).
+ */
+export type StatusPedido = 'PENDENTE' | 'PAGO' | 'REJEITADO';
+
+/** enums/StatusAprovacaoDesconto.java. */
+export type StatusAprovacaoDesconto =
+  | 'NAO_SOLICITADO'
+  | 'PENDENTE'
+  | 'APROVADO'
+  | 'APROVADO_AUTOMATICAMENTE'
+  | 'REPROVADO'
+  | 'REPROVADO_INADIPLENCIA';
+
+/** Item do pedido (entity/ItemPedido.java). Venda ou aluguel é escolhido por item. */
 export interface ItemPedido {
   produtoId: number;
-  nome: string;
-  precoUnitario: number; // preço de venda, ou preço de aluguel por mês
+  nomeProduto: string;
   quantidade: number;
+  /** Preço do produto × quantidade (venda ou aluguel), calculado na hora de criar/editar. */
+  valorItem: number;
+  isAluguel: boolean;
+  /** AAAA-MM-DD. Só aluguel: até quando o cliente fica com o produto. */
+  dataVencimentoAluguel?: string | null;
+  /** AAAA-MM-DD. Só aluguel: quando foi devolvido. */
+  dataDevolucao?: string | null;
 }
 
-export interface SolicitacaoDesconto {
-  percentual: number; // inteiro dentro da faixa da categoria (ver faixaDesconto em regras/descontos.ts)
-  status: StatusDesconto;
-  colaboradorId?: number; // quem aprovou/rejeitou
-  colaboradorNome?: string;
-}
-
-/** Total, desconto e status NÃO ficam salvos: são calculados em regras/pedido.ts. */
+/**
+ * Pedido como o front usa. Os campos são os da entidade do back. Os marcados com "?" o back ainda
+ * não devolve em GET /pedidos/{id} (por exemplo os itens e os descontos): os dados locais preenchem,
+ * e com o back real eles ficam vazios até o Lucas incluir na resposta.
+ */
 export interface Pedido {
   id: number;
-  tipo: TipoPedido;
-  clienteId: number;
+  descricao?: string | null;
+  /** Total já com o desconto autorizado (o back grava, 2 casas). */
+  valorTotal: number;
+  dataCriacao: string; // AAAA-MM-DD
+  /** AAAA-MM-DD. Obrigatória no a prazo. Pedido PENDENTE com vencimento antes de hoje = vencido. */
+  dataVencimento?: string | null;
+  dataAtualizacaoDesconto?: string | null;
+  statusPedido: StatusPedido;
+  statusAprovacaoDesconto: StatusAprovacaoDesconto;
+  modalidadePagamento?: ModalidadePagamento | null;
+  /** Fração de 0 a 0.15 (0.05 = 5%). */
+  descontoSolicitado?: number;
+  descontoAutorizado?: number;
+  clienteId?: number;
   clienteNome: string;
-  clienteCategoria: ClienteCategoria;
-  descricao?: string;
-  itens: ItemPedido[];
-  meses?: number; // só aluguel: duração em meses
-  pagamento: FormaPagamento;
-  solicitacao?: SolicitacaoDesconto; // desconto que o cliente pediu (depende de aprovação)
-  criadoEm: string; // ISO
-  emissao: string; // ISO
-  /** ISO. A prazo: data escolhida no pedido para pagar. PIX/à vista: a própria emissão. */
-  vencimento: string;
-  fimAluguel?: string; // ISO, só aluguel: emissão + meses
-  concluidoEm?: string; // ISO, preenchido quando o pedido é confirmado manualmente
-  devolvidoEm?: string; // ISO, só aluguel
-  canceladoEm?: string; // ISO. Cancelado não volta atrás; estoque e crédito reservado voltaram.
-  pagoEm?: string; // ISO. PIX/à vista: na criação ou na decisão do desconto. A prazo: ao registrar o pagamento.
-  creditoUsado?: number; // só a prazo: quanto foi descontado do limite (volta ao registrar o pagamento)
-  /**
-   * Cliente inadimplente (pedido a prazo vencido e não pago): fica sem desconto nenhum.
-   * Pedido ainda não pago: calculado na listagem com a situação atual do cliente.
-   * Pedido pago ou cancelado: fica a situação daquele momento.
-   */
-  clienteInadimplente?: boolean;
+  clienteEmail?: string;
+  clienteClassificacao?: ClienteCategoria;
+  colaboradorDescontoId?: number;
+  colaboradorDescontoNome?: string | null;
+  itens?: ItemPedido[];
 }
 
-export interface PedidoCriarRequest {
-  tipo: TipoPedido;
-  clienteId: number;
-  pagamento: FormaPagamento;
-  itens: { produtoId: number; quantidade: number }[];
-  meses?: number; // só aluguel
-  descricao?: string;
-  dataVencimento?: string; // AAAA-MM-DD, obrigatória e futura no pedido a prazo
-  descontoSolicitado?: number; // % inteiro: NORMAL de 1 a 10, VIP de 10 a 15. Inadimplente não pode solicitar.
+/** GET /produtos/listarAlugados (dtos/ItemPedidoListarAlugueisResponse.java). */
+export interface ItemAlugado {
+  nomeProduto: string;
+  quantidade: number;
+  dataVencimentoAluguel: string | null;
+  dataDevolucao: string | null;
 }
+
+/** Item no corpo do POST/PUT (dtos/ItemPedidoCriarRequest.java). */
+export interface ItemPedidoCriarRequest {
+  codigoIdProduto: number;
+  quantidade: number;
+  isAluguel: boolean;
+  dataVencimentoAluguel?: string; // AAAA-MM-DD, obrigatória e futura no aluguel
+}
+
+/** POST /pedidos (dtos/PedidoCriarRequest.java). O cliente é identificado pelo CNPJ. */
+export interface PedidoCriarRequest {
+  descricao?: string;
+  CNPJcliente: string;
+  descontoSolicitado: number; // fração de 0 a 0.15
+  itensPedido: ItemPedidoCriarRequest[];
+  modalidadePagamento: ModalidadePagamento;
+  dataVencimento?: string; // AAAA-MM-DD, obrigatória e futura no a prazo
+}
+
+/**
+ * PUT /pedidos/{id}/editar (dtos/PedidoEditarRequest.java). Tudo opcional: o que não vier continua
+ * como está. O cliente não muda. Os itens, se vierem, substituem todos (recotados pelo preço atual).
+ */
+export interface PedidoEditarRequest {
+  descricao?: string;
+  descontoSolicitado?: number;
+  modalidadePagamento?: ModalidadePagamento;
+  dataVencimento?: string;
+  itensPedido?: ItemPedidoCriarRequest[];
+}
+
+/** Decisão de um colaborador sobre a solicitação (dtos/ResolverSolicitacaoDescontoRequest.java). */
+export type DecisaoDesconto = 'APROVADO' | 'REPROVADO';

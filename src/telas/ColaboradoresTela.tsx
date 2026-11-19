@@ -4,11 +4,13 @@ import ConfirmarModal from '../components/comum/ConfirmarModal';
 import Modal from '../components/comum/Modal';
 import {
   cadastrarColaborador,
-  definirColaboradorAtivo,
   editarColaborador,
+  excluirColaborador,
   listarColaboradores,
   listarPedidos,
+  reativarColaborador,
 } from '../services/api';
+import { decididoPorColaborador } from '../regras';
 import type { Colaborador, Pedido } from '../types';
 import { campo, formatarCpf, type Mensagem } from '../utils';
 
@@ -71,8 +73,14 @@ export default function ColaboradoresTela() {
     setEnviando(true);
     setErroForm(null);
     try {
-      const salvo = editandoId === null ? await cadastrarColaborador(form) : await editarColaborador(editandoId, form);
-      setAviso({ tipo: 'sucesso', texto: `Colaborador "${salvo.nome}" ${editandoId === null ? 'cadastrado' : 'atualizado'}!` });
+      // TRAVA DO FRONT: no cadastro o back não confere CPF repetido (só na edição); a tela confere.
+      const cpf = form.cpf.replace(/\D/g, ''); // só dígitos: "123.456.789-09" → "12345678909"
+      if (editandoId === null && (colaboradores ?? []).some((c) => c.ativo !== false && c.cpf === cpf)) {
+        throw new Error('Já existe um colaborador com esse CPF.');
+      }
+      if (editandoId === null) await cadastrarColaborador(form);
+      else await editarColaborador(editandoId, form);
+      setAviso({ tipo: 'sucesso', texto: `Colaborador "${form.nome.trim()}" ${editandoId === null ? 'cadastrado' : 'atualizado'}!` });
       setFormAberto(false);
       await carregar();
     } catch (err) {
@@ -86,7 +94,7 @@ export default function ColaboradoresTela() {
     setAviso(null);
     setProcessando(true);
     try {
-      await definirColaboradorAtivo(c.id, ativo);
+      await (ativo ? reativarColaborador(c.id) : excluirColaborador(c.id));
       setAviso({ tipo: 'sucesso', texto: `Colaborador "${c.nome}" ${ativo ? 'reativado' : 'desativado'}.` });
       await carregar();
     } catch (err) {
@@ -97,8 +105,13 @@ export default function ColaboradoresTela() {
     }
   }
 
-  /** Quantas solicitações de desconto o colaborador já decidiu. */
-  const decisoesDe = (id: number) => pedidos.filter((p) => p.solicitacao?.colaboradorId === id).length;
+  /** Quantas solicitações de desconto o colaborador já decidiu (pelo id; com o back real, pelo nome, que é único). */
+  const decisoesDe = (c: Colaborador) =>
+    pedidos.filter(
+      (p) =>
+        decididoPorColaborador(p.statusAprovacaoDesconto) &&
+        (c.id > 0 && p.colaboradorDescontoId != null ? p.colaboradorDescontoId === c.id : p.colaboradorDescontoNome === c.nome),
+    ).length;
 
   return (
     <>
@@ -122,7 +135,7 @@ export default function ColaboradoresTela() {
 
       <ul className="itens">
         {(colaboradores ?? []).map((c) => {
-          const decisoes = decisoesDe(c.id);
+          const decisoes = decisoesDe(c);
           const ativo = c.ativo !== false;
           return (
             <li key={c.id} className={`item ${ativo ? '' : 'inativo'}`}>

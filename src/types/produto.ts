@@ -1,31 +1,39 @@
-/** Tipos de produto. Espelham os DTOs do back (records Java). */
+/** Tipos de produto. Espelham os DTOs do back (records Java), com os nomes que o front usa por dentro. */
 
+/** enums/StatusProduto.java. O cadastro do back não define status (fica nulo). */
 export type ProdutoStatus = 'DISPONIVEL' | 'INDISPONIVEL' | 'DESATIVADO';
 
+/** POST /produtos (dtos/ProdutoCriarRequest.java). */
 export interface ProdutoCriarRequest {
   nome: string;
   descricao: string;
   estoque: number;
   precoVenda: number; // BigDecimal no Java
-  precoAluguel: number; // valor por mês
-  // O status não vai no cadastro (o back não recebe): produto novo entra como DISPONIVEL nos dados locais.
+  precoAluguel: number; // BigDecimal no Java (valor do aluguel por unidade)
 }
 
+/** Resposta do POST /produtos (dtos/ProdutoCriarResponse.java): não traz status. */
 export interface ProdutoCriarResponse extends ProdutoCriarRequest {
   id: number;
-  status: ProdutoStatus;
 }
 
+/**
+ * GET /produtos (dtos/ProdutoListarResponse.java). O back devolve só nome, descrição, estoque e
+ * preços. `id` e `status` vêm dos dados locais; com o back real o id é provisório (negativo) e o
+ * status fica vazio até o back devolver.
+ */
 export interface ProdutoListarResponse extends ProdutoCriarRequest {
-  id: number; // necessário para o produto poder ser escolhido no pedido
-  status: ProdutoStatus; // só produtos DISPONIVEL e com estoque entram no pedido
+  id: number;
+  status?: ProdutoStatus | null;
 }
 
-/** Edição de produto: o estoque não muda aqui (só por "Repor estoque" e pelos pedidos). */
+/**
+ * PUT /produtos/{id}/editar (dtos/ProdutoEditarRequest.java). Sem estoque (só por "Repor estoque")
+ * e sem status (o back não recebe).
+ */
 export interface ProdutoEditarRequest {
   nome: string;
   descricao: string;
   precoVenda: number;
   precoAluguel: number;
-  status: ProdutoStatus;
 }

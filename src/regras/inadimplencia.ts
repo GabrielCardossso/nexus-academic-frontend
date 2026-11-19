@@ -1,22 +1,31 @@
-/** Pedido vencido e cliente inadimplente. */
-import type { FormaPagamento } from '../types';
+/**
+ * Pedido vencido e cliente inadimplente, iguais ao back:
+ * PedidoRepository.existsByDataVencimentoBeforeAndStatusPedidoAndClienteId(hoje, PENDENTE, cliente).
+ * Vale para qualquer modalidade: o que conta é ter vencimento antes de hoje e não estar pago.
+ */
+import type { Pedido } from '../types';
+import { hojeAAAAMMDD } from './datas';
 
-/** O mínimo de um pedido para saber se ele venceu. */
-export interface PedidoComPrazo {
-  clienteId: number;
-  pagamento: FormaPagamento;
-  vencimento: string;
-  pagoEm?: string;
-  canceladoEm?: string;
+type PedidoComPrazo = Pick<Pedido, 'statusPedido' | 'dataVencimento'>;
+
+/** Pedido ainda PENDENTE com vencimento antes de hoje. */
+export function estaVencido(p: PedidoComPrazo, hoje: string = hojeAAAAMMDD()): boolean {
+  return p.statusPedido === 'PENDENTE' && !!p.dataVencimento && p.dataVencimento < hoje;
 }
 
-/** Pedido a prazo que passou do vencimento sem pagamento (na data `em`, padrão: agora). Cancelado não vence. */
-export function estaVencido(p: PedidoComPrazo, em: Date = new Date()): boolean {
-  const pagoAte = p.pagoEm != null && new Date(p.pagoEm) <= em;
-  return p.pagamento === 'A_PRAZO' && !p.canceladoEm && !pagoAte && new Date(p.vencimento) < em;
-}
-
-/** Inadimplente: tem pelo menos um pedido a prazo vencido e não pago. Não é campo do cadastro. */
-export function estaInadimplente(clienteId: number, pedidos: PedidoComPrazo[], em: Date = new Date()): boolean {
-  return pedidos.some((p) => p.clienteId === clienteId && estaVencido(p, em));
+/**
+ * Inadimplente: tem pelo menos um pedido vencido. Não é campo do cadastro.
+ * O cliente é reconhecido pelo id ou, quando o id não vem (back real), pelo e-mail (que é único).
+ */
+export function estaInadimplente(
+  cliente: { id?: number; email?: string },
+  pedidos: (PedidoComPrazo & Pick<Pedido, 'clienteId' | 'clienteEmail'>)[],
+  hoje: string = hojeAAAAMMDD(),
+): boolean {
+  const temId = cliente.id != null && cliente.id > 0; // id negativo = provisório (back real)
+  const mesmoCliente = (p: Pick<Pedido, 'clienteId' | 'clienteEmail'>) =>
+    temId && p.clienteId != null
+      ? p.clienteId === cliente.id
+      : !!cliente.email && p.clienteEmail?.toLowerCase() === cliente.email.toLowerCase();
+  return pedidos.some((p) => mesmoCliente(p) && estaVencido(p, hoje));
 }
