@@ -1,223 +1,146 @@
 /**
- * Dados de exemplo (mock) para testar a tela sem back-end.
- * São carregados uma única vez, quando o localStorage ainda está vazio (ver armazenamento.ts).
+ * Dados de exemplo (mock) para testar a tela sem back-end, carregados uma única vez quando o
+ * localStorage está vazio (ver armazenamento.ts).
  *
- * Os pedidos cobrem todos os cenários da tela:
- *  - pendente aguardando aprovação de desconto (botão Confirmar bloqueado)
- *  - pendente com desconto aprovado/rejeitado e pendente de cliente VIP (botão Confirmar liberado)
- *  - concluído (pago e com pagamento pendente a prazo)
- *  - aluguel concluído (pode devolver) e aluguel devolvido
- *  - venda a prazo já paga (crédito devolvido) e pedidos a prazo aguardando pagamento
- *  - cliente VIP inadimplente (venda a prazo vencida e não paga): sem desconto nenhum, não pode
- *    solicitar; o pedido vencido só pode ser pago; o outro pedido a prazo dele (ainda não vencido)
- *    pode ser editado e continuar a prazo, sem aumentar
- *  - VIP solicitando desconto de 10% a 15% (aprovado e pendente)
- *  - pedido cancelado (estoque e crédito voltaram) e pedido cancelado com desconto ainda pendente
- *  - cadastros desativados: 1 cliente, 1 produto e 1 colaborador (podem ser reativados)
+ * Clientes, colaboradores e produtos são os MESMOS do back (entity/mock/*.java), com os mesmos ids
+ * (ordem de inserção). O back não tem pedidos de exemplo; os daqui cobrem os cenários da tela:
+ *  1. VIP à vista com os 5% automáticos (pode finalizar)
+ *  2. VIP a prazo pedindo 12% (aguardando decisão: não finaliza; limite reservado sem desconto)
+ *  3. NORMAL à vista pedindo 8% (aguardando decisão)
+ *  4. NORMAL a prazo, aluguel com 5% aprovado por colaborador
+ *  5. NORMAL a prazo VENCIDO e não pago → cliente inadimplente (só pode finalizar)
+ *  6. o mesmo cliente comprando à vista depois: reprovado por inadimplência, sem desconto
+ *  7. VIP a prazo já pago, com aluguel já devolvido
+ *  8. VIP com aluguel pago e ainda não devolvido (pode devolver)
+ *  9. NORMAL pago com desconto de 10% reprovado
+ * 10. VIP pedindo 15% aprovado, pendente
  * Estoque e limite de crédito já nascem coerentes com esses pedidos.
  */
-import { PRAZO_DIAS, estaInadimplente, pagoNaHora, resumoPedido } from '../../regras';
-import type {
-  ClienteSalvo,
-  Colaborador,
-  FormaPagamento,
-  Pedido,
-  ProdutoCriarResponse,
-  SolicitacaoDesconto,
-  TipoPedido,
-} from '../../types';
+import { hojeAAAAMMDD, subtotalDe, totalComDesconto, valorItem } from '../../regras';
+import type { ClienteSalvo, ModalidadePagamento, StatusAprovacaoDesconto, StatusPedido } from '../../types';
+import { arredondar } from '../../utils';
+import type { ColaboradorSalvo, ItemSalvo, PedidoSalvo, ProdutoSalvo } from './armazenamento';
 
-/** Monta um CNPJ válido a partir dos 12 primeiros dígitos (calcula os dois verificadores). */
-function cnpjDe(base: string): string {
-  const digito = (digitos: string, pesos: number[]) => {
-    const resto = pesos.reduce((soma, peso, i) => soma + Number(digitos[i]) * peso, 0) % 11;
-    return resto < 2 ? 0 : 11 - resto;
-  };
-  const d1 = digito(base, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
-  const d2 = digito(base + d1, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
-  return `${base}${d1}${d2}`;
+const dia = hojeAAAAMMDD; // dia(-5) = 5 dias atrás, dia(10) = daqui a 10 dias
+
+/** entity/mock/ClienteMock.java */
+const CLIENTES: ClienteSalvo[] = [
+  { id: 1, name: 'Construtora Horizonte Ltda', cnpj: '88447294000145', telefone: '(48) 3622-1001', email: 'compras@horizonte.com.br', limiteCredito: 50000, categoria: 'VIP' },
+  { id: 2, name: 'Engenharia Sul Obras SA', cnpj: '05576169000108', telefone: '(48) 3622-2002', email: 'financeiro@sulobras.com.br', limiteCredito: 20000, categoria: 'VIP' },
+  { id: 3, name: 'Reformas Silva ME', cnpj: '87168976000156', telefone: '(48) 99911-3003', email: 'contato@reformassilva.com.br', limiteCredito: 8000, categoria: 'NORMAL' },
+  { id: 4, name: 'Mercado Bom Preco Ltda', cnpj: '84697880000197', telefone: '(48) 99922-4004', email: 'adm@bompreco.com.br', limiteCredito: 1500, categoria: 'NORMAL' },
+  { id: 5, name: 'Oficina do Ze Mecanica', cnpj: '93208196000195', telefone: '(48) 99933-5005', email: 'ze@oficinadoze.com.br', limiteCredito: 0, categoria: 'NORMAL' },
+  { id: 6, name: 'Locadora Tubarao Eventos', cnpj: '72731778000181', telefone: '(48) 3622-6006', email: 'eventos@locadoratubarao.com.br', limiteCredito: 0, categoria: 'VIP' },
+];
+
+/** entity/mock/ColaboradorMock.java */
+const COLABORADORES: ColaboradorSalvo[] = [
+  { id: 1, nome: 'Marcos Antunes', cpf: '15881399803', email: 'marcos.antunes@nexus.com' },
+  { id: 2, nome: 'Juliana Prado', cpf: '69879730917', email: 'juliana.prado@nexus.com' },
+  { id: 3, nome: 'Rafael Menezes', cpf: '11417075350', email: 'rafael.menezes@nexus.com' },
+  { id: 4, nome: 'Camila Duarte', cpf: '64556815177', email: 'camila.duarte@nexus.com' },
+];
+
+/** entity/mock/ProdutoMock.java (o 10 está DESATIVADO no status, mas não excluído: aparece na lista). */
+const PRODUTOS: ProdutoSalvo[] = [
+  { id: 1, nome: 'Furadeira de Impacto 650W', descricao: 'Furadeira profissional com maleta', estoque: 25, precoVenda: 389.9, precoAluguel: 45, status: 'DISPONIVEL' },
+  { id: 2, nome: 'Andaime Tubular 1,5m', descricao: 'Modulo de andaime galvanizado', estoque: 60, precoVenda: 720, precoAluguel: 35, status: 'DISPONIVEL' },
+  { id: 3, nome: 'Betoneira 400L', descricao: 'Betoneira motor eletrico 2CV', estoque: 8, precoVenda: 3250, precoAluguel: 180, status: 'DISPONIVEL' },
+  { id: 4, nome: 'Serra Circular 7 1/4', descricao: 'Serra circular 1800W', estoque: 15, precoVenda: 529.9, precoAluguel: 60, status: 'DISPONIVEL' },
+  { id: 5, nome: 'Compactador de Solo', descricao: 'Compactador a gasolina 5,5HP', estoque: 4, precoVenda: 5890, precoAluguel: 320, status: 'DISPONIVEL' },
+  { id: 6, nome: 'Gerador 5kVA', descricao: 'Gerador diesel monofasico', estoque: 3, precoVenda: 8900, precoAluguel: 450, status: 'DISPONIVEL' },
+  { id: 7, nome: 'Lavadora de Alta Pressao', descricao: 'Lavadora 2200 PSI', estoque: 12, precoVenda: 1190, precoAluguel: 90, status: 'DISPONIVEL' },
+  { id: 8, nome: 'Martelete Rompedor 10kg', descricao: 'Martelete SDS Max', estoque: 0, precoVenda: 2780, precoAluguel: 210, status: 'INDISPONIVEL' },
+  { id: 9, nome: 'Escada Extensivel 7m', descricao: 'Escada de aluminio', estoque: 1, precoVenda: 950, precoAluguel: 55, status: 'DISPONIVEL' },
+  { id: 10, nome: 'Talhadeira Manual (linha antiga)', descricao: 'Descontinuada', estoque: 2, precoVenda: 49.9, precoAluguel: 5, status: 'DESATIVADO' },
+];
+
+interface ItemMock {
+  produtoId: number;
+  quantidade: number;
+  aluguelAte?: number; // dias a partir de hoje (aluguel)
+  devolvidoHa?: number; // dias atrás (aluguel já devolvido)
 }
-
-/** Monta um CPF válido a partir dos 9 primeiros dígitos (calcula os dois verificadores). */
-function cpfDe(base: string): string {
-  const digito = (digitos: string) => {
-    const peso = digitos.length + 1;
-    const soma = [...digitos].reduce((acc, d, i) => acc + Number(d) * (peso - i), 0);
-    const resto = (soma * 10) % 11;
-    return resto === 10 ? 0 : resto;
-  };
-  const d1 = digito(base);
-  return `${base}${d1}${digito(base + d1)}`;
-}
-
-/** Colaboradores iniciais (os ids 1 e 2 aparecem nas decisões de desconto dos pedidos abaixo). */
-export const COLABORADORES_MOCK: Colaborador[] = [
-  { id: 1, nome: 'Ana Souza', cpf: cpfDe('123456789'), email: 'ana.souza@nexus.com.br' },
-  { id: 2, nome: 'Carlos Lima', cpf: cpfDe('234567891'), email: 'carlos.lima@nexus.com.br' },
-  { id: 3, nome: 'Beatriz Rocha', cpf: cpfDe('345678912'), email: 'beatriz.rocha@nexus.com.br' },
-  // Desativado: não aparece em "Aprovando como" (pode ser reativado em Colaboradores).
-  { id: 4, nome: 'Marcos Dias', cpf: cpfDe('456789123'), email: 'marcos.dias@nexus.com.br', ativo: false },
-];
-
-// Limites de crédito ANTES dos pedidos a prazo (o crédito dos não pagos sai no final de gerarMocks).
-const CLIENTES_BASE: ClienteSalvo[] = [
-  { id: 1, name: 'Construtora Horizonte Ltda', telefone: '(11) 3456-7890', cnpj: cnpjDe('112223330001'), email: 'compras@horizonte.com.br', categoria: 'VIP', limiteCredito: 50000 },
-  { id: 2, name: 'Mercado Bom Preço Ltda', telefone: '(11) 98765-4321', cnpj: cnpjDe('223334440001'), email: 'financeiro@bompreco.com.br', categoria: 'NORMAL', limiteCredito: 15000 },
-  { id: 3, name: 'Clínica Vida Plena', telefone: '(21) 2233-4455', cnpj: cnpjDe('334445550001'), email: 'adm@vidaplena.com.br', categoria: 'NORMAL', limiteCredito: 8000 },
-  { id: 4, name: 'Tech Solutions Informática', telefone: '(31) 99888-7766', cnpj: cnpjDe('445556660001'), email: 'contato@techsolutions.com.br', categoria: 'VIP', limiteCredito: 30000 },
-  { id: 5, name: 'Padaria Pão Quente', telefone: '(41) 3322-1100', cnpj: cnpjDe('556667770001'), email: 'padaria@paoquente.com.br', categoria: 'NORMAL', limiteCredito: 3000 },
-  { id: 6, name: 'Oficina Mecânica Rápido', telefone: '(51) 99777-6655', cnpj: cnpjDe('667778880001'), email: 'oficina@rapidomecanica.com.br', categoria: 'NORMAL', limiteCredito: 6000 },
-  // Desativado: não aparece para pedido novo (pode ser reativado em Clientes).
-  { id: 7, name: 'Distribuidora Litoral Ltda', telefone: '(48) 3333-2211', cnpj: cnpjDe('778889990001'), email: 'compras@distlitoral.com.br', categoria: 'NORMAL', limiteCredito: 4000, ativo: false },
-];
-
-// Estoque ANTES dos pedidos (a baixa é aplicada no final de gerarMocks).
-const PRODUTOS_BASE: ProdutoCriarResponse[] = [
-  { id: 1, nome: 'Notebook Dell Latitude 5440', descricao: 'Core i5, 16 GB RAM, SSD 512 GB', estoque: 25, precoVenda: 4890, precoAluguel: 320, status: 'DISPONIVEL' },
-  { id: 2, nome: 'Monitor LG 27" 4K', descricao: 'IPS, HDMI e DisplayPort', estoque: 40, precoVenda: 1890, precoAluguel: 140, status: 'DISPONIVEL' },
-  { id: 3, nome: 'Impressora Multifuncional HP', descricao: 'Laser, Wi-Fi, duplex', estoque: 15, precoVenda: 1250, precoAluguel: 95, status: 'DISPONIVEL' },
-  { id: 4, nome: 'Cadeira Ergonômica Pro', descricao: 'Encosto em tela, ajuste lombar', estoque: 30, precoVenda: 980, precoAluguel: 60, status: 'DISPONIVEL' },
-  { id: 5, nome: 'Projetor Epson Full HD', descricao: '3.600 lumens, HDMI', estoque: 8, precoVenda: 3200, precoAluguel: 210, status: 'DISPONIVEL' },
-  { id: 6, nome: 'Roteador Wi-Fi 6 TP-Link', descricao: 'Dual band AX3000', estoque: 50, precoVenda: 450, precoAluguel: 35, status: 'DISPONIVEL' },
-  { id: 7, nome: 'Servidor Dell PowerEdge T150', descricao: 'Xeon, 32 GB RAM, 2× 1 TB', estoque: 3, precoVenda: 18500, precoAluguel: 1200, status: 'DISPONIVEL' },
-  { id: 8, nome: 'Nobreak 1500 VA', descricao: 'Senoidal, bivolt', estoque: 0, precoVenda: 1100, precoAluguel: 80, status: 'INDISPONIVEL' },
-  { id: 9, nome: 'Tablet Samsung Tab A7 (linha antiga)', descricao: 'Fora de linha', estoque: 12, precoVenda: 1300, precoAluguel: 70, status: 'DESATIVADO' },
-];
 
 interface PedidoMock {
-  tipo: TipoPedido;
   clienteId: number;
-  pagamento: FormaPagamento;
-  itens: Record<number, number>; // produtoId -> quantidade
-  meses?: number;
+  criadoHa: number; // dias atrás
+  modalidade: ModalidadePagamento;
+  venceEm?: number; // dias a partir de hoje (negativo = já venceu)
+  itens: ItemMock[];
+  solicitado: number;
+  autorizado: number;
+  statusDesconto: StatusAprovacaoDesconto;
+  colaboradorId?: number;
+  status: StatusPedido;
   descricao?: string;
-  solicitacao?: SolicitacaoDesconto;
-  diasAtras: number;
-  concluido?: boolean;
-  devolvidoHaDias?: number;
-  pagoHaDias?: number; // só a prazo: pagamento registrado
-  canceladoHaDias?: number; // cancelado: estoque e crédito não ficam presos
 }
 
-const ANA = { colaboradorId: 1, colaboradorNome: 'Ana Souza' };
-const CARLOS = { colaboradorId: 2, colaboradorNome: 'Carlos Lima' };
-
-// Do mais antigo para o mais novo (a tela lista os mais recentes primeiro).
-const PEDIDOS_MOCK: PedidoMock[] = [
-  // Venda a prazo concluída e já paga: o crédito voltou ao limite.
-  { tipo: 'VENDA', clienteId: 5, pagamento: 'A_PRAZO', itens: { 6: 3 }, diasAtras: 50, concluido: true, pagoHaDias: 22 },
-  // Venda a prazo VENCIDA e não paga: deixa a Tech Solutions (VIP) inadimplente.
-  // Ela perde os 5% automáticos nos pedidos não pagos e não pode fazer pedido a prazo.
-  { tipo: 'VENDA', clienteId: 4, pagamento: 'A_PRAZO', descricao: 'Impressoras para a filial de Tubarão', itens: { 3: 2 }, diasAtras: 45, concluido: true },
-  // Aluguel concluído e em andamento: dá para testar a devolução.
-  { tipo: 'ALUGUEL', clienteId: 4, pagamento: 'A_VISTA', itens: { 5: 1 }, meses: 3, diasAtras: 40, concluido: true },
-  // Aluguel já devolvido.
-  { tipo: 'ALUGUEL', clienteId: 3, pagamento: 'PIX', itens: { 2: 2 }, meses: 2, diasAtras: 30, concluido: true, devolvidoHaDias: 6 },
-  // Aluguel a prazo concluído (pagamento pendente) de cliente VIP.
-  { tipo: 'ALUGUEL', clienteId: 4, pagamento: 'A_PRAZO', itens: { 1: 4 }, meses: 6, diasAtras: 25, concluido: true },
-  // Venda a prazo concluída: pedido concluído, pagamento pendente.
-  { tipo: 'VENDA', clienteId: 2, pagamento: 'A_PRAZO', itens: { 4: 6, 6: 4 }, diasAtras: 20, concluido: true },
-  // Venda VIP concluída e paga.
-  { tipo: 'VENDA', clienteId: 1, pagamento: 'PIX', descricao: 'Estações de trabalho do novo escritório', itens: { 1: 3, 2: 3 }, diasAtras: 12, concluido: true },
-  // VIP com solicitação de 15% aprovada: substitui os 5% automáticos (não soma).
-  { tipo: 'VENDA', clienteId: 1, pagamento: 'PIX', itens: { 4: 10 }, solicitacao: { percentual: 15, status: 'APROVADA', ...CARLOS }, diasAtras: 4 },
-  // Desconto rejeitado: pode confirmar, sem desconto.
-  { tipo: 'VENDA', clienteId: 6, pagamento: 'A_PRAZO', itens: { 3: 1, 4: 2 }, solicitacao: { percentual: 10, status: 'REJEITADA', ...CARLOS }, diasAtras: 3 },
-  // Desconto aprovado: pedido segue pendente até alguém confirmar.
-  { tipo: 'VENDA', clienteId: 3, pagamento: 'A_VISTA', itens: { 1: 2 }, solicitacao: { percentual: 7, status: 'APROVADA', ...ANA }, diasAtras: 2 },
-  // Desconto aguardando aprovação: confirmação bloqueada.
-  { tipo: 'VENDA', clienteId: 5, pagamento: 'PIX', itens: { 3: 2 }, solicitacao: { percentual: 10, status: 'PENDENTE' }, diasAtras: 1 },
-  // Cliente VIP: 5% automático, mas o pedido só conclui quando confirmado.
-  { tipo: 'VENDA', clienteId: 1, pagamento: 'PIX', itens: { 7: 1 }, diasAtras: 1 },
-  // Aluguel a prazo aguardando aprovação de desconto.
-  { tipo: 'ALUGUEL', clienteId: 6, pagamento: 'A_PRAZO', itens: { 2: 1 }, meses: 4, solicitacao: { percentual: 5, status: 'PENDENTE' }, diasAtras: 0 },
-  // VIP em dia pedindo 12% (fica com os 5% até a decisão).
-  { tipo: 'VENDA', clienteId: 1, pagamento: 'A_VISTA', itens: { 2: 5 }, solicitacao: { percentual: 12, status: 'PENDENTE' }, diasAtras: 0 },
-  // VIP inadimplente: compra no PIX sem desconto nenhum (perde os 5% e não pode solicitar).
-  { tipo: 'VENDA', clienteId: 4, pagamento: 'PIX', itens: { 6: 2 }, diasAtras: 0 },
-  // Venda a prazo cancelada: o estoque e o crédito reservado voltaram.
-  { tipo: 'VENDA', clienteId: 3, pagamento: 'A_PRAZO', descricao: 'Cancelado a pedido do cliente', itens: { 5: 1 }, diasAtras: 6, canceladoHaDias: 5 },
-  // Pedido cancelado com desconto ainda pendente: aparece em Descontos > Decididas como "Pedido cancelado".
-  { tipo: 'VENDA', clienteId: 6, pagamento: 'PIX', itens: { 4: 3 }, solicitacao: { percentual: 8, status: 'PENDENTE' }, diasAtras: 2, canceladoHaDias: 1 },
+const PEDIDOS: PedidoMock[] = [
+  { clienteId: 1, criadoHa: 1, modalidade: 'A_VISTA', itens: [{ produtoId: 1, quantidade: 2 }, { produtoId: 4, quantidade: 1 }], solicitado: 0, autorizado: 0.05, statusDesconto: 'APROVADO_AUTOMATICAMENTE', status: 'PENDENTE', descricao: 'Ferramentas para a obra do centro' },
+  { clienteId: 2, criadoHa: 2, modalidade: 'A_PRAZO', venceEm: 25, itens: [{ produtoId: 2, quantidade: 10 }], solicitado: 0.12, autorizado: 0, statusDesconto: 'PENDENTE', status: 'PENDENTE' },
+  { clienteId: 3, criadoHa: 1, modalidade: 'A_VISTA', itens: [{ produtoId: 7, quantidade: 1 }], solicitado: 0.08, autorizado: 0, statusDesconto: 'PENDENTE', status: 'PENDENTE' },
+  { clienteId: 3, criadoHa: 5, modalidade: 'A_PRAZO', venceEm: 20, itens: [{ produtoId: 3, quantidade: 2, aluguelAte: 15 }], solicitado: 0.05, autorizado: 0.05, statusDesconto: 'APROVADO', colaboradorId: 1, status: 'PENDENTE', descricao: 'Aluguel das betoneiras da reforma' },
+  { clienteId: 4, criadoHa: 40, modalidade: 'A_PRAZO', venceEm: -5, itens: [{ produtoId: 7, quantidade: 1 }], solicitado: 0, autorizado: 0, statusDesconto: 'NAO_SOLICITADO', status: 'PENDENTE' },
+  { clienteId: 4, criadoHa: 2, modalidade: 'A_VISTA', itens: [{ produtoId: 1, quantidade: 1 }], solicitado: 0.05, autorizado: 0, statusDesconto: 'REPROVADO_INADIPLENCIA', status: 'PENDENTE' },
+  { clienteId: 1, criadoHa: 30, modalidade: 'A_PRAZO', venceEm: -1, itens: [{ produtoId: 5, quantidade: 1, aluguelAte: -10, devolvidoHa: 12 }, { produtoId: 2, quantidade: 4 }], solicitado: 0, autorizado: 0.05, statusDesconto: 'APROVADO_AUTOMATICAMENTE', status: 'PAGO' },
+  { clienteId: 2, criadoHa: 7, modalidade: 'A_VISTA', itens: [{ produtoId: 6, quantidade: 1, aluguelAte: 7 }], solicitado: 0, autorizado: 0.05, statusDesconto: 'APROVADO_AUTOMATICAMENTE', status: 'PAGO' },
+  { clienteId: 5, criadoHa: 10, modalidade: 'A_VISTA', itens: [{ produtoId: 9, quantidade: 1 }], solicitado: 0.1, autorizado: 0, statusDesconto: 'REPROVADO', colaboradorId: 2, status: 'PAGO' },
+  { clienteId: 6, criadoHa: 0, modalidade: 'A_VISTA', itens: [{ produtoId: 4, quantidade: 2, aluguelAte: 30 }], solicitado: 0.15, autorizado: 0.15, statusDesconto: 'APROVADO', colaboradorId: 3, status: 'PENDENTE', descricao: 'Evento de fim de ano' },
 ];
 
-const DIA = 24 * 60 * 60 * 1000;
+/** Só os cadastros, como o back sobe (sem pedidos). Usado para comparar o front com o back. */
+export function cadastrosDoBack() {
+  return {
+    clientes: CLIENTES.map((c) => ({ ...c })),
+    produtos: PRODUTOS.map((p) => ({ ...p })),
+    colaboradores: COLABORADORES.map((c) => ({ ...c })),
+  };
+}
 
 export function gerarMocks() {
-  const agora = Date.now();
+  const clientes = CLIENTES.map((c) => ({ ...c }));
+  const produtos = PRODUTOS.map((p) => ({ ...p }));
 
-  const clientes = CLIENTES_BASE.map((c) => ({ ...c }));
-  const produtos = PRODUTOS_BASE.map((p) => ({ ...p }));
-
-  const pedidos: Pedido[] = [];
-  PEDIDOS_MOCK.forEach((m, i) => {
-    const cliente = clientes.find((c) => c.id === m.clienteId)!;
-    const emissao = new Date(agora - m.diasAtras * DIA);
-    // A prazo: vencimento "escolhido" no pedido (aqui, 30 dias depois). PIX/à vista: a própria emissão.
-    const vencimento = new Date(emissao);
-    if (m.pagamento === 'A_PRAZO') vencimento.setDate(vencimento.getDate() + PRAZO_DIAS);
-    const fimAluguel = m.meses ? new Date(emissao) : undefined;
-    fimAluguel?.setMonth(fimAluguel.getMonth() + m.meses!);
-
-    const aluguel = m.tipo === 'ALUGUEL';
-    const pedido: Pedido = {
+  const pedidos: PedidoSalvo[] = PEDIDOS.map((m, i) => {
+    const itens: ItemSalvo[] = m.itens.map((it) => {
+      const produto = produtos.find((p) => p.id === it.produtoId)!;
+      const isAluguel = it.aluguelAte !== undefined;
+      const devolvido = it.devolvidoHa !== undefined;
+      if (!devolvido) produto.estoque -= it.quantidade; // o que está com o cliente sai do estoque
+      return {
+        produtoId: it.produtoId,
+        quantidade: it.quantidade,
+        valorItem: valorItem(produto, it.quantidade, isAluguel),
+        isAluguel,
+        dataVencimentoAluguel: isAluguel ? dia(it.aluguelAte!) : null,
+        dataDevolucao: devolvido ? dia(-it.devolvidoHa!) : null,
+      };
+    });
+    const valorTotal = totalComDesconto(subtotalDe(itens), m.autorizado);
+    // A prazo ainda não pago segura o total no limite do cliente.
+    if (m.modalidade === 'A_PRAZO' && m.status === 'PENDENTE') {
+      const cliente = clientes.find((c) => c.id === m.clienteId)!;
+      cliente.limiteCredito = arredondar(cliente.limiteCredito - valorTotal);
+    }
+    const decidido = m.statusDesconto !== 'NAO_SOLICITADO' && m.statusDesconto !== 'PENDENTE';
+    return {
       id: i + 1,
-      tipo: m.tipo,
-      clienteId: cliente.id,
-      clienteNome: cliente.name,
-      clienteCategoria: cliente.categoria,
-      itens: Object.entries(m.itens).map(([id, quantidade]) => {
-        const produto = produtos.find((p) => p.id === Number(id))!;
-        return {
-          produtoId: produto.id,
-          nome: produto.nome,
-          precoUnitario: aluguel ? produto.precoAluguel : produto.precoVenda,
-          quantidade,
-        };
-      }),
-      meses: m.meses,
-      pagamento: m.pagamento,
-      descricao: m.descricao,
-      solicitacao: m.solicitacao,
-      criadoEm: emissao.toISOString(),
-      emissao: emissao.toISOString(),
-      vencimento: vencimento.toISOString(),
-      fimAluguel: fimAluguel?.toISOString(),
-      concluidoEm: m.concluido ? new Date(emissao.getTime() + 60 * 60 * 1000).toISOString() : undefined,
-      devolvidoEm: m.devolvidoHaDias != null ? new Date(agora - m.devolvidoHaDias * DIA).toISOString() : undefined,
-      canceladoEm: m.canceladoHaDias != null ? new Date(agora - m.canceladoHaDias * DIA).toISOString() : undefined,
-      pagoEm: pagoNaHora(m)
-        ? emissao.toISOString()
-        : m.pagoHaDias != null
-          ? new Date(agora - m.pagoHaDias * DIA).toISOString()
-          : undefined,
-      // Situação do cliente na data do pedido (os anteriores podem ter vencido sem pagamento).
-      clienteInadimplente: estaInadimplente(cliente.id, pedidos, emissao),
+      descricao: m.descricao ?? null,
+      valorTotal,
+      dataCriacao: dia(-m.criadoHa),
+      dataVencimento: m.venceEm !== undefined ? dia(m.venceEm) : null,
+      dataAtualizacaoDesconto: decidido && m.statusDesconto !== 'REPROVADO_INADIPLENCIA' ? dia(-m.criadoHa) : null,
+      descontoSolicitado: m.solicitado,
+      descontoAutorizado: m.autorizado,
+      statusPedido: m.status,
+      statusAprovacaoDesconto: m.statusDesconto,
+      modalidadePagamento: m.modalidade,
+      clienteId: m.clienteId,
+      colaboradorDescontoId: m.colaboradorId ?? null,
+      itens,
     };
-
-    // Mesmas regras de criarPedidoLocal: baixa de estoque (volta se devolvido ou cancelado) e crédito usado a prazo.
-    if (!pedido.devolvidoEm && !pedido.canceladoEm) {
-      for (const item of pedido.itens) {
-        produtos.find((p) => p.id === item.produtoId)!.estoque -= item.quantidade;
-      }
-    }
-    // Crédito a prazo: fica reservado até o pagamento (se já foi pago ou cancelado, voltou ao limite).
-    if (pedido.pagamento === 'A_PRAZO') {
-      pedido.creditoUsado = resumoPedido(pedido).total;
-      if (!pedido.pagoEm && !pedido.canceladoEm) {
-        cliente.limiteCredito = Math.round((cliente.limiteCredito - pedido.creditoUsado) * 100) / 100;
-      }
-    }
-    // Pago depois da emissão: grava a situação do cliente no dia do pagamento.
-    if (pedido.pagoEm && pedido.pagoEm !== pedido.emissao) {
-      pedido.clienteInadimplente = estaInadimplente(cliente.id, [...pedidos, pedido], new Date(pedido.pagoEm));
-    }
-    // Cancelado: a situação do cliente fica congelada no dia do cancelamento (como em cancelarPedidoLocal).
-    if (pedido.canceladoEm) {
-      pedido.clienteInadimplente = estaInadimplente(cliente.id, pedidos, new Date(pedido.canceladoEm));
-    }
-    pedidos.push(pedido);
   });
 
-  return { clientes, produtos, pedidos };
+  return { clientes, produtos, colaboradores: COLABORADORES.map((c) => ({ ...c })), pedidos };
 }

@@ -335,6 +335,7 @@ button.rejeitar:hover:not(:disabled) {
 
 .selo.vencido,
 .selo.inadimplente,
+.selo.rejeitado,
 .selo.rejeitada {
   background: #b91c1c;
 }
@@ -673,6 +674,25 @@ button.modal-fechar:hover:not(:disabled) {
 
 .produto-escolhido .msg {
   grid-column: 1 / -1;
+}
+
+/* Venda ou aluguel é escolhido por item (igual ao back: isAluguel + dataVencimentoAluguel). */
+.produto-escolhido .item-aluguel {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.item-aluguel label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.item-aluguel input[type='date'] {
+  padding: 4px 6px;
 }
 
 button.remover {

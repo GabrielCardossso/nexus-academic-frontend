@@ -1,13 +1,14 @@
 /**
- * Regras de negócio em funções puras, separadas por assunto. Usadas pela tela (prévia do pedido)
- * e pelos dados locais (o "back" de mentira). Importe sempre daqui: `import { resumoPedido } from '../regras'`.
+ * Regras de negócio em funções puras, iguais às do back (PedidoService etc.). Usadas pela tela
+ * (prévia do pedido) e pelos dados locais (o "back" de mentira). Importe sempre daqui:
+ * `import { podeFinalizar } from '../regras'`.
  *
- *  - pedido.ts        total, status e o que o pedido pode fazer (confirmar, pagar, editar, cancelar, devolver)
- *  - descontos.ts     desconto automático de VIP, faixas de solicitação e textos da decisão
+ *  - pedido.ts        valor dos itens, total e o que o pedido pode fazer (finalizar, editar, excluir, devolver)
+ *  - descontos.ts     desconto na criação, na edição e na decisão do colaborador
  *  - inadimplencia.ts pedido vencido e cliente inadimplente
- *  - datas.ts         vencimento e conversões de data
- *  - mensagens.ts     mensagens de regra usadas na tela e nos dados locais
- *  - rotulos.ts       textos de cada valor (pagamento, tipo, status)
+ *  - datas.ts         datas no formato do back (AAAA-MM-DD) e o @Future
+ *  - mensagens.ts     mensagens de regra (inclui as travas que só o front tem)
+ *  - rotulos.ts       textos de cada valor dos enums
  */
 export * from './pedido';
 export * from './descontos';

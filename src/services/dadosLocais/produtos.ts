@@ -1,55 +1,94 @@
-/** Produtos nos dados locais: cadastrar, listar, editar e repor estoque. */
+/** Produtos nos dados locais, iguais ao ProdutoService do back: cadastrar, listar, editar, repor estoque e excluir. */
 import type {
   ProdutoCriarRequest,
   ProdutoCriarResponse,
   ProdutoEditarRequest,
   ProdutoListarResponse,
 } from '../../types';
-import { CHAVE_PRODUTOS, ler, proximoId, salvar, substituir } from './armazenamento';
+import {
+  ativos,
+  CHAVE_PEDIDOS,
+  CHAVE_PRODUTOS,
+  falha,
+  ler,
+  proximoId,
+  salvar,
+  substituir,
+  type PedidoSalvo,
+  type ProdutoSalvo,
+} from './armazenamento';
 
+const naoExiste = (id: number): never => falha(`O produto de id : ${id} não existe`);
+
+function validarPreco(valor: number, rotulo: string): number {
+  const n = Number(valor);
+  if (!Number.isFinite(n) || n < 0) falha(`${rotulo} inválido.`); // @Min(0) da entidade
+  return n;
+}
+
+/** POST /produtos. O back não recebe status: o produto novo fica sem status (null). */
 export async function cadastrarProdutoLocal(dados: ProdutoCriarRequest): Promise<ProdutoCriarResponse> {
-  const produtos = ler<ProdutoCriarResponse>(CHAVE_PRODUTOS);
-  // O cadastro não recebe status (igual ao back): todo produto novo entra como disponível.
-  const novo: ProdutoCriarResponse = { ...dados, id: proximoId(produtos), nome: dados.nome.trim(), status: 'DISPONIVEL' };
-  salvar(CHAVE_PRODUTOS, [...produtos, novo]);
-  return novo;
-}
-
-export async function listarProdutosLocal(): Promise<ProdutoListarResponse[]> {
-  return ler<ProdutoListarResponse>(CHAVE_PRODUTOS);
-}
-
-/**
- * Edita nome, descrição, preços e status (inclusive desativar/reativar). O estoque só muda por
- * "Repor estoque" e pelos pedidos.
- */
-export async function editarProdutoLocal(id: number, dados: ProdutoEditarRequest): Promise<ProdutoCriarResponse> {
-  const produtos = ler<ProdutoCriarResponse>(CHAVE_PRODUTOS);
-  const atual = produtos.find((p) => p.id === id);
-  if (!atual) throw new Error('Produto não encontrado.');
   const nome = dados.nome.trim();
-  if (!nome) throw new Error('Informe o nome do produto.');
-  const precoVenda = Number(dados.precoVenda);
-  const precoAluguel = Number(dados.precoAluguel);
-  if (!Number.isFinite(precoVenda) || precoVenda < 0) throw new Error('Preço de venda inválido.');
-  if (!Number.isFinite(precoAluguel) || precoAluguel < 0) throw new Error('Preço de aluguel inválido.');
+  if (!nome) falha('Informe o nome do produto.');
+  const estoque = Number(dados.estoque);
+  if (!Number.isInteger(estoque) || estoque < 0) falha('Estoque inválido.');
+  const produtos = ler<ProdutoSalvo>(CHAVE_PRODUTOS);
+  const novo: ProdutoSalvo = {
+    id: proximoId(produtos),
+    nome,
+    descricao: dados.descricao.trim(),
+    estoque,
+    precoVenda: validarPreco(dados.precoVenda, 'Preço de venda'),
+    precoAluguel: validarPreco(dados.precoAluguel, 'Preço de aluguel'),
+    status: null,
+  };
+  salvar(CHAVE_PRODUTOS, [...produtos, novo]);
+  const { id, descricao, precoVenda, precoAluguel } = novo;
+  return { id, nome, descricao, estoque, precoVenda, precoAluguel };
+}
+
+/** GET /produtos: só os não excluídos. O id e o status vêm a mais (o back ainda não devolve). */
+export async function listarProdutosLocal(): Promise<ProdutoListarResponse[]> {
+  return ativos(ler<ProdutoSalvo>(CHAVE_PRODUTOS)).map(({ excluido: _, ...p }) => p);
+}
+
+/** PUT /produtos/{id}/editar: nome, descrição e preços. Estoque e status não mudam aqui. */
+export async function editarProdutoLocal(id: number, dados: ProdutoEditarRequest): Promise<ProdutoSalvo> {
+  const produtos = ler<ProdutoSalvo>(CHAVE_PRODUTOS);
+  const atual = ativos(produtos).find((p) => p.id === id) ?? naoExiste(id);
+  const nome = dados.nome.trim();
+  if (!nome) falha('Informe o nome do produto.'); // @NotEmpty
   return substituir(CHAVE_PRODUTOS, produtos, {
     ...atual,
     nome,
     descricao: dados.descricao.trim(),
-    precoVenda,
-    precoAluguel,
-    status: dados.status,
+    precoVenda: validarPreco(dados.precoVenda, 'Preço de venda'),
+    precoAluguel: validarPreco(dados.precoAluguel, 'Preço de aluguel'),
   });
 }
 
-/** Repor estoque: soma a quantidade ao estoque atual (não substitui e não muda o status). */
-export async function reporEstoqueLocal(id: number, quantidade: number): Promise<ProdutoCriarResponse> {
-  const produtos = ler<ProdutoCriarResponse>(CHAVE_PRODUTOS);
-  const atual = produtos.find((p) => p.id === id);
-  if (!atual) throw new Error('Produto não encontrado.');
-  if (!Number.isInteger(quantidade) || quantidade <= 0) {
-    throw new Error('Informe uma quantidade inteira maior que zero para repor.');
+/** PUT /produtos/adicionarEstoque: soma a quantidade ao estoque (não muda o status). */
+export async function reporEstoqueLocal(id: number, quantidade: number): Promise<ProdutoSalvo> {
+  const produtos = ler<ProdutoSalvo>(CHAVE_PRODUTOS);
+  const atual = ativos(produtos).find((p) => p.id === id) ?? naoExiste(id);
+  if (!Number.isInteger(quantidade) || quantidade < 1) {
+    falha('É preciso informar uma quantidade maior que 0 para adição de estoque');
   }
   return substituir(CHAVE_PRODUTOS, produtos, { ...atual, estoque: atual.estoque + quantidade });
+}
+
+/**
+ * DELETE /produtos/{id}: soft delete (o produto some da listagem; o back não tem reativar produto).
+ * Não deixa se o produto estiver em pedido pendente ou em aluguel ainda não devolvido.
+ */
+export async function excluirProdutoLocal(id: number): Promise<ProdutoSalvo> {
+  const produtos = ler<ProdutoSalvo>(CHAVE_PRODUTOS);
+  const atual = ativos(produtos).find((p) => p.id === id) ?? naoExiste(id);
+  const emUso = ativos(ler<PedidoSalvo>(CHAVE_PEDIDOS)).some((p) =>
+    p.itens.some(
+      (i) => i.produtoId === id && (p.statusPedido === 'PENDENTE' || (i.isAluguel && !i.dataDevolucao)),
+    ),
+  );
+  if (emUso) falha(`O produto de id: ${id} não pode ser excluído pois possui pedidos pendentes ou aluguéis não devolvidos`);
+  return substituir(CHAVE_PRODUTOS, produtos, { ...atual, excluido: true });
 }

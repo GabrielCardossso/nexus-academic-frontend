@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import Aviso from '../components/comum/Aviso';
 import Selecao from '../components/comum/Selecao';
-import { decidirDesconto, listarColaboradores, listarPedidos } from '../services/api';
+import { listarColaboradores, listarPedidos, resolverDesconto } from '../services/api';
 import {
-  mensagemRejeicao,
-  MSG_INADIMPLENTE_SEM_DESCONTO,
-  resumoPedido,
+  DESCONTO_VIP,
+  decididoPorColaborador,
+  estaInadimplente,
+  MSG_INADIMPLENTE_NAO_APROVA,
+  percentual,
   ROTULO_PAGAMENTO,
-  ROTULO_TIPO,
+  ROTULO_STATUS_DESCONTO,
+  subtotalDe,
+  tipoDoPedido,
+  totalComDesconto,
 } from '../regras';
-import type { Colaborador, Pedido } from '../types';
+import type { Colaborador, DecisaoDesconto, Pedido } from '../types';
 import { dataBR, moeda, type Mensagem } from '../utils';
 
 type Aba = 'PENDENTES' | 'DECIDIDAS';
@@ -17,6 +22,14 @@ type Aba = 'PENDENTES' | 'DECIDIDAS';
 interface DescontosTelaProps {
   /** Avisa o App quando muda a quantidade de pendentes (contador do menu). */
   onPendentesMudou?: () => void;
+}
+
+/** Total se aprovar e se reprovar (só dá para calcular quando os itens vêm na resposta). */
+function previsoes(p: Pedido): { aprovar: number; reprovar: number } | null {
+  if (!p.itens || p.descontoSolicitado == null || p.descontoAutorizado == null) return null;
+  const subtotal = subtotalDe(p.itens);
+  const reprovado = p.clienteClassificacao === 'VIP' ? DESCONTO_VIP : p.descontoAutorizado;
+  return { aprovar: totalComDesconto(subtotal, p.descontoSolicitado), reprovar: totalComDesconto(subtotal, reprovado) };
 }
 
 export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) {
@@ -30,7 +43,7 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
   async function carregar() {
     try {
       const [todos, p] = await Promise.all([listarColaboradores(), listarPedidos()]);
-      const c = todos.filter((x) => x.ativo !== false); // desativado não decide descontos
+      const c = todos.filter((x) => x.ativo !== false); // desativado não decide descontos (o back responde "não existe")
       setColaboradores(c);
       setPedidos(p);
       setColaboradorId((atual) => (c.some((x) => String(x.id) === atual) ? atual : String(c[0]?.id ?? '')));
@@ -47,25 +60,25 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
   const fecharAviso = useCallback(() => setAviso(null), []);
 
   const colaborador = colaboradores.find((c) => String(c.id) === colaboradorId);
-  const comSolicitacao = (pedidos ?? []).filter((p) => p.solicitacao);
-  // Pedido cancelado sai dos pendentes (não há mais o que decidir).
-  const pendentes = comSolicitacao.filter((p) => p.solicitacao!.status === 'PENDENTE' && !p.canceladoEm);
-  // Cancelado antes da decisão vai para o histórico (aba Decididas), com o selo "Pedido cancelado".
-  const decididas = comSolicitacao.filter((p) => p.solicitacao!.status !== 'PENDENTE' || p.canceladoEm);
+  // Iguais ao GET /pedidos/solicitacoesDescontoEmAberto: pedido pendente com desconto pendente.
+  const pendentes = (pedidos ?? []).filter((p) => p.statusPedido === 'PENDENTE' && p.statusAprovacaoDesconto === 'PENDENTE');
+  // Histórico: decididas por um colaborador e as reprovadas por inadimplência.
+  const decididas = (pedidos ?? []).filter(
+    (p) => decididoPorColaborador(p.statusAprovacaoDesconto) || p.statusAprovacaoDesconto === 'REPROVADO_INADIPLENCIA',
+  );
   const lista = aba === 'PENDENTES' ? pendentes : decididas;
+  const inadimplente = (p: Pedido) => estaInadimplente({ id: p.clienteId, email: p.clienteEmail }, pedidos ?? []);
 
-  async function decidir(pedido: Pedido, aprovar: boolean) {
+  async function decidir(pedido: Pedido, decisao: DecisaoDesconto) {
     if (!colaborador) return;
     setAviso(null);
     setDecidindo(pedido.id);
     try {
-      const atualizado = await decidirDesconto(pedido.id, aprovar, colaborador.id);
-      const s = atualizado.solicitacao!;
-      setAviso(
-        aprovar
-          ? { tipo: 'sucesso', texto: `Desconto de ${s.percentual}% do pedido #${pedido.id} aprovado por ${s.colaboradorNome}.` }
-          : { tipo: 'sucesso', texto: mensagemRejeicao(s) },
-      );
+      await resolverDesconto(pedido.id, colaborador.id, decisao);
+      setAviso({
+        tipo: 'sucesso',
+        texto: `Desconto do pedido #${pedido.id} ${decisao === 'APROVADO' ? 'aprovado' : 'reprovado'} por ${colaborador.nome}.`,
+      });
       await carregar();
       onPendentesMudou?.();
     } catch (err) {
@@ -86,7 +99,7 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
             onChange={setColaboradorId}
             disabled={colaboradores.length === 0}
             placeholder="Nenhum colaborador"
-            opcoes={colaboradores.map((c) => ({ valor: String(c.id), rotulo: c.nome, detalhe: `ID ${c.id}` }))}
+            opcoes={colaboradores.map((c) => ({ valor: String(c.id), rotulo: c.nome, detalhe: c.id > 0 ? `ID ${c.id}` : undefined }))}
           />
         </label>
       </div>
@@ -96,6 +109,12 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
       {pedidos && colaboradores.length === 0 && (
         <p className="aviso erro">
           Cadastre ou reative um colaborador (Gestão &gt; Colaboradores) para poder decidir os descontos.
+        </p>
+      )}
+      {colaborador && colaborador.id <= 0 && (
+        <p className="aviso erro">
+          O back ainda não devolve o id na listagem de colaboradores, e a decisão de desconto exige o id: não dá para aprovar
+          nem reprovar pela tela até o back incluir esse campo.
         </p>
       )}
 
@@ -108,7 +127,6 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
         </button>
       </div>
 
-
       {pedidos === null && <p className="vazio">Carregando solicitações...</p>}
       {pedidos && lista.length === 0 && (
         <p className="vazio">
@@ -118,69 +136,87 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
 
       <ul className="itens">
         {lista.map((p) => {
-          const s = p.solicitacao!;
-          const aguardando = s.status === 'PENDENTE' && !p.canceladoEm; // cancelado não tem mais o que decidir
-          const atual = resumoPedido({ ...p, solicitacao: { ...s, status: 'REJEITADA' } }); // sem a solicitação
-          const comDesconto = resumoPedido({ ...p, solicitacao: { ...s, status: 'APROVADA' } });
+          const aguardando = p.statusAprovacaoDesconto === 'PENDENTE';
+          const devendo = inadimplente(p);
+          const prev = previsoes(p);
+          const tipo = tipoDoPedido(p.itens);
           return (
             <li key={p.id} className="item">
               <div className="item-topo">
                 <span className="item-titulo">
-                  #{p.id} · {ROTULO_TIPO[p.tipo]} <span className="item-sub">· {dataBR(p.criadoEm)}</span>
+                  #{p.id}
+                  {tipo && ` · ${tipo}`} <span className="item-sub">· {dataBR(p.dataCriacao)}</span>
                 </span>
-                {aguardando && <span className="selo pendente">Aguardando decisão</span>}
-                {p.canceladoEm && <span className="selo cancelado">Pedido cancelado</span>}
-                {s.status === 'APROVADA' && <span className="selo aprovada">Aprovada</span>}
-                {s.status === 'REJEITADA' && <span className="selo rejeitada">Rejeitada</span>}
+                {aguardando ? (
+                  <span className="selo pendente">Aguardando decisão</span>
+                ) : (
+                  <span className={`selo ${p.statusAprovacaoDesconto === 'APROVADO' ? 'aprovada' : 'rejeitada'}`}>
+                    {ROTULO_STATUS_DESCONTO[p.statusAprovacaoDesconto]}
+                  </span>
+                )}
               </div>
 
               <div className="item-linha">
                 <strong>{p.clienteNome}</strong>
-                {p.clienteCategoria === 'VIP' && <span className="selo vip">VIP</span>}
-                {p.clienteInadimplente && <span className="selo inadimplente">Inadimplente</span>}
+                {p.clienteClassificacao === 'VIP' && <span className="selo vip">VIP</span>}
+                {devendo && <span className="selo inadimplente">Inadimplente</span>}
               </div>
-              <p className="item-info">{p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')}</p>
+              {p.itens && <p className="item-info">{p.itens.map((i) => `${i.quantidade}× ${i.nomeProduto}`).join(', ')}</p>}
 
               <div className="item-linha entre">
                 <span className="item-info">
-                  Solicitou <strong>{s.percentual}%</strong> · {ROTULO_PAGAMENTO[p.pagamento]}
+                  {p.descontoSolicitado != null && (
+                    <>
+                      Solicitou <strong>{percentual(p.descontoSolicitado)}</strong>
+                    </>
+                  )}
+                  {p.modalidadePagamento && ` · ${ROTULO_PAGAMENTO[p.modalidadePagamento]}`}
                 </span>
                 <span className="item-info">
-                  {/* Sem diferença (ex.: cliente inadimplente, que não tem desconto): mostra só o total. */}
-                  {comDesconto.total !== atual.total && <>{moeda.format(atual.total)} → </>}
-                  <strong className="valor">{moeda.format(comDesconto.total)}</strong>
+                  {aguardando && prev ? (
+                    <>
+                      Aprovando: <strong className="valor">{moeda.format(prev.aprovar)}</strong> · Reprovando:{' '}
+                      {moeda.format(prev.reprovar)}
+                    </>
+                  ) : (
+                    <strong className="valor">{moeda.format(p.valorTotal)}</strong>
+                  )}
                 </span>
               </div>
 
-              {aguardando && p.clienteInadimplente && (
-                <p className="aviso erro">{MSG_INADIMPLENTE_SEM_DESCONTO} Esta solicitação só pode ser rejeitada.</p>
+              {aguardando && p.clienteClassificacao === 'VIP' && (
+                <p className="dica">Cliente VIP: se reprovar, o pedido fica com os 5% automáticos.</p>
               )}
+              {/* TRAVA DO FRONT: o back aceita aprovar mesmo se o cliente virou inadimplente depois de pedir. */}
+              {aguardando && devendo && <p className="aviso erro">{MSG_INADIMPLENTE_NAO_APROVA}</p>}
               {aguardando ? (
                 <div className="item-rodape fim">
                   <div className="acoes">
                     <button
                       type="button"
                       className="rejeitar"
-                      disabled={!colaborador || decidindo === p.id}
-                      onClick={() => decidir(p, false)}
+                      disabled={!colaborador || colaborador.id <= 0 || decidindo === p.id}
+                      onClick={() => decidir(p, 'REPROVADO')}
                     >
-                      Rejeitar
+                      Reprovar
                     </button>
                     <button
                       type="button"
                       className="confirmar"
-                      disabled={!colaborador || decidindo === p.id || p.clienteInadimplente}
-                      onClick={() => decidir(p, true)}
+                      disabled={!colaborador || colaborador.id <= 0 || decidindo === p.id || devendo}
+                      onClick={() => decidir(p, 'APROVADO')}
                     >
-                      Aprovar {s.percentual}%
+                      Aprovar{p.descontoSolicitado != null ? ` ${percentual(p.descontoSolicitado)}` : ''}
                     </button>
                   </div>
                 </div>
               ) : (
                 <p className="item-info">
-                  {s.status === 'PENDENTE'
-                    ? 'Pedido cancelado antes da decisão.'
-                    : `${s.status === 'APROVADA' ? 'Aprovada' : 'Rejeitada'} por ${s.colaboradorNome} (ID ${s.colaboradorId})`}
+                  {p.statusAprovacaoDesconto === 'REPROVADO_INADIPLENCIA'
+                    ? 'Reprovado automaticamente: o cliente estava inadimplente quando o pedido foi feito.'
+                    : `${p.statusAprovacaoDesconto === 'APROVADO' ? 'Aprovado' : 'Reprovado'} por ${p.colaboradorDescontoNome ?? '—'}${
+                        p.dataAtualizacaoDesconto ? ` em ${dataBR(p.dataAtualizacaoDesconto)}` : ''
+                      }`}
                 </p>
               )}
             </li>

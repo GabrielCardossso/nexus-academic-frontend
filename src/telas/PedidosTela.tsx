@@ -4,17 +4,20 @@ import ConfirmarModal from '../components/comum/ConfirmarModal';
 import Modal from '../components/comum/Modal';
 import PedidoForm from '../components/pedidos/PedidoForm';
 import PedidoCard from '../components/pedidos/PedidoCard';
+import { estaInadimplente } from '../regras';
 import {
-  cancelarPedido,
-  confirmarPedido,
   devolverPedido,
+  excluirPedido,
+  finalizarPedido,
   listarClientes,
   listarPedidos,
   listarProdutos,
-  pagarPedido,
 } from '../services/api';
 import type { ClienteListarResponse, Pedido, ProdutoListarResponse } from '../types';
 import { moeda, type Mensagem } from '../utils';
+
+const listaItens = (p: Pedido) =>
+  p.itens ? p.itens.map((i) => `${i.quantidade}× ${i.nomeProduto}${i.isAluguel ? ' (aluguel)' : ''}`).join(', ') : null;
 
 export default function PedidosTela() {
   const [clientes, setClientes] = useState<ClienteListarResponse[]>([]);
@@ -25,8 +28,9 @@ export default function PedidosTela() {
   const [novoAberto, setNovoAberto] = useState(false);
   const [editando, setEditando] = useState<Pedido | null>(null); // pedido no popup de edição
   const [enviandoNovo, setEnviandoNovo] = useState(false);
-  const [devolvendo, setDevolvendo] = useState<Pedido | null>(null); // pedido no popup de devolução
-  const [cancelando, setCancelando] = useState<Pedido | null>(null); // pedido no popup de cancelamento
+  const [devolvendo, setDevolvendo] = useState<Pedido | null>(null);
+  const [excluindo, setExcluindo] = useState<Pedido | null>(null);
+  const [finalizando, setFinalizando] = useState<Pedido | null>(null);
   const [processando, setProcessando] = useState(false);
 
   async function carregar() {
@@ -50,44 +54,33 @@ export default function PedidosTela() {
     setNovoAberto(false);
     setEditando(null);
   }, []);
-  const cancelarDevolucao = useCallback(() => setDevolvendo(null), []);
-  const fecharCancelamento = useCallback(() => setCancelando(null), []);
+  const fecharDevolucao = useCallback(() => setDevolvendo(null), []);
+  const fecharExclusao = useCallback(() => setExcluindo(null), []);
+  const fecharFinalizacao = useCallback(() => setFinalizando(null), []);
 
-  async function executar(acao: () => Promise<unknown>, sucesso: string) {
+  /** Roda a ação do popup de confirmação, mostra o aviso e recarrega (estoque e crédito mudam). */
+  async function confirmar(acao: () => Promise<unknown>, sucesso: string, fechar: () => void) {
     setAviso(null);
+    setProcessando(true);
     try {
       await acao();
       setAviso({ tipo: 'sucesso', texto: sucesso });
       await carregar();
     } catch (err) {
       setAviso({ tipo: 'erro', texto: (err as Error).message });
+    } finally {
+      setProcessando(false);
+      fechar();
     }
   }
 
-  async function aoSalvar(pedido: Pedido) {
-    setAviso({ tipo: 'sucesso', texto: editando ? `Pedido #${pedido.id} atualizado!` : `Pedido #${pedido.id} realizado!` });
+  async function aoSalvar(mensagem: string) {
+    setAviso({ tipo: 'sucesso', texto: mensagem });
     fecharNovo();
-    await carregar(); // estoque e crédito mudaram e o pedido entra (ou muda) na lista
+    await carregar();
   }
 
-  async function confirmarDevolucao() {
-    if (!devolvendo) return;
-    setProcessando(true);
-    await executar(() => devolverPedido(devolvendo.id), `Aluguel #${devolvendo.id} devolvido. Estoque atualizado.`);
-    setProcessando(false);
-    setDevolvendo(null);
-  }
-
-  async function confirmarCancelamento() {
-    if (!cancelando) return;
-    setProcessando(true);
-    await executar(
-      () => cancelarPedido(cancelando.id),
-      `Pedido #${cancelando.id} cancelado. Estoque${cancelando.creditoUsado ? ' e crédito' : ''} devolvido${cancelando.creditoUsado ? 's' : ''}.`,
-    );
-    setProcessando(false);
-    setCancelando(null);
-  }
+  const inadimplente = (p: Pedido) => estaInadimplente({ id: p.clienteId, email: p.clienteEmail }, pedidos ?? []);
 
   return (
     <>
@@ -113,16 +106,11 @@ export default function PedidosTela() {
           <PedidoCard
             key={p.id}
             pedido={p}
-            onConfirmar={(x) => executar(() => confirmarPedido(x.id), `Pedido #${x.id} confirmado e concluído.`)}
-            onPagar={(x) =>
-              executar(
-                () => pagarPedido(x.id),
-                `Pagamento do pedido #${x.id} registrado. ${moeda.format(x.creditoUsado ?? 0)} voltaram ao limite de crédito.`,
-              )
-            }
+            clienteInadimplente={inadimplente(p)}
+            onFinalizar={setFinalizando}
             onDevolver={setDevolvendo}
             onEditar={setEditando}
-            onCancelar={setCancelando}
+            onExcluir={setExcluindo}
           />
         ))}
       </ul>
@@ -146,43 +134,84 @@ export default function PedidosTela() {
       </Modal>
 
       <ConfirmarModal
-        aberto={devolvendo !== null}
-        titulo="Confirmar devolução?"
-        textoConfirmar="Confirmar devolução"
+        aberto={finalizando !== null}
+        titulo="Finalizar pedido?"
+        textoConfirmar="Finalizar (pago)"
+        textoCancelar="Voltar"
         carregando={processando}
-        onConfirmar={confirmarDevolucao}
-        onCancelar={cancelarDevolucao}
+        onConfirmar={() =>
+          finalizando &&
+          confirmar(() => finalizarPedido(finalizando.id), `Pedido #${finalizando.id} finalizado: pagamento registrado.`, fecharFinalizacao)
+        }
+        onCancelar={fecharFinalizacao}
       >
-        {devolvendo && (
+        {finalizando && (
           <>
             <p>
-              <strong>Aluguel #{devolvendo.id}</strong> — {devolvendo.clienteNome}
+              <strong>Pedido #{finalizando.id}</strong> — {finalizando.clienteNome} — {moeda.format(finalizando.valorTotal)}
             </p>
-            <p>{devolvendo.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')}</p>
-            <p>Os itens voltam ao estoque e o pedido passa para "Devolvido". Essa ação não pode ser desfeita.</p>
+            <p>
+              O pedido passa para "Pago" e não pode mais ser editado nem excluído.
+              {finalizando.modalidadePagamento === 'A_PRAZO' && ' O valor reservado volta para o limite de crédito do cliente.'}
+            </p>
           </>
         )}
       </ConfirmarModal>
 
       <ConfirmarModal
-        aberto={cancelando !== null}
-        titulo="Cancelar pedido?"
-        textoConfirmar="Cancelar pedido"
-        textoCancelar="Voltar"
+        aberto={devolvendo !== null}
+        titulo="Confirmar devolução?"
+        textoConfirmar="Confirmar devolução"
         carregando={processando}
-        onConfirmar={confirmarCancelamento}
-        onCancelar={fecharCancelamento}
+        onConfirmar={() =>
+          devolvendo &&
+          confirmar(() => devolverPedido(devolvendo.id), `Aluguel do pedido #${devolvendo.id} devolvido. Estoque atualizado.`, fecharDevolucao)
+        }
+        onCancelar={fecharDevolucao}
       >
-        {cancelando && (
+        {devolvendo && (
           <>
             <p>
-              <strong>Pedido #{cancelando.id}</strong> — {cancelando.clienteNome}
+              <strong>Pedido #{devolvendo.id}</strong> — {devolvendo.clienteNome}
             </p>
-            <p>{cancelando.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')}</p>
+            {devolvendo.itens && (
+              <p>
+                {devolvendo.itens
+                  .filter((i) => i.isAluguel && !i.dataDevolucao)
+                  .map((i) => `${i.quantidade}× ${i.nomeProduto}`)
+                  .join(', ')}
+              </p>
+            )}
+            <p>
+              Todos os itens de aluguel ainda não devolvidos voltam ao estoque. O crédito do cliente não muda. Essa ação não
+              pode ser desfeita.
+            </p>
+          </>
+        )}
+      </ConfirmarModal>
+
+      <ConfirmarModal
+        aberto={excluindo !== null}
+        titulo="Excluir pedido?"
+        textoConfirmar="Excluir pedido"
+        textoCancelar="Voltar"
+        carregando={processando}
+        onConfirmar={() =>
+          excluindo &&
+          confirmar(() => excluirPedido(excluindo.id), `Pedido #${excluindo.id} excluído. Estoque devolvido.`, fecharExclusao)
+        }
+        onCancelar={fecharExclusao}
+      >
+        {excluindo && (
+          <>
+            <p>
+              <strong>Pedido #{excluindo.id}</strong> — {excluindo.clienteNome}
+            </p>
+            {listaItens(excluindo) && <p>{listaItens(excluindo)}</p>}
             <p>
               Os itens voltam ao estoque
-              {cancelando.creditoUsado ? ' e o crédito reservado volta para o limite do cliente' : ''}. O pedido
-              continua na lista como "Cancelado". Essa ação não pode ser desfeita.
+              {excluindo.modalidadePagamento === 'A_PRAZO' ? ' e o valor reservado volta para o limite do cliente' : ''}. O
+              pedido sai da lista. Essa ação não pode ser desfeita.
             </p>
           </>
         )}

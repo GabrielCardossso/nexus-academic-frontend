@@ -1,116 +1,59 @@
 /**
- * Pedido: cálculo do total, status e o que cada pedido pode fazer (confirmar, pagar, editar, cancelar, devolver).
- * Total, desconto e status nunca ficam salvos: são sempre calculados aqui.
+ * Pedido: valores e o que cada pedido pode fazer, iguais ao back (entity/Pedido.java,
+ * entity/ItemPedido.java e PedidoService.java).
  */
-import type {
-  ClienteCategoria,
-  FormaPagamento,
-  ItemPedido,
-  SolicitacaoDesconto,
-  StatusPagamento,
-  StatusPedido,
-  TipoPedido,
-} from '../types';
-import { arredondar } from '../utils';
-import { aguardaDesconto, DESCONTO_VIP } from './descontos';
-import { estaVencido, type PedidoComPrazo } from './inadimplencia';
+import type { ItemPedido, Pedido, ProdutoListarResponse } from '../types';
+import { aguardaDesconto } from './descontos';
+import { estaVencido } from './inadimplencia';
 
-/** O que o cálculo do pedido precisa (serve para o pedido salvo e para a prévia do formulário). */
-interface DadosPedido {
-  itens: ItemPedido[];
-  clienteCategoria: ClienteCategoria;
-  pagamento: FormaPagamento;
-  meses?: number; // só aluguel: o valor é preço por mês × meses × quantidade
-  solicitacao?: SolicitacaoDesconto;
-  concluidoEm?: string;
-  devolvidoEm?: string;
-  canceladoEm?: string; // cancelado (o "excluir" do pedido): não volta atrás
-  pagoEm?: string;
-  clienteInadimplente?: boolean; // inadimplente fica sem desconto nenhum
+/** ItemPedido.calcularValorItem: preço (aluguel ou venda) × quantidade. O aluguel não multiplica por tempo. */
+export function valorItem(produto: Pick<ProdutoListarResponse, 'precoVenda' | 'precoAluguel'>, quantidade: number, isAluguel: boolean) {
+  return centavos(Number(isAluguel ? produto.precoAluguel : produto.precoVenda) * quantidade);
 }
 
-type EstadoPedido = Pick<DadosPedido, 'solicitacao' | 'concluidoEm' | 'devolvidoEm' | 'canceladoEm'>;
+/** Soma dos itens, antes do desconto. */
+export const subtotalDe = (itens: Pick<ItemPedido, 'valorItem'>[]) => centavos(itens.reduce((s, i) => s + i.valorItem, 0));
 
-export function resumoPedido(p: DadosPedido) {
-  const meses = p.meses ?? 1;
-  const subtotal = arredondar(p.itens.reduce((soma, i) => soma + i.precoUnitario * i.quantidade, 0) * meses);
-
-  // Inadimplente: nenhum desconto (nem os 5% de VIP, nem solicitação aprovada).
-  // Solicitação APROVADA vale o percentual pedido (no VIP substitui os 5%, não soma).
-  // Sem aprovação: VIP fica com os 5% automáticos; NORMAL fica sem desconto.
-  const percentual = p.clienteInadimplente
-    ? 0
-    : p.solicitacao?.status === 'APROVADA'
-      ? p.solicitacao.percentual
-      : p.clienteCategoria === 'VIP'
-        ? DESCONTO_VIP
-        : 0;
-
-  const valorDesconto = arredondar((subtotal * percentual) / 100);
-  const total = arredondar(subtotal - valorDesconto);
-
-  const statusPagamento: StatusPagamento = p.pagoEm ? 'PAGO' : 'PENDENTE';
-
-  return { subtotal, percentual, valorDesconto, total, statusPagamento, statusPedido: statusDoPedido(p) };
+/** Pedido.calcularEsetarValorTotal: soma × (1 − desconto), 2 casas, arredondando metade para cima. */
+export function totalComDesconto(subtotal: number, desconto: number): number {
+  return centavos(subtotal * (1 - desconto));
 }
 
-/** Total do pedido como o cliente inadimplente pagaria (sem desconto nenhum). */
-export const totalSemDesconto = (p: DadosPedido) => resumoPedido({ ...p, clienteInadimplente: true }).total;
-
-/** O pedido nunca conclui sozinho: só com `concluidoEm` (botão "Confirmar pedido"). */
-export function statusDoPedido(p: EstadoPedido): StatusPedido {
-  if (p.canceladoEm) return 'CANCELADO';
-  if (p.devolvidoEm) return 'DEVOLVIDO';
-  if (p.concluidoEm) return 'CONCLUIDO';
-  return 'PENDENTE';
+/** Arredonda para centavos como o RoundingMode.HALF_UP do back (com folga para erro de ponto flutuante). */
+function centavos(n: number): number {
+  return Math.round((n + Math.sign(n) * 1e-9) * 100) / 100;
 }
 
-type ConteudoPedido = {
-  tipo: TipoPedido;
-  pagamento: FormaPagamento;
-  meses?: number;
-  itens: { produtoId: number; quantidade: number }[];
-};
-
-/**
- * Na edição: tipo, pagamento, meses, produtos e quantidades iguais aos do pedido original.
- * Só assim uma decisão de desconto já tomada continua valendo (senão volta a ficar pendente).
- */
-export function mesmoConteudo(a: ConteudoPedido, b: ConteudoPedido): boolean {
-  const chave = (p: ConteudoPedido) =>
-    [p.tipo, p.pagamento, p.tipo === 'ALUGUEL' ? p.meses : '', ...p.itens.map((i) => `${i.produtoId}:${i.quantidade}`).sort()].join('|');
-  return chave(a) === chave(b);
+/** "Venda", "Aluguel" ou "Venda e aluguel" (o back marca aluguel por item). */
+export function tipoDoPedido(itens: Pick<ItemPedido, 'isAluguel'>[] | undefined): string | null {
+  if (!itens?.length) return null;
+  const aluguel = itens.some((i) => i.isAluguel);
+  const venda = itens.some((i) => !i.isAluguel);
+  return aluguel && venda ? 'Venda e aluguel' : aluguel ? 'Aluguel' : 'Venda';
 }
 
 // ---------------- O que o pedido pode fazer ----------------
 
-/** Pode confirmar: está pendente e não depende de aprovação de desconto. */
-export const podeConfirmar = (p: EstadoPedido) => statusDoPedido(p) === 'PENDENTE' && !aguardaDesconto(p);
-
-/** PIX/à vista é pago na hora, exceto se ainda aguarda aprovação de desconto (aí é pago na decisão). */
-export const pagoNaHora = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao'>) =>
-  p.pagamento !== 'A_PRAZO' && !aguardaDesconto(p);
-
-/** Pedido a prazo ainda não pago e sem desconto aguardando decisão pode ter o pagamento registrado. */
-export const podePagar = (p: Pick<DadosPedido, 'pagamento' | 'solicitacao' | 'pagoEm' | 'canceladoEm'>) =>
-  p.pagamento === 'A_PRAZO' && !p.pagoEm && !p.canceladoEm && !aguardaDesconto(p);
+/** "Finalizar" (PUT /pedidos/{id}/finalizar) marca como PAGO: só pendente e sem desconto aguardando decisão. */
+export const podeFinalizar = (p: Pick<Pedido, 'statusPedido' | 'statusAprovacaoDesconto'>) =>
+  p.statusPedido === 'PENDENTE' && !aguardaDesconto(p);
 
 /**
- * Edição: só antes do pagamento (vale também para pedido já confirmado). A prazo, até registrar o
- * pagamento; PIX/à vista já nascem pagos, então só editam enquanto o desconto aguarda decisão.
- * Aluguel devolvido e pedido cancelado não editam.
- * Pedido a prazo VENCIDO também não: só o pagamento pode ser registrado (senão daria para reduzir o
- * total, trocar para PIX e o cliente sair da inadimplência pagando menos).
+ * Editar e excluir: o back aceita qualquer pedido PENDENTE.
+ * TRAVA DO FRONT (ainda não existe no back, pergunta enviada ao Lucas): pedido vencido não edita nem
+ * exclui, senão o cliente sairia da inadimplência sem pagar (mudando o vencimento ou apagando o pedido).
  */
-export const podeEditar = (p: PedidoComPrazo & Pick<DadosPedido, 'devolvidoEm'>) =>
-  !p.pagoEm && !p.devolvidoEm && !p.canceladoEm && !estaVencido(p);
+export const podeEditar = (p: Pick<Pedido, 'statusPedido' | 'dataVencimento'>) =>
+  p.statusPedido === 'PENDENTE' && !estaVencido(p);
+
+export const podeExcluir = podeEditar;
 
 /**
- * Cancelar (o "excluir" do pedido): mesmas condições da edição (não pago, não devolvido, não vencido).
- * Pedido a prazo vencido não pode ser cancelado: senão o cliente sairia da inadimplência sem pagar.
+ * Devolução (PUT /pedidos/{id}/devolucao): o back aceita qualquer pedido com item de aluguel ainda
+ * não devolvido, em qualquer status. Sem os itens (back real), não dá para saber: o botão aparece e
+ * o back responde se não houver o que devolver.
  */
-export const podeCancelar = (p: PedidoComPrazo & Pick<DadosPedido, 'devolvidoEm'>) => podeEditar(p);
-
-/** Só aluguel já concluído e ainda não devolvido pode ser devolvido. */
-export const podeDevolver = (p: EstadoPedido & { tipo: TipoPedido }) =>
-  p.tipo === 'ALUGUEL' && statusDoPedido(p) === 'CONCLUIDO';
+export function podeDevolver(p: Pick<Pedido, 'itens'>): boolean {
+  if (!p.itens) return true;
+  return p.itens.some((i) => i.isAluguel && !i.dataDevolucao);
+}

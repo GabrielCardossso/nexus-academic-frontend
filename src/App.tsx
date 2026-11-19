@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { listarPedidos } from './services/api';
+import { contarSolicitacoesPendentes } from './services/api';
 import ClientesTela from './telas/ClientesTela';
 import ColaboradoresTela from './telas/ColaboradoresTela';
 import DescontosTela from './telas/DescontosTela';
@@ -34,10 +34,9 @@ export default function App() {
 
   const atualizarContador = useCallback(async () => {
     try {
-      const pedidos = await listarPedidos();
-      setDescontosPendentes(pedidos.filter((p) => p.solicitacao?.status === 'PENDENTE' && !p.canceladoEm).length);
+      setDescontosPendentes(await contarSolicitacoesPendentes());
     } catch {
-      setDescontosPendentes(0); // sem endpoint no back-end: não mostra contador
+      setDescontosPendentes(0); // back fora do ar: não mostra contador
     }
   }, []);
 
