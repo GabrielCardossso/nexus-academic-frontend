@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="436" viewBox="0 0 1200 436" role="img" aria-labelledby="title desc" shape-rendering="crispEdges">
+<title id="title">Estrutura de nexus-academic-frontend</title>
+<desc id="desc">src/: código da aplicação · telas/: uma tela por item do menu · components/: modal, aviso, seleção e pedidos · regras/: regras de negócio (funções puras) · services/: API real e dados locais · config/: URL, endpoints e flags · types/: tipos (DTOs) por assunto · public/icons/: ícones do menu lateral · .env.example: modelo da URL do back-end · vite.config.ts: configuração do Vite</desc>
+<style>
+.mono{font-family:'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace}
+text{shape-rendering:auto}
+</style>
+<defs>
+<pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><rect width="2" height="2" fill="#ffffff" opacity=".06"/></pattern>
+<pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#000" opacity=".22"/></pattern>
+<clipPath id="card"><rect width="1200" height="436" rx="10"/></clipPath>
+</defs>
+<g clip-path="url(#card)">
+<rect width="1200" height="436" fill="#191817"/>
+<rect width="1200" height="436" fill="url(#grid)"/>
+<rect width="1200" height="40" fill="#262422"/>
+<rect y="40" width="1200" height="1" fill="#3a3733"/>
+<rect x="20" y="14" width="12" height="12" fill="#e5534b"/>
+<rect x="40" y="14" width="12" height="12" fill="#e0a43b"/>
+<rect x="60" y="14" width="12" height="12" fill="#5fb85f"/>
+<text x="600" y="25" text-anchor="middle" class="mono" font-size="14" fill="#86817a">estrutura</text>
+<text x="48" y="88" class="mono" font-size="15" fill="#d97757">$</text>
+<text x="66" y="88" class="mono" font-size="15" fill="#ece9e4">tree nexus-academic-frontend</text>
+<text x="48" y="128" class="mono" font-size="15" font-weight="700" fill="#d97757">nexus-academic-frontend/</text>
+<text x="48" y="154" class="mono" font-size="15" fill="#5c5852" xml:space="preserve">├── <tspan fill="#d97757" font-weight="700">src/</tspan></text>
+<text x="246" y="154" class="mono" font-size="14" fill="#86817a"># código da aplicação</text>
+<text x="48" y="180" class="mono" font-size="15" fill="#5c5852" xml:space="preserve">│   ├── <tspan fill="#d97757" font-weight="700">telas/</tspan></text>
+<text x="246" y="180" class="mono" font-size="14" fill="#86817a"># uma tela por item do menu</text>
+<text x="48" y="206" class="mono" font-size="15" fill="#5c5852" xml:space="preserve">│   ├── <tspan fill="#d97757" font-weight="700">components/</tspan></text>
+<text x="246" y="206" class="mono" font-size="14" fill="#86817a"># modal, aviso, seleção e pedidos</text>
+<text x="48" y="232" class="mono" font-size="15" fill="#5c5852" xml:space="preserve">│   ├── <tspan fill="#d97757" font-weight="700">regras/</tspan></text>
+<text x="246" y="232" class="mono" font-size="14" fill="#86817a"># regras de negócio (funções puras)</text>
+<text x="48" y="258" class="mono" font-size="15" fill="#5c5852" xml:space="preserve">│   ├── <tspan fill="#d97757" font-weight="700">services/</tspan></text>
+<text x="246" y="258" class="mono" font-size="14" fill="#86817a"># API real e dados locais</text>
+<text x="48" y="284" class="mono" font-size="15" fill="#5c5852" xml:space="preserve">│   ├── <tspan fill="#d97757" font-weight="700">config/</tspan></text>
+<text x="246" y="284" class="mono" font-size="14" fill="#86817a"># URL, endpoints e flags</text>
+<text x="48" y="310" class="mono" font-size="15" fill="#5c5852" xml:space="preserve">│   └── <tspan fill="#d97757" font-weight="700">types/</tspan></text>
+<text x="246" y="310" class="mono" font-size="14" fill="#86817a"># tipos (DTOs) por assunto</text>
+<text x="48" y="336" class="mono" font-size="15" fill="#5c5852" xml:space="preserve">├── <tspan fill="#d97757" font-weight="700">public/icons/</tspan></text>
+<text x="246" y="336" class="mono" font-size="14" fill="#86817a"># ícones do menu lateral</text>
+<text x="48" y="362" class="mono" font-size="15" fill="#5c5852" xml:space="preserve">├── <tspan fill="#ece9e4">.env.example</tspan></text>
+<text x="246" y="362" class="mono" font-size="14" fill="#86817a"># modelo da URL do back-end</text>
+<text x="48" y="388" class="mono" font-size="15" fill="#5c5852" xml:space="preserve">└── <tspan fill="#ece9e4">vite.config.ts</tspan></text>
+<text x="246" y="388" class="mono" font-size="14" fill="#86817a"># configuração do Vite</text>
+<rect width="1200" height="436" fill="url(#scan)"/>
+</g>
+<rect x=".5" y=".5" width="1199" height="435" rx="9.5" fill="none" stroke="#3a3733"/>
+</svg>
