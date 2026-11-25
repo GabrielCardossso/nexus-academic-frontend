@@ -220,6 +220,8 @@ O back devolve tudo o que as telas precisam (ids, CNPJ, status do produto, itens
 - Status **cancelado** para pedido lançado errado (o Lucas pretende criar; hoje a saída seria excluir).
 - A reserva do limite com o **desconto pendente** e os descontos só de **0, 5, 10 ou 15%** (Normal até 10%). Em aberto com o Rafael: o que fazer quando o desconto que fez o pedido caber no limite é **reprovado** (hoje o limite fica negativo).
 
+**Celular (até 760px):** o menu vira uma barra de vidro embaixo (com uma lente que desliza até a aba ativa), e a logo e o "+ Novo ..." viram círculos de vidro no topo (tocar na logo volta ao topo). **A página não rola, só o `<main>`**: assim as barras do navegador do celular não encolhem nem cobrem esses elementos. É de propósito, não é bug. O `viewport-fit=cover` no `index.html` faz a página respeitar a área segura do iPhone.
+
 <img src="./.github/readme/secao-08-estrutura.svg" width="100%" alt="Estrutura detalhada" />
 
 As pastas `types`, `regras`, `utils`, `services/api` e `services/dadosLocais` têm um `index.ts` que reexporta tudo, então os imports ficam curtos (`from '../regras'`, `from '../services/api'`), e o comentário no topo do `index.ts` diz o que tem em cada arquivo. Componentes e telas são importados pelo caminho do arquivo (`from '../components/comum/Modal'`).

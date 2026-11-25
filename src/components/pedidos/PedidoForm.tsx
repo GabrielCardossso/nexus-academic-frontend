@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
+import { RESERVA_COM_DESCONTO_PENDENTE } from '../../config/api';
 import { criarPedido, editarPedido } from '../../services/api';
 import Selecao from '../comum/Selecao';
 import {
@@ -239,6 +240,15 @@ export default function PedidoForm({
       if (erroData) return setErro(erroData);
     }
     if (inadimplenteAumenta) return setErro(MSG_INADIMPLENTE_NAO_AUMENTA);
+    // O back recusaria com uma mensagem confusa ("O limite de crédito de : ... não cobre"): barra aqui com o motivo.
+    // Na edição, o back devolve o que o pedido reservava e reserva de novo; com o limite negativo (desconto
+    // reprovado), nem mudar só a descrição passa enquanto for a prazo.
+    if (acimaDoLimite) {
+      return setErro(
+        `O limite de crédito disponível do cliente (${moeda.format(limiteDisponivel)}) não cobre este pedido a prazo (${moeda.format(reserva)}). ` +
+          (editando ? 'Mude para à vista, reduza o pedido ou finalize um pedido a prazo do cliente.' : 'Mude para à vista ou reduza o pedido.'),
+      );
+    }
 
     setEnviando(true);
     onEnviando(true);
@@ -524,7 +534,7 @@ export default function PedidoForm({
       </div>
       {modalidade === 'A_PRAZO' && (
         <p className="dica">
-          {desconto?.statusAprovacaoDesconto === 'PENDENTE'
+          {RESERVA_COM_DESCONTO_PENDENTE && desconto?.statusAprovacaoDesconto === 'PENDENTE'
             ? 'Enquanto o desconto aguarda decisão, fica reservado no limite de crédito o valor com o desconto pedido; depois, o total decidido, até ser finalizado.'
             : 'O total fica reservado no limite de crédito do cliente até ser finalizado.'}
         </p>

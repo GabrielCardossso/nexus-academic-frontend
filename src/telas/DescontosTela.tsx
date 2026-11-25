@@ -204,7 +204,7 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
               {limiteSeReprovar !== null && limiteSeReprovar < 0 && (
                 <p className="aviso">
                   Reprovando, o total vai para {moeda.format(prev!.reprovar)} e o limite de crédito do cliente fica negativo
-                  ({moeda.format(limiteSeReprovar)}): ele não consegue fazer outro pedido a prazo até pagar.
+                  ({moeda.format(limiteSeReprovar)}): até pagar, ele não consegue fazer outro pedido a prazo nem editar os pedidos a prazo pendentes.
                 </p>
               )}
               {/* TRAVA DO FRONT: o back aceita aprovar mesmo se o cliente virou inadimplente depois de pedir. */}

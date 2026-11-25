@@ -641,6 +641,7 @@ button.link:hover:not(:disabled) {
 
 .modal {
   max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px); /* celular: a área visível, sem as barras do navegador */
   overflow-y: auto;
 }
 
