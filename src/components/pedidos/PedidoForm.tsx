@@ -6,16 +6,14 @@ import {
   descontoNaCriacao,
   descontoNaEdicao,
   erroDataFutura,
-  erroDescontoDigitado,
-  fracaoDe,
   hojeAAAAMMDD,
   MSG_INADIMPLENTE_NAO_AUMENTA,
   MSG_INADIMPLENTE_SEM_DESCONTO,
   MSG_INADIMPLENTE_SEM_PRAZO,
+  opcoesDesconto,
   percentual,
   ROTULO_STATUS_DESCONTO,
   subtotalDe,
-  TETO_NORMAL,
   totalComDesconto,
   valorItem,
   valorParaLimite,
@@ -144,8 +142,15 @@ export default function PedidoForm({
   // ---------- Desconto e prévia (mesmas regras do back) ----------
   // Inadimplente: o campo fica bloqueado (o back registra como reprovado por inadimplência).
   const descontoBloqueado = inadimplente || original?.statusAprovacaoDesconto === 'REPROVADO_INADIPLENCIA';
-  const erroDoDesconto = descontoBloqueado ? null : erroDescontoDigitado(descontoTexto);
-  const fracao = descontoBloqueado || erroDoDesconto ? 0 : fracaoDe(descontoTexto);
+  // REGRA NOVA: o desconto é escolhido numa lista (5, 10 ou 15%; o NORMAL não tem 15%), nada digitado.
+  const fracao = descontoBloqueado || descontoTexto === '' ? 0 : Number(descontoTexto) / 100;
+  const opcoesDoDesconto = [
+    // Pedido antigo com um desconto que saiu da lista (ex.: 12%): aparece como está, mas não dá para escolher de novo.
+    ...(descontoInicial && !opcoesDesconto(categoria).some((d) => String(Math.round(d * 100)) === descontoInicial)
+      ? [{ valor: descontoInicial, rotulo: `${descontoInicial.replace('.', ',')}%`, detalhe: 'valor antigo', desabilitada: true }]
+      : []),
+    ...opcoesDesconto(categoria).map((d) => ({ valor: String(Math.round(d * 100)), rotulo: percentual(d) })),
+  ];
   // Na edição, o desconto só vai no corpo se mudou (o que não vai, o back mantém).
   const enviarDesconto = !editando || (!descontoBloqueado && descontoTexto.trim() !== descontoInicial);
 
@@ -230,7 +235,6 @@ export default function PedidoForm({
       const erroData = erroDataFutura(dataVencimento, 'a data de vencimento do pedido');
       if (erroData) return setErro(erroData);
     }
-    if (erroDoDesconto) return setErro(erroDoDesconto);
     if (inadimplenteAumenta) return setErro(MSG_INADIMPLENTE_NAO_AUMENTA);
 
     setEnviando(true);
@@ -450,17 +454,15 @@ export default function PedidoForm({
         )}
         {(cliente || editando) && (
           <label className="campo">
-            <span>Solicitar desconto (%)</span>
-            <input
-              type="number"
-              placeholder={descontoBloqueado ? 'Indisponível (inadimplente)' : 'Opcional: 0 a 15'}
-              title={descontoBloqueado ? MSG_INADIMPLENTE_SEM_DESCONTO : undefined}
-              min={0}
-              max={15}
-              step="any"
-              disabled={descontoBloqueado}
+            <span>Solicitar desconto</span>
+            <Selecao
+              aria-label="Solicitar desconto"
               value={descontoBloqueado ? '' : descontoTexto}
-              onChange={(e) => setDescontoTexto(e.target.value)}
+              onChange={setDescontoTexto}
+              opcoes={opcoesDoDesconto}
+              placeholder={descontoBloqueado ? 'Indisponível (inadimplente)' : 'Sem desconto'}
+              disabled={descontoBloqueado}
+              limparPara=""
             />
           </label>
         )}
@@ -476,16 +478,12 @@ export default function PedidoForm({
         </label>
       </div>
 
-      {erroDoDesconto && <p className="msg erro">{erroDoDesconto}</p>}
       {!descontoBloqueado && (cliente || editando) && (
         <p className="dica">
           {categoria === 'VIP'
-            ? `Cliente VIP: pedindo até 5%, recebe ${percentual(DESCONTO_VIP)} na hora. Acima de 5% (até 15%) precisa da aprovação de um colaborador e, enquanto isso, o pedido fica sem desconto; se reprovado, volta a 5%.`
-            : `Cliente Normal: qualquer desconto precisa da aprovação de um colaborador. Acima de ${percentual(TETO_NORMAL)}, o back limita em ${percentual(TETO_NORMAL)}.`}
+            ? `Cliente VIP: sem pedir ou pedindo 5%, recebe ${percentual(DESCONTO_VIP)} na hora. 10% ou 15% precisam da aprovação de um colaborador e, enquanto isso, o pedido fica sem desconto; se reprovado, volta a 5%.`
+            : 'Cliente Normal: pode pedir 5% ou 10%, sempre com a aprovação de um colaborador.'}
         </p>
-      )}
-      {categoria === 'NORMAL' && !descontoBloqueado && fracao > TETO_NORMAL && (
-        <p className="aviso">O desconto solicitado vai ser limitado a {percentual(TETO_NORMAL)} (regra do back).</p>
       )}
       {editando &&
         enviarDesconto &&

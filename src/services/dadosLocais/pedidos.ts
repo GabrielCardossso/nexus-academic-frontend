@@ -6,6 +6,7 @@
 import {
   descontoNaCriacao,
   descontoNaEdicao,
+  descontoPermitido,
   hojeAAAAMMDD,
   MSG_INADIMPLENTE_SEM_PRAZO,
   subtotalDe,
@@ -144,6 +145,8 @@ function validarItensRequest(itens: ItemPedidoCriarRequest[]) {
 function validarDesconto(d: number | undefined) {
   if (d === undefined) return;
   if (!Number.isFinite(d) || d < 0 || d > 0.15) falha('descontoSolicitado: deve ser de 0 a 0.15');
+  // REGRA NOVA (o Lucas vai levar ao back; a mensagem do back pode mudar): só 0, 5, 10 ou 15%.
+  if (!descontoPermitido(d)) falha('descontoSolicitado: deve ser 0, 0.05, 0.10 ou 0.15');
 }
 
 /** criarItemPedidos: confere os produtos, baixa o estoque e calcula o valor de cada item. */

@@ -5,8 +5,8 @@
  * Clientes, colaboradores e produtos são os MESMOS do back (entity/mock/*.java), com os mesmos ids
  * (ordem de inserção). O back não tem pedidos de exemplo; os daqui cobrem os cenários da tela:
  *  1. VIP à vista com os 5% automáticos (pode finalizar)
- *  2. VIP a prazo pedindo 12% (aguardando decisão: não finaliza; o limite reserva o valor com os 12%)
- *  3. NORMAL à vista pedindo 8% (aguardando decisão)
+ *  2. VIP a prazo pedindo 10% (aguardando decisão: não finaliza; o limite reserva o valor com os 10%)
+ *  3. NORMAL à vista pedindo 5% (aguardando decisão)
  *  4. NORMAL a prazo, aluguel com 5% aprovado por colaborador
  *  5. NORMAL a prazo VENCIDO e não pago → cliente inadimplente (só pode finalizar)
  *  6. o mesmo cliente comprando à vista depois: reprovado por inadimplência, sem desconto
@@ -78,8 +78,8 @@ interface PedidoMock {
 
 const PEDIDOS: PedidoMock[] = [
   { clienteId: 1, criadoHa: 1, modalidade: 'A_VISTA', itens: [{ produtoId: 1, quantidade: 2 }, { produtoId: 4, quantidade: 1 }], solicitado: 0, autorizado: 0.05, statusDesconto: 'APROVADO_AUTOMATICAMENTE', status: 'PENDENTE', descricao: 'Ferramentas para a obra do centro' },
-  { clienteId: 2, criadoHa: 2, modalidade: 'A_PRAZO', venceEm: 25, itens: [{ produtoId: 2, quantidade: 10 }], solicitado: 0.12, autorizado: 0, statusDesconto: 'PENDENTE', status: 'PENDENTE' },
-  { clienteId: 3, criadoHa: 1, modalidade: 'A_VISTA', itens: [{ produtoId: 7, quantidade: 1 }], solicitado: 0.08, autorizado: 0, statusDesconto: 'PENDENTE', status: 'PENDENTE' },
+  { clienteId: 2, criadoHa: 2, modalidade: 'A_PRAZO', venceEm: 25, itens: [{ produtoId: 2, quantidade: 10 }], solicitado: 0.1, autorizado: 0, statusDesconto: 'PENDENTE', status: 'PENDENTE' },
+  { clienteId: 3, criadoHa: 1, modalidade: 'A_VISTA', itens: [{ produtoId: 7, quantidade: 1 }], solicitado: 0.05, autorizado: 0, statusDesconto: 'PENDENTE', status: 'PENDENTE' },
   { clienteId: 3, criadoHa: 5, modalidade: 'A_PRAZO', venceEm: 20, itens: [{ produtoId: 3, quantidade: 2, aluguelAte: 15 }], solicitado: 0.05, autorizado: 0.05, statusDesconto: 'APROVADO', colaboradorId: 1, status: 'PENDENTE', descricao: 'Aluguel das betoneiras da reforma' },
   { clienteId: 4, criadoHa: 40, modalidade: 'A_PRAZO', venceEm: -5, itens: [{ produtoId: 7, quantidade: 1 }], solicitado: 0, autorizado: 0, statusDesconto: 'NAO_SOLICITADO', status: 'PENDENTE' },
   { clienteId: 4, criadoHa: 2, modalidade: 'A_VISTA', itens: [{ produtoId: 1, quantidade: 1 }], solicitado: 0.05, autorizado: 0, statusDesconto: 'REPROVADO_INADIPLENCIA', status: 'PENDENTE' },

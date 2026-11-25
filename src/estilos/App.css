@@ -1003,6 +1003,30 @@ button.selecao-botao:disabled {
   cursor: not-allowed;
 }
 
+/* Botão "Limpar" no fim da lista (Selecao com limparPara) */
+.selecao-rodape {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #e5e7eb;
+}
+
+button.selecao-limpar {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #b42318;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+button.selecao-limpar:hover {
+  background: #fef3f2;
+}
+
 /* ---------- Cadastros desativados (nada é excluído: fica esmaecido e pode ser reativado) ---------- */
 .item.inativo {
   background: #f6f8fa;

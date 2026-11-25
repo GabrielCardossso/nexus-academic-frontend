@@ -101,7 +101,7 @@ Todos os endpoints do back (repo `LionT750/Nexus`, branch `main`, commit `e4bd69
 O front usa alguns nomes próprios por dentro (`categoria`, `limiteCredito`, `nome` do colaborador), e os arquivos de `src/services/api/` convertem para os nomes do back ao enviar e receber. Pedido e desconto usam exatamente os nomes e os enums do back:
 
 ```json
-// POST /api/v1/pedidos (o cliente vai pelo CNPJ; desconto em fração: 0.12 = 12%)
+// POST /api/v1/pedidos (o cliente vai pelo CNPJ; desconto em fração: 0.10 = 10%)
 {
   "CNPJcliente": "88447294000145",
   "descontoSolicitado": 0.12,
@@ -156,18 +156,18 @@ As regras são **as do back** (`PedidoService`, `ClienteService`, `ProdutoServic
 
 ### Descontos
 
-O cliente digita o percentual (de 0% a 15%), que vai ao back como fração (0.12 = 12%).
+O desconto é **escolhido numa lista**, sem digitar: **5%, 10% ou 15%** (o cliente **Normal** não tem 15%). O botão **Limpar**, dentro da lista, volta para "sem desconto". Vai ao back como fração (0.10 = 10%). Regra nova de 2026-11-25: os dados locais só aceitam 0, 0.05, 0.10 ou 0.15, e o Lucas vai levar a mesma regra ao back.
 
 | Cliente | Pedindo | Resultado |
 |---|---|---|
 | **Normal** | 0% | Sem desconto |
-| **Normal** | mais de 0% | **Aguarda** um colaborador. Acima de 10%, o back **limita em 10%**. |
-| **VIP** | até 5% | **5% aprovados na hora** (automático) |
-| **VIP** | de 5% a 15% | **Aguarda** um colaborador, e o pedido fica **sem desconto** até a decisão. Se reprovado, volta a **5%**. |
+| **Normal** | 5% ou 10% | **Aguarda** um colaborador. |
+| **VIP** | 0% ou 5% | **5% aprovados na hora** (automático) |
+| **VIP** | 10% ou 15% | **Aguarda** um colaborador, e o pedido fica **sem desconto** até a decisão. Se reprovado, volta a **5%**. |
 | **Inadimplente** | qualquer valor | O pedido é registrado como **reprovado por inadimplência**, sem desconto. |
 
 - Aprovado: vale o percentual solicitado. No a prazo, a diferença volta para o limite.
-- Na edição, pedir **mais** do que o autorizado volta a **aguardar** decisão. Pedir **igual ou menos** mantém o desconto já decidido (por exemplo, aprovado 12% e agora pedindo 3%: continuam os 12%). É intencional, confirmado pelo Lucas: o cliente não se prejudica pedindo um desconto pior. O formulário avisa quando o desconto pedido é menor que o autorizado e quando um desconto aprovado vai continuar valendo depois de mudar os produtos.
+- Na edição, pedir **mais** do que o autorizado volta a **aguardar** decisão. Pedir **igual ou menos** mantém o desconto já decidido (por exemplo, aprovado 15% e agora pedindo 10%: continuam os 15%). É intencional, confirmado pelo Lucas: o cliente não se prejudica pedindo um desconto pior. O formulário avisa quando o desconto pedido é menor que o autorizado e quando um desconto aprovado vai continuar valendo depois de mudar os produtos.
 
 ### Cliente inadimplente
 
