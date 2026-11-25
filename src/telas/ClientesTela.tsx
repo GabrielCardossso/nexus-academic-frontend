@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Aviso from '../components/comum/Aviso';
+import BotaoDestaque from '../components/comum/BotaoDestaque';
 import ConfirmarModal from '../components/comum/ConfirmarModal';
 import Modal from '../components/comum/Modal';
 import Selecao from '../components/comum/Selecao';
@@ -116,9 +117,7 @@ export default function ClientesTela() {
     <>
       <div className="topo">
         <h1>Clientes</h1>
-        <button type="button" className="destaque" onClick={abrirNovo}>
-          + Novo cliente
-        </button>
+        <BotaoDestaque onClick={abrirNovo}>Novo cliente</BotaoDestaque>
       </div>
 
       <Aviso msg={aviso} onFechar={fecharAviso} />

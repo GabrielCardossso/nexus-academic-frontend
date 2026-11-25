@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import Aviso from '../components/comum/Aviso';
+import BotaoDestaque from '../components/comum/BotaoDestaque';
 import ConfirmarModal from '../components/comum/ConfirmarModal';
 import Modal from '../components/comum/Modal';
 import PedidoForm from '../components/pedidos/PedidoForm';
@@ -86,9 +87,7 @@ export default function PedidosTela() {
     <>
       <div className="topo">
         <h1>Pedidos</h1>
-        <button type="button" className="destaque" onClick={() => setNovoAberto(true)}>
-          + Novo pedido
-        </button>
+        <BotaoDestaque onClick={() => setNovoAberto(true)}>Novo pedido</BotaoDestaque>
       </div>
 
       <Aviso msg={aviso} onFechar={fecharAviso} />

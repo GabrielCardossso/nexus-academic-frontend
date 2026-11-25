@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Aviso from '../components/comum/Aviso';
+import BotaoDestaque from '../components/comum/BotaoDestaque';
 import ConfirmarModal from '../components/comum/ConfirmarModal';
 import Modal from '../components/comum/Modal';
 import { ROTULO_STATUS_PRODUTO } from '../regras';
@@ -141,9 +142,7 @@ export default function ProdutosTela() {
     <>
       <div className="topo">
         <h1>Produtos</h1>
-        <button type="button" className="destaque" onClick={abrirNovo}>
-          + Novo produto
-        </button>
+        <BotaoDestaque onClick={abrirNovo}>Novo produto</BotaoDestaque>
       </div>
 
       <Aviso msg={aviso} onFechar={fecharAviso} />
