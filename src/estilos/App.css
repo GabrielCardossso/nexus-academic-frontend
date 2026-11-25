@@ -98,10 +98,38 @@ h1 {
   background: #1e293b;
 }
 
+/* A aba ativa não pinta o próprio fundo: o .menu-indicador (um bloco só) desliza até ela. */
+.sidebar nav {
+  position: relative;
+}
+
+.sidebar nav button {
+  position: relative;
+  z-index: 1;
+  transition: color 0.2s ease;
+}
+
 .sidebar button.ativa,
 .sidebar button.ativa:hover:not(:disabled) {
   color: #fff;
+  background: transparent;
+}
+
+.menu-indicador {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
   background: #2563eb;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.menu-indicador.animar {
+  transition:
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sidebar .btn-recolher {
@@ -163,15 +191,7 @@ h1 {
     padding-bottom: 12px;
   }
 
-  .sidebar nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 16px;
-  }
-
-  .menu-grupo {
-    margin-bottom: 0;
-  }
+  /* O menu vira a barra de navegação de baixo (ver "Celular: barra de navegação" no fim do arquivo). */
 
   .menu-titulo {
     display: none;
@@ -182,7 +202,7 @@ h1 {
   }
 
   .conteudo {
-    padding: 24px 16px;
+    padding: 24px 16px calc(120px + env(safe-area-inset-bottom));
   }
 }
 
@@ -233,6 +253,45 @@ button {
 
 button:hover:not(:disabled) {
   background: #1d4ed8;
+}
+
+/* Hover que preenche os botões em destaque a partir do ponto do mouse (utils/preenchimentoHover.ts,
+   vindo do hora-control). Sem mouse (toque), fica o hover/active normal. */
+@property --preenchimento-raio {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+button.destaque.preenchendo {
+  --preenchimento-cor: #1d4ed8;
+  background-image: radial-gradient(
+    circle at var(--preenchimento-x, 50%) var(--preenchimento-y, 50%),
+    var(--preenchimento-cor) 0,
+    var(--preenchimento-cor) var(--preenchimento-raio),
+    transparent calc(var(--preenchimento-raio) + 1px)
+  );
+  background-repeat: no-repeat;
+  transition:
+    --preenchimento-raio 0.52s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.18s ease;
+}
+
+/* Com o efeito ligado, quem pinta o hover é o círculo, não a troca de cor do fundo. */
+button.destaque.preenchendo:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+button.destaque:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.destaque.preenchendo,
+  .menu-indicador.animar,
+  .sidebar nav button {
+    transition-duration: 0.01ms;
+  }
 }
 
 button:disabled {
@@ -1039,4 +1098,171 @@ button.selecao-limpar:hover {
 
 .item .acoes {
   flex-wrap: wrap;
+}
+
+/* ---------- Celular: barra de navegação embaixo, com lente de vidro na aba ativa ----------
+   Inspirada no "Liquid Glass Tab Bar" do 21st.dev (barra preta em pílula, lente de vidro que desliza
+   com mola, ícone ativo sobe e brilha). O .menu-indicador do PC vira a lente. */
+@media (max-width: 760px) {
+  .sidebar nav {
+    position: fixed;
+    z-index: 90; /* abaixo do fundo dos popups (100) */
+    left: 50%;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    width: min(440px, calc(100% - 24px));
+    padding: 6px;
+    background: #0b0b0d;
+    border-radius: 999px;
+    box-shadow:
+      0 10px 30px rgba(15, 23, 42, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  /* Os grupos (Cadastros, Vendas, Gestão) somem: as 5 abas ficam lado a lado. */
+  .menu-grupo {
+    display: contents;
+  }
+
+  .sidebar nav button {
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    height: 54px;
+    padding: 6px 2px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #fff;
+    background: transparent;
+    border-radius: 999px;
+  }
+
+  .sidebar nav button:hover:not(:disabled) {
+    background: transparent;
+  }
+
+  .sidebar nav img {
+    opacity: 0.45;
+    transition:
+      transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+      opacity 0.25s ease,
+      filter 0.25s ease;
+  }
+
+  /* Só a aba ativa mostra o nome; o ícone sobe e brilha. */
+  .sidebar nav button .texto {
+    display: none;
+  }
+
+  .sidebar nav button.ativa .texto {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar nav button.ativa img {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.08);
+    filter: brightness(0) invert(1) drop-shadow(0 0 6px rgba(255, 255, 255, 0.65));
+  }
+
+  /* Contador de descontos: bolinha no canto do ícone. */
+  .sidebar nav .contador {
+    position: absolute;
+    top: 4px;
+    left: calc(50% + 4px);
+    margin: 0;
+    min-width: 18px;
+    padding: 0 5px;
+    font-size: 0.65rem;
+    line-height: 18px;
+  }
+
+  /* A lente: maior que a aba (passa da borda da barra), vidro com borda clara e reflexo azul/rosa. */
+  .menu-indicador {
+    scale: 1.06 1.28;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 999px;
+    -webkit-backdrop-filter: blur(1.5px) saturate(1.8);
+    backdrop-filter: blur(1.5px) saturate(1.8);
+    box-shadow:
+      inset 0 1.5px 1px rgba(255, 255, 255, 0.75),
+      inset 0 -1.5px 1px rgba(255, 255, 255, 0.3),
+      inset 3px 0 4px rgba(96, 165, 250, 0.6),
+      inset -3px 0 4px rgba(244, 114, 182, 0.4),
+      0 6px 16px rgba(0, 0, 0, 0.45);
+  }
+
+  /* Mola: passa um pouco do ponto e volta. */
+  .menu-indicador.animar {
+    transition:
+      transform 0.5s cubic-bezier(0.34, 1.4, 0.64, 1),
+      width 0.5s cubic-bezier(0.34, 1.4, 0.64, 1),
+      height 0.5s cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+
+  /* Botão em destaque (+ Novo ...) vira botão flutuante redondo, no mesmo vidro da barra. */
+  .topo > button.destaque {
+    position: fixed;
+    z-index: 80;
+    right: 16px;
+    bottom: calc(92px + env(safe-area-inset-bottom));
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    padding: 0;
+    font-size: 0; /* esconde o texto; leitor de tela continua lendo "+ Novo ..." */
+    color: #fff;
+    background: #0b0b0d;
+    background-image: none;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 999px;
+    box-shadow:
+      inset 0 1.5px 1px rgba(255, 255, 255, 0.75),
+      inset 0 -1.5px 1px rgba(255, 255, 255, 0.3),
+      inset 3px 0 4px rgba(96, 165, 250, 0.6),
+      inset -3px 0 4px rgba(244, 114, 182, 0.4),
+      0 10px 24px rgba(15, 23, 42, 0.4);
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .topo > button.destaque::before {
+    content: '+' / '';
+    font-size: 30px;
+    font-weight: 400;
+    line-height: 1;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+  }
+
+  .topo > button.destaque:hover:not(:disabled),
+  .topo > button.destaque.preenchendo:hover:not(:disabled) {
+    background: #0b0b0d;
+  }
+
+  .topo > button.destaque:active:not(:disabled) {
+    transform: scale(0.9);
+  }
+
+  /* Aviso flutuante fica acima da barra e do botão flutuante. */
+  .aviso-flutuante {
+    left: 12px;
+    right: 12px;
+    bottom: calc(162px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 760px) and (prefers-reduced-motion: reduce) {
+  .menu-indicador.animar,
+  .sidebar nav img,
+  .topo > button.destaque {
+    transition-duration: 0.01ms;
+  }
 }

@@ -116,7 +116,7 @@ export default function ClientesTela() {
     <>
       <div className="topo">
         <h1>Clientes</h1>
-        <button type="button" onClick={abrirNovo}>
+        <button type="button" className="destaque" onClick={abrirNovo}>
           + Novo cliente
         </button>
       </div>

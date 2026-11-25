@@ -86,7 +86,7 @@ export default function PedidosTela() {
     <>
       <div className="topo">
         <h1>Pedidos</h1>
-        <button type="button" onClick={() => setNovoAberto(true)}>
+        <button type="button" className="destaque" onClick={() => setNovoAberto(true)}>
           + Novo pedido
         </button>
       </div>

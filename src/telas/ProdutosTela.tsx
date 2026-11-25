@@ -141,7 +141,7 @@ export default function ProdutosTela() {
     <>
       <div className="topo">
         <h1>Produtos</h1>
-        <button type="button" onClick={abrirNovo}>
+        <button type="button" className="destaque" onClick={abrirNovo}>
           + Novo produto
         </button>
       </div>
