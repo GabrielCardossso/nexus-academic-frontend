@@ -4,6 +4,7 @@ import Selecao from '../comum/Selecao';
 import {
   DESCONTO_VIP,
   descontoNaCriacao,
+  descontoAutorizadoNaDecisao,
   descontoNaEdicao,
   erroDataFutura,
   hojeAAAAMMDD,
@@ -192,6 +193,8 @@ export default function PedidoForm({
   const noLimite = temPrevia && modalidade === 'A_PRAZO' && !!cliente;
   const acimaDoLimite = noLimite && reserva > limiteDisponivel;
   const cabeSoComDesconto = noLimite && !acimaDoLimite && total > limiteDisponivel;
+  // Se reprovar: o VIP volta aos 5%, o Normal fica com o que já tinha autorizado (regra do back).
+  const totalSeReprovar = desconto ? totalComDesconto(subtotal, descontoAutorizadoNaDecisao(desconto, false, categoria)) : total;
   // TRAVA DO FRONT: inadimplente continuando a prazo não pode aumentar o total (seria uma compra nova a prazo).
   const inadimplenteAumenta = temPrevia && eraAPrazo && inadimplente && modalidade === 'A_PRAZO' && total > original!.valorTotal;
 
@@ -528,9 +531,11 @@ export default function PedidoForm({
       )}
       {cabeSoComDesconto && (
         <p className="aviso">
-          Sem o desconto, o total ({moeda.format(total)}) passa do limite disponível ({moeda.format(limiteDisponivel)}). O
-          pedido entra porque, com o desconto pedido, fica em {moeda.format(reserva)}. Se o desconto for reprovado, o limite do
-          cliente fica negativo.
+          Sem o desconto pedido, o total ({moeda.format(total)}) passa do limite disponível ({moeda.format(limiteDisponivel)}). O
+          pedido entra porque, com o desconto pedido, fica em {moeda.format(reserva)}.{' '}
+          {totalSeReprovar > limiteDisponivel
+            ? `Se o desconto for reprovado, o total fica em ${moeda.format(totalSeReprovar)} e o limite do cliente fica negativo em ${moeda.format(totalSeReprovar - limiteDisponivel)}.`
+            : `Se o desconto for reprovado, o total fica em ${moeda.format(totalSeReprovar)} e ainda cabe no limite.`}
         </p>
       )}
       {vencimentoTravado && modalidade === 'A_PRAZO' && (
@@ -538,7 +543,7 @@ export default function PedidoForm({
       )}
       {saiDoAPrazo && (
         <p className="aviso">
-          Atenção: indo para à vista, {moeda.format(original!.valorTotal)} reservados voltam para o limite do cliente, mas o
+          Atenção: indo para à vista, {moeda.format(reservaOriginal)} reservados voltam para o limite do cliente, mas o
           vencimento {dataBR(original!.dataVencimento)} continua no pedido (regra do back): se ele não for finalizado até lá, o
           cliente fica inadimplente.
         </p>
@@ -555,7 +560,13 @@ export default function PedidoForm({
           baixaria o estoque de novo).
         </p>
       )}
-      {acimaDoLimite && <p className="msg erro">Total acima do limite de crédito do cliente.</p>}
+      {acimaDoLimite && (
+        <p className="msg erro">
+          {reserva < total
+            ? `Mesmo com o desconto pedido (${moeda.format(reserva)}), o pedido passa do limite disponível (${moeda.format(limiteDisponivel)}).`
+            : 'Total acima do limite de crédito do cliente.'}
+        </p>
+      )}
       {inadimplenteAumenta && <p className="msg erro">{MSG_INADIMPLENTE_NAO_AUMENTA}</p>}
 
       {erro && <p className="msg erro">{erro}</p>}

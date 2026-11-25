@@ -2,6 +2,7 @@
  * Pedido: valores e o que cada pedido pode fazer, iguais ao back (entity/Pedido.java,
  * entity/ItemPedido.java e PedidoService.java).
  */
+import { RESERVA_COM_DESCONTO_PENDENTE } from '../config/api';
 import type { ItemPedido, Pedido, ProdutoListarResponse } from '../types';
 import { aguardaDesconto } from './descontos';
 import { estaVencido } from './inadimplencia';
@@ -24,13 +25,14 @@ export function totalComDesconto(subtotal: number, desconto: number): number {
  * pedido a prazo segura no limite de crédito do cliente. Com o desconto aguardando decisão, conta o
  * desconto pedido (o pedido de 13.750 com 10% pendente segura 12.375 e cabe num limite de 12.750).
  * Decidido ou sem desconto, é o total. O total do pedido continua sem o desconto até a aprovação.
+ * Com o back real (RESERVA_COM_DESCONTO_PENDENTE = false) é sempre o total, como o back faz hoje.
  */
 export function valorParaLimite(
   subtotal: number,
   d: { descontoSolicitado: number; descontoAutorizado: number; statusAprovacaoDesconto: string },
 ): number {
-  const desconto =
-    d.statusAprovacaoDesconto === 'PENDENTE' ? Math.max(d.descontoSolicitado, d.descontoAutorizado) : d.descontoAutorizado;
+  const pendente = RESERVA_COM_DESCONTO_PENDENTE && d.statusAprovacaoDesconto === 'PENDENTE';
+  const desconto = pendente ? Math.max(d.descontoSolicitado, d.descontoAutorizado) : d.descontoAutorizado;
   return totalComDesconto(subtotal, desconto);
 }
 

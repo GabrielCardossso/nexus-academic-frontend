@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Aviso from '../components/comum/Aviso';
 import Selecao from '../components/comum/Selecao';
-import { listarColaboradores, listarPedidos, resolverDesconto } from '../services/api';
+import { listarClientes, listarColaboradores, listarPedidos, resolverDesconto } from '../services/api';
 import {
   DESCONTO_VIP,
   decididoPorColaborador,
@@ -13,8 +13,9 @@ import {
   subtotalDe,
   tipoDoPedido,
   totalComDesconto,
+  valorParaLimite,
 } from '../regras';
-import type { Colaborador, DecisaoDesconto, Pedido } from '../types';
+import type { ClienteListarResponse, Colaborador, DecisaoDesconto, Pedido } from '../types';
 import { dataBR, moeda, type Mensagem } from '../utils';
 
 type Aba = 'PENDENTES' | 'DECIDIDAS';
@@ -24,25 +25,38 @@ interface DescontosTelaProps {
   onPendentesMudou?: () => void;
 }
 
-/** Total se aprovar e se reprovar (só dá para calcular quando os itens vêm na resposta). */
-function previsoes(p: Pedido): { aprovar: number; reprovar: number } | null {
+/**
+ * Total se aprovar e se reprovar (só dá para calcular quando os itens vêm na resposta), e o quanto o
+ * pedido segura hoje no limite (com desconto pendente, o valor com o desconto pedido: valorParaLimite).
+ */
+function previsoes(p: Pedido): { aprovar: number; reprovar: number; reservado: number } | null {
   if (!p.itens || p.descontoSolicitado == null || p.descontoAutorizado == null) return null;
   const subtotal = subtotalDe(p.itens);
   const reprovado = p.clienteClassificacao === 'VIP' ? DESCONTO_VIP : p.descontoAutorizado;
-  return { aprovar: totalComDesconto(subtotal, p.descontoSolicitado), reprovar: totalComDesconto(subtotal, reprovado) };
+  return {
+    aprovar: totalComDesconto(subtotal, p.descontoSolicitado),
+    reprovar: totalComDesconto(subtotal, reprovado),
+    reservado: valorParaLimite(subtotal, {
+      descontoSolicitado: p.descontoSolicitado,
+      descontoAutorizado: p.descontoAutorizado,
+      statusAprovacaoDesconto: p.statusAprovacaoDesconto,
+    }),
+  };
 }
 
 export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [colaboradorId, setColaboradorId] = useState('');
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null); // null = carregando
+  const [clientes, setClientes] = useState<ClienteListarResponse[]>([]); // para o aviso de limite na reprovação
   const [aba, setAba] = useState<Aba>('PENDENTES');
   const [aviso, setAviso] = useState<Mensagem>(null);
   const [decidindo, setDecidindo] = useState<number | null>(null); // id do pedido em decisão
 
   async function carregar() {
     try {
-      const [todos, p] = await Promise.all([listarColaboradores(), listarPedidos()]);
+      const [todos, p, cl] = await Promise.all([listarColaboradores(), listarPedidos(), listarClientes().catch(() => [])]);
+      setClientes(cl);
       const c = todos.filter((x) => x.ativo !== false); // desativado não decide descontos (o back responde "não existe")
       setColaboradores(c);
       setPedidos(p);
@@ -134,6 +148,12 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
           const devendo = inadimplente(p);
           const prev = previsoes(p);
           const tipo = tipoDoPedido(p.itens);
+          // A prazo: reprovando, o limite passa a segurar o total reprovado no lugar do que segura hoje.
+          const limiteAtual = clientes.find((c) => c.id === p.clienteId)?.limiteCredito;
+          const limiteSeReprovar =
+            aguardando && prev && limiteAtual !== undefined && p.modalidadePagamento === 'A_PRAZO'
+              ? limiteAtual + prev.reservado - prev.reprovar
+              : null;
           return (
             <li key={p.id} className="item">
               <div className="item-topo">
@@ -180,6 +200,12 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
 
               {aguardando && p.clienteClassificacao === 'VIP' && (
                 <p className="dica">Cliente VIP: se reprovar, o pedido fica com os 5% automáticos.</p>
+              )}
+              {limiteSeReprovar !== null && limiteSeReprovar < 0 && (
+                <p className="aviso">
+                  Reprovando, o total vai para {moeda.format(prev!.reprovar)} e o limite de crédito do cliente fica negativo
+                  ({moeda.format(limiteSeReprovar)}): ele não consegue fazer outro pedido a prazo até pagar.
+                </p>
               )}
               {/* TRAVA DO FRONT: o back aceita aprovar mesmo se o cliente virou inadimplente depois de pedir. */}
               {aguardando && devendo && <p className="aviso erro">{MSG_INADIMPLENTE_NAO_APROVA}</p>}
