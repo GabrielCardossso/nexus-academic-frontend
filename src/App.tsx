@@ -72,6 +72,26 @@ export default function App() {
     return () => observador.disconnect();
   }, [aba, recolhida]);
 
+  // Celular: no caminho até a aba nova, o vidro da lente estica e volta (como o vidro líquido da Apple).
+  const abaAnterior = useRef(aba);
+  useEffect(() => {
+    if (abaAnterior.current === aba) return;
+    abaAnterior.current = aba;
+    const lente = navRef.current?.querySelector('.menu-indicador');
+    const celular = window.matchMedia('(max-width: 760px)').matches;
+    const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!lente || !celular || semMovimento) return;
+    const esticar = [
+      { transform: 'scale(1, 1)' },
+      { transform: 'scale(1.22, 0.86)', offset: 0.35 },
+      { transform: 'scale(0.96, 1.05)', offset: 0.7 },
+      { transform: 'scale(1, 1)' },
+    ];
+    const opcoes = { duration: 520, easing: 'ease-out' };
+    lente.animate(esticar, { ...opcoes, pseudoElement: '::before' });
+    lente.animate(esticar, { ...opcoes, pseudoElement: '::after' });
+  }, [aba]);
+
   return (
     <div className="layout">
       <aside className={`sidebar ${recolhida ? 'recolhida' : ''}`}>

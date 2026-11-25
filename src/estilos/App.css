@@ -1184,23 +1184,52 @@ button.selecao-limpar:hover {
     line-height: 18px;
   }
 
-  /* A lente: maior que a aba (passa da borda da barra), vidro com borda clara e reflexo azul/rosa. */
+  /* A lente: o bloco tem o tamanho exato da aba (para ficar centrado) e o vidro (::before) cresce para
+     fora dele, passando da borda da barra. A borda (::after) não tem cor fixa: é o que está atrás,
+     desfocado e bem saturado, só num anel fino (mask), como a refração na borda do vidro da Apple. */
   .menu-indicador {
-    scale: 1.06 1.28;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    border-radius: 999px;
-    -webkit-backdrop-filter: blur(1.5px) saturate(1.8);
-    backdrop-filter: blur(1.5px) saturate(1.8);
-    box-shadow:
-      inset 0 1.5px 1px rgba(255, 255, 255, 0.75),
-      inset 0 -1.5px 1px rgba(255, 255, 255, 0.3),
-      inset 3px 0 4px rgba(96, 165, 250, 0.6),
-      inset -3px 0 4px rgba(244, 114, 182, 0.4),
-      0 6px 16px rgba(0, 0, 0, 0.45);
+    background: none;
   }
 
-  /* Mola: passa um pouco do ponto e volta. */
+  .menu-indicador::before,
+  .menu-indicador::after,
+  .topo > button.destaque::after {
+    content: '';
+    position: absolute;
+    border-radius: 999px;
+    pointer-events: none;
+  }
+
+  .menu-indicador::before,
+  .menu-indicador::after {
+    inset: -9px -3px;
+  }
+
+  .menu-indicador::before {
+    background: rgba(255, 255, 255, 0.06);
+    -webkit-backdrop-filter: blur(2px) saturate(1.6) brightness(1.1);
+    backdrop-filter: blur(2px) saturate(1.6) brightness(1.1);
+    box-shadow:
+      inset 0 1.5px 1px rgba(255, 255, 255, 0.8),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.35),
+      0 6px 16px rgba(0, 0, 0, 0.35);
+  }
+
+  .menu-indicador::after,
+  .topo > button.destaque::after {
+    padding: 2.5px; /* espessura do anel */
+    -webkit-backdrop-filter: blur(5px) saturate(3) brightness(1.35);
+    backdrop-filter: blur(5px) saturate(3) brightness(1.35);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+  }
+
+  /* Mola: passa um pouco do ponto e volta. O "esticar" do vidro no caminho é feito no App.tsx. */
   .menu-indicador.animar {
     transition:
       transform 0.5s cubic-bezier(0.34, 1.4, 0.64, 1),
@@ -1208,54 +1237,126 @@ button.selecao-limpar:hover {
       height 0.5s cubic-bezier(0.34, 1.4, 0.64, 1);
   }
 
-  /* Botão em destaque (+ Novo ...) vira botão flutuante redondo, no mesmo vidro da barra. */
+  /* Botão em destaque (+ Novo ...) vira botão flutuante redondo de vidro transparente, no topo à direita
+     (a logo fica no topo à esquerda, no mesmo vidro). */
   .topo > button.destaque {
     position: fixed;
     z-index: 80;
+    top: calc(12px + env(safe-area-inset-top));
     right: 16px;
-    bottom: calc(92px + env(safe-area-inset-bottom));
     display: grid;
     place-items: center;
     width: 58px;
     height: 58px;
     padding: 0;
     font-size: 0; /* esconde o texto; leitor de tela continua lendo "+ Novo ..." */
-    color: #fff;
-    background: #0b0b0d;
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.16);
     background-image: none;
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    border: none;
     border-radius: 999px;
+    -webkit-backdrop-filter: blur(8px) saturate(1.8) brightness(1.05);
+    backdrop-filter: blur(8px) saturate(1.8) brightness(1.05);
     box-shadow:
-      inset 0 1.5px 1px rgba(255, 255, 255, 0.75),
-      inset 0 -1.5px 1px rgba(255, 255, 255, 0.3),
-      inset 3px 0 4px rgba(96, 165, 250, 0.6),
-      inset -3px 0 4px rgba(244, 114, 182, 0.4),
-      0 10px 24px rgba(15, 23, 42, 0.4);
-    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      inset 0 1.5px 1px rgba(255, 255, 255, 0.9),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.5),
+      0 8px 22px rgba(15, 23, 42, 0.22);
+    /* Soltar o dedo: o vidro volta com mola (passa do ponto e assenta). */
+    transition:
+      transform 0.55s cubic-bezier(0.34, 1.8, 0.5, 1),
+      box-shadow 0.3s ease;
+  }
+
+  .topo > button.destaque::after {
+    inset: 0;
   }
 
   .topo > button.destaque::before {
     content: '+' / '';
-    font-size: 30px;
-    font-weight: 400;
+    font-size: 32px;
+    font-weight: 300;
     line-height: 1;
-    text-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
   }
 
   .topo > button.destaque:hover:not(:disabled),
   .topo > button.destaque.preenchendo:hover:not(:disabled) {
-    background: #0b0b0d;
+    background: rgba(255, 255, 255, 0.16);
   }
 
+  /* Tocar: o vidro "incha" como a lente da barra (sem o escurecer do botão comum). */
   .topo > button.destaque:active:not(:disabled) {
-    transform: scale(0.9);
+    transform: scale(1.14);
+    transition-duration: 0.18s;
+    box-shadow:
+      inset 0 1.5px 1px rgba(255, 255, 255, 0.95),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.6),
+      0 12px 28px rgba(15, 23, 42, 0.28);
   }
 
-  /* Aviso flutuante fica acima da barra e do botão flutuante. */
+  /* Sem o cabeçalho escuro: a logo vira um círculo de vidro flutuante no topo à esquerda. */
+  .sidebar {
+    padding: 0;
+    background: transparent;
+  }
+
+  .marca {
+    position: fixed;
+    z-index: 80;
+    top: calc(12px + env(safe-area-inset-top));
+    left: 16px;
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    padding: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    -webkit-backdrop-filter: blur(8px) saturate(1.8) brightness(1.05);
+    backdrop-filter: blur(8px) saturate(1.8) brightness(1.05);
+    box-shadow:
+      inset 0 1.5px 1px rgba(255, 255, 255, 0.9),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.5),
+      0 8px 22px rgba(15, 23, 42, 0.22);
+  }
+
+  .marca .texto {
+    display: none;
+  }
+
+  .marca img {
+    filter: brightness(0); /* logo escura sobre o vidro claro */
+    opacity: 0.85;
+  }
+
+  .marca::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 2.5px;
+    border-radius: 999px;
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(5px) saturate(3) brightness(1.35);
+    backdrop-filter: blur(5px) saturate(3) brightness(1.35);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+  }
+
+  /* O título da tela começa abaixo da logo e do botão +. */
+  .conteudo {
+    padding-top: calc(86px + env(safe-area-inset-top));
+  }
+
+  /* Aviso flutuante fica acima da barra. */
   .aviso-flutuante {
     left: 12px;
     right: 12px;
-    bottom: calc(162px + env(safe-area-inset-bottom));
+    bottom: calc(92px + env(safe-area-inset-bottom));
   }
 }
 
