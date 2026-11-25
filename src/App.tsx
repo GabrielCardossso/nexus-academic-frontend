@@ -46,6 +46,11 @@ export default function App() {
     atualizarContador();
   }, [aba, atualizarContador]);
 
+  const voltarAoTopo = () => {
+    const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: semMovimento ? 'auto' : 'smooth' });
+  };
+
   // Hover que preenche os botões em destaque (+ Novo ...), igual ao hora-control.
   useEffect(() => instalarPreenchimentoHover(), []);
 
@@ -95,7 +100,21 @@ export default function App() {
   return (
     <div className="layout">
       <aside className={`sidebar ${recolhida ? 'recolhida' : ''}`}>
-        <div className="marca">
+        {/* Tocar na logo volta para o topo da página (no celular ela é o círculo de vidro do topo). */}
+        <div
+          className="marca"
+          role="button"
+          tabIndex={0}
+          title="Voltar ao topo"
+          aria-label="Nexus: voltar ao topo"
+          onClick={voltarAoTopo}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              voltarAoTopo();
+            }
+          }}
+        >
           <img src="/icons/circle-nodes.svg" alt="" width={26} height={26} />
           <span className="texto">Nexus</span>
         </div>
