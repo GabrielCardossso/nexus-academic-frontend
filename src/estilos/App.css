@@ -256,10 +256,9 @@ button:hover:not(:disabled) {
   background: #1d4ed8;
 }
 
-/* Botões em destaque (+ Novo ...) no PC: estilo "flow button" (inspirado no FlowButton do 21st.dev).
-   Pílula clara com o "+" à direita; no hover o fundo escuro preenche a partir do ponto do mouse
-   (utils/preenchimentoHover.ts, vindo do hora-control), os cantos ficam mais retos e o "+" sai pela
-   direita enquanto outro entra pela esquerda, empurrando o texto. No celular é o círculo de vidro. */
+/* Hover que preenche os botões em destaque (+ Novo ...) a partir do ponto do mouse
+   (utils/preenchimentoHover.ts, vindo do hora-control). Sem mouse (toque), fica o hover/active normal.
+   No celular o botão vira o círculo de vidro do topo. */
 @property --preenchimento-raio {
   syntax: '<length>';
   inherits: false;
@@ -267,26 +266,8 @@ button:hover:not(:disabled) {
 }
 
 @media (min-width: 761px) {
-  button.destaque {
-    --destaque-curva: cubic-bezier(0.23, 1, 0.32, 1);
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    padding: 10px 44px 10px 22px;
-    overflow: hidden;
-    color: #0f172a;
-    background-color: #fff;
-    border: 1.5px solid #cbd5e1;
-    border-radius: 999px;
-    transition:
-      border-radius 0.6s var(--destaque-curva),
-      border-color 0.35s ease,
-      color 0.35s ease,
-      transform 0.18s ease;
-  }
-
   button.destaque.preenchendo {
-    --preenchimento-cor: #0f172a;
+    --preenchimento-cor: #1d4ed8;
     background-image: radial-gradient(
       circle at var(--preenchimento-x, 50%) var(--preenchimento-y, 50%),
       var(--preenchimento-cor) 0,
@@ -295,68 +276,22 @@ button:hover:not(:disabled) {
     );
     background-repeat: no-repeat;
     transition:
-      --preenchimento-raio 0.6s var(--destaque-curva),
-      border-radius 0.6s var(--destaque-curva),
-      border-color 0.35s ease,
-      color 0.35s ease,
+      --preenchimento-raio 0.52s cubic-bezier(0.22, 1, 0.36, 1),
       transform 0.18s ease;
   }
 
-  button.destaque:hover:not(:disabled) {
-    color: #fff;
-    background-color: #fff; /* quem pinta é o círculo (.preenchendo) */
-    border-color: #0f172a;
-    border-radius: 12px;
-  }
-
-  /* Sem o círculo (ex.: o script não rodou), o fundo escurece direto. */
-  button.destaque:hover:not(:disabled):not(.preenchendo) {
-    background-color: #0f172a;
+  /* Com o efeito ligado, quem pinta o hover é o círculo, não a troca de cor do fundo. */
+  button.destaque.preenchendo:hover:not(:disabled) {
+    background-color: #2563eb;
   }
 
   button.destaque:active:not(:disabled) {
-    transform: scale(0.97);
-  }
-
-  .destaque-rotulo,
-  .destaque-icone {
-    position: relative;
-    z-index: 1;
-    transition: transform 0.6s var(--destaque-curva);
-  }
-
-  .destaque-icone {
-    position: absolute;
-    top: 50%;
-    margin-top: -8px;
-  }
-
-  .destaque-icone.sai {
-    right: 18px;
-  }
-
-  .destaque-icone.entra {
-    left: -24px;
-  }
-
-  button.destaque:hover:not(:disabled) .destaque-icone.entra {
-    transform: translateX(42px) rotate(90deg);
-  }
-
-  button.destaque:hover:not(:disabled) .destaque-icone.sai {
-    transform: translateX(44px) rotate(90deg);
-  }
-
-  button.destaque:hover:not(:disabled) .destaque-rotulo {
-    transform: translateX(18px);
+    transform: scale(0.98);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  button.destaque,
   button.destaque.preenchendo,
-  .destaque-rotulo,
-  .destaque-icone,
   .menu-indicador.animar,
   .sidebar nav button {
     transition-duration: 0.01ms;
@@ -1439,11 +1374,7 @@ button.selecao-limpar:hover {
       box-shadow 0.3s ease;
   }
 
-  /* Os ícones e o texto do botão do PC somem; o leitor de tela continua lendo "Novo ...". */
-  .topo > button.destaque > .destaque-icone {
-    display: none;
-  }
-
+  /* O texto do botão some; o leitor de tela continua lendo "+ Novo ...". */
   .topo > button.destaque > .destaque-rotulo {
     position: absolute;
     width: 1px;
