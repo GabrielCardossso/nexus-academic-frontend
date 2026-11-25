@@ -48,7 +48,10 @@ export default function App() {
 
   const voltarAoTopo = () => {
     const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    window.scrollTo({ top: 0, behavior: semMovimento ? 'auto' : 'smooth' });
+    const comportamento = semMovimento ? 'auto' : 'smooth';
+    // No celular quem rola é o <main> (a página fica parada por causa das barras do navegador); no PC, a página.
+    document.querySelector('.conteudo')?.scrollTo({ top: 0, behavior: comportamento });
+    window.scrollTo({ top: 0, behavior: comportamento });
   };
 
   // Hover que preenche os botões em destaque (+ Novo ...), igual ao hora-control.
