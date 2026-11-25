@@ -18,6 +18,7 @@ import {
   TETO_NORMAL,
   totalComDesconto,
   valorItem,
+  valorParaLimite,
   type EstadoDesconto,
 } from '../../regras';
 import type {
@@ -92,8 +93,17 @@ export default function PedidoForm({
   const cliente = editando ? clientesEscolha[0] : clientesEscolha.find((c) => String(c.id) === clienteId);
   const categoria = cliente?.categoria ?? original?.clienteClassificacao ?? 'NORMAL';
   const inadimplente = !!cliente?.inadimplente;
-  // Na edição de um pedido a prazo, o total dele volta para o limite antes de reservar o novo.
-  const limiteDisponivel = (cliente?.limiteCredito ?? 0) + (eraAPrazo ? original!.valorTotal : 0);
+  // Na edição de um pedido a prazo, o que ele reserva volta para o limite antes de reservar o novo (com desconto
+  // pendente, a reserva é o valor com o desconto pedido: valorParaLimite).
+  const reservaOriginal =
+    original?.itens && original.descontoSolicitado !== undefined && original.descontoAutorizado !== undefined
+      ? valorParaLimite(subtotalDe(original.itens), {
+          descontoSolicitado: original.descontoSolicitado,
+          descontoAutorizado: original.descontoAutorizado,
+          statusAprovacaoDesconto: original.statusAprovacaoDesconto,
+        })
+      : (original?.valorTotal ?? 0);
+  const limiteDisponivel = (cliente?.limiteCredito ?? 0) + (eraAPrazo ? reservaOriginal : 0);
 
   // ---------- Produtos ----------
   // Na edição, o estoque que este pedido segura volta para a conta (menos aluguel já devolvido).
@@ -172,7 +182,11 @@ export default function PedidoForm({
   const subtotal = enviarItens ? subtotalDe(itensPrevia) : subtotalDe(original?.itens ?? []);
   const total = desconto ? totalComDesconto(subtotal, desconto.descontoAutorizado) : subtotal;
   const totalMudou = editando && temPrevia && total !== original!.valorTotal;
-  const acimaDoLimite = temPrevia && modalidade === 'A_PRAZO' && !!cliente && total > limiteDisponivel;
+  // Com desconto aguardando decisão, o limite é conferido com o valor com o desconto pedido (pedido do Rafael).
+  const reserva = desconto ? valorParaLimite(subtotal, desconto) : total;
+  const noLimite = temPrevia && modalidade === 'A_PRAZO' && !!cliente;
+  const acimaDoLimite = noLimite && reserva > limiteDisponivel;
+  const cabeSoComDesconto = noLimite && !acimaDoLimite && total > limiteDisponivel;
   // TRAVA DO FRONT: inadimplente continuando a prazo não pode aumentar o total (seria uma compra nova a prazo).
   const inadimplenteAumenta = temPrevia && eraAPrazo && inadimplente && modalidade === 'A_PRAZO' && total > original!.valorTotal;
 
@@ -507,7 +521,20 @@ export default function PedidoForm({
         )}
         <span>O pedido fica pendente até alguém clicar em "Finalizar" (registra o pagamento).</span>
       </div>
-      {modalidade === 'A_PRAZO' && <p className="dica">O total fica reservado no limite de crédito do cliente até ser finalizado.</p>}
+      {modalidade === 'A_PRAZO' && (
+        <p className="dica">
+          {desconto?.statusAprovacaoDesconto === 'PENDENTE'
+            ? 'Enquanto o desconto aguarda decisão, fica reservado no limite de crédito o valor com o desconto pedido; depois, o total decidido, até ser finalizado.'
+            : 'O total fica reservado no limite de crédito do cliente até ser finalizado.'}
+        </p>
+      )}
+      {cabeSoComDesconto && (
+        <p className="aviso">
+          Sem o desconto, o total ({moeda.format(total)}) passa do limite disponível ({moeda.format(limiteDisponivel)}). O
+          pedido entra porque, com o desconto pedido, fica em {moeda.format(reserva)}. Se o desconto for reprovado, o limite do
+          cliente fica negativo.
+        </p>
+      )}
       {vencimentoTravado && modalidade === 'A_PRAZO' && (
         <p className="dica">O vencimento do pedido não muda na edição (fica {dataBR(original!.dataVencimento)}).</p>
       )}

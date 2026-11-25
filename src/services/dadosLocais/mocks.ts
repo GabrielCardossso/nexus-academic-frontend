@@ -5,7 +5,7 @@
  * Clientes, colaboradores e produtos são os MESMOS do back (entity/mock/*.java), com os mesmos ids
  * (ordem de inserção). O back não tem pedidos de exemplo; os daqui cobrem os cenários da tela:
  *  1. VIP à vista com os 5% automáticos (pode finalizar)
- *  2. VIP a prazo pedindo 12% (aguardando decisão: não finaliza; limite reservado sem desconto)
+ *  2. VIP a prazo pedindo 12% (aguardando decisão: não finaliza; o limite reserva o valor com os 12%)
  *  3. NORMAL à vista pedindo 8% (aguardando decisão)
  *  4. NORMAL a prazo, aluguel com 5% aprovado por colaborador
  *  5. NORMAL a prazo VENCIDO e não pago → cliente inadimplente (só pode finalizar)
@@ -16,7 +16,7 @@
  * 10. VIP pedindo 15% aprovado, pendente
  * Estoque e limite de crédito já nascem coerentes com esses pedidos.
  */
-import { hojeAAAAMMDD, subtotalDe, totalComDesconto, valorItem } from '../../regras';
+import { hojeAAAAMMDD, subtotalDe, totalComDesconto, valorItem, valorReservado } from '../../regras';
 import type { ClienteSalvo, ModalidadePagamento, StatusAprovacaoDesconto, StatusPedido } from '../../types';
 import { arredondar } from '../../utils';
 import type { ColaboradorSalvo, ItemSalvo, PedidoSalvo, ProdutoSalvo } from './armazenamento';
@@ -118,10 +118,11 @@ export function gerarMocks() {
       };
     });
     const valorTotal = totalComDesconto(subtotalDe(itens), m.autorizado);
-    // A prazo ainda não pago segura o total no limite do cliente.
+    // A prazo ainda não pago segura no limite do cliente o valorReservado (com desconto pendente, o pedido).
     if (m.modalidade === 'A_PRAZO' && m.status === 'PENDENTE') {
       const cliente = clientes.find((c) => c.id === m.clienteId)!;
-      cliente.limiteCredito = arredondar(cliente.limiteCredito - valorTotal);
+      const desconto = { descontoSolicitado: m.solicitado, descontoAutorizado: m.autorizado, statusAprovacaoDesconto: m.statusDesconto };
+      cliente.limiteCredito = arredondar(cliente.limiteCredito - valorReservado({ itens, ...desconto }));
     }
     const decidido = m.statusDesconto !== 'NAO_SOLICITADO' && m.statusDesconto !== 'PENDENTE';
     return {

@@ -194,7 +194,7 @@ Na edição de cliente, o limite de crédito só vai para o back se for alterado
 
 Em `src/config/api.ts`, a constante `USAR_DADOS_LOCAIS` está como `true`: tudo é salvo e lido do **localStorage** pela pasta `src/services/dadosLocais/`, que faz o papel do back-end com as mesmas regras e mensagens. A diferença é que ela lista também os cadastros desativados, para poder reativar (o back não lista).
 
-- Os dados ficam nas chaves `nexus:v9:clientes`, `nexus:v9:produtos`, `nexus:v9:pedidos` e `nexus:v9:colaboradores`. Para recomeçar do zero, abra **F12 > Application > Local Storage**, apague as chaves `nexus:*` e recarregue a página.
+- Os dados ficam nas chaves `nexus:v10:clientes`, `nexus:v10:produtos`, `nexus:v10:pedidos` e `nexus:v10:colaboradores`. Para recomeçar do zero, abra **F12 > Application > Local Storage**, apague as chaves `nexus:*` e recarregue a página.
 - **Dados de exemplo** (`CARREGAR_MOCKS = true`): os **mesmos** 6 clientes, 10 produtos e 4 colaboradores dos mocks do back, mais 10 pedidos que cobrem os cenários da tela: VIP com 5% automático, VIP e Normal aguardando decisão, desconto aprovado e reprovado, aluguel para devolver e já devolvido, pedido pago e o **Mercado Bom Preco** inadimplente por um pedido a prazo vencido. Estoque e limite de crédito já vêm coerentes com esses pedidos.
 
 Para usar o back-end real, troque para `USAR_DADOS_LOCAIS = false`.
@@ -255,7 +255,7 @@ src/
 │   │   ├── colaboradores.ts
 │   │   └── pedidos.ts        # pedidos, descontos, finalizar, devolver e excluir
 │   └── dadosLocais/          # back-end "de mentira" no localStorage, com as regras do back
-│       ├── armazenamento.ts  # chaves nexus:v9:*, formato das tabelas e ajudantes comuns
+│       ├── armazenamento.ts  # chaves nexus:v10:*, formato das tabelas e ajudantes comuns
 │       ├── validacao.ts      # CNPJ e CPF
 │       ├── clientes.ts
 │       ├── produtos.ts

@@ -19,6 +19,29 @@ export function totalComDesconto(subtotal: number, desconto: number): number {
   return centavos(subtotal * (1 - desconto));
 }
 
+/**
+ * REGRA DO FRONT (pedido do Rafael, 2026-11-25; o back ainda não tem, avisar o Lucas): o quanto um
+ * pedido a prazo segura no limite de crédito do cliente. Com o desconto aguardando decisão, conta o
+ * desconto pedido (o pedido de 13.750 com 10% pendente segura 12.375 e cabe num limite de 12.750).
+ * Decidido ou sem desconto, é o total. O total do pedido continua sem o desconto até a aprovação.
+ */
+export function valorParaLimite(
+  subtotal: number,
+  d: { descontoSolicitado: number; descontoAutorizado: number; statusAprovacaoDesconto: string },
+): number {
+  const desconto =
+    d.statusAprovacaoDesconto === 'PENDENTE' ? Math.max(d.descontoSolicitado, d.descontoAutorizado) : d.descontoAutorizado;
+  return totalComDesconto(subtotal, desconto);
+}
+
+/** valorParaLimite de um pedido salvo (com os itens). */
+export const valorReservado = (p: {
+  itens: Pick<ItemPedido, 'valorItem'>[];
+  descontoSolicitado: number;
+  descontoAutorizado: number;
+  statusAprovacaoDesconto: string;
+}) => valorParaLimite(subtotalDe(p.itens), p);
+
 /** Arredonda para centavos como o RoundingMode.HALF_UP do back (com folga para erro de ponto flutuante). */
 function centavos(n: number): number {
   return Math.round((n + Math.sign(n) * 1e-9) * 100) / 100;

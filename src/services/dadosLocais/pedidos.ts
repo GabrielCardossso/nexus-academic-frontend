@@ -11,6 +11,7 @@ import {
   subtotalDe,
   totalComDesconto,
   valorItem,
+  valorReservado,
 } from '../../regras';
 import type {
   ClienteSalvo,
@@ -248,8 +249,10 @@ export async function criarPedidoLocal(req: PedidoCriarRequest): Promise<{ id: n
   if (pedido.modalidadePagamento === 'A_PRAZO') {
     if (inadimplente) falha(MSG_INADIMPLENTE_SEM_PRAZO);
     if (!pedido.dataVencimento) falha('A operação não foi executada pois pedidos A_PRAZO precisam de uma data de vencimento');
-    if (pedido.valorTotal > cliente.limiteCredito) semLimite(cliente.limiteCredito);
-    cliente.limiteCredito = arredondar(cliente.limiteCredito - pedido.valorTotal);
+    // Com desconto aguardando decisão, reserva o valor com o desconto pedido (valorReservado).
+    const reserva = valorReservado(pedido);
+    if (reserva > cliente.limiteCredito) semLimite(cliente.limiteCredito);
+    cliente.limiteCredito = arredondar(cliente.limiteCredito - reserva);
   }
   validarEstado(pedido);
 
@@ -272,7 +275,7 @@ export async function editarPedidoLocal(id: number, req: PedidoEditarRequest): P
 
   const cliente = clientes.find((c) => c.id === pedido.clienteId)!;
   const eraAPrazo = pedido.modalidadePagamento === 'A_PRAZO';
-  const totalAnterior = pedido.valorTotal;
+  const reservaAnterior = valorReservado(pedido); // o que o pedido segura no limite antes da edição
   const modalidade = req.modalidadePagamento ?? pedido.modalidadePagamento;
 
   if (req.dataVencimento) pedido.dataVencimento = req.dataVencimento;
@@ -296,10 +299,11 @@ export async function editarPedidoLocal(id: number, req: PedidoEditarRequest): P
   if (desconto.atualizarData) pedido.dataAtualizacaoDesconto = hojeAAAAMMDD();
 
   pedido.valorTotal = totalComDesconto(subtotalDe(pedido.itens), pedido.descontoAutorizado);
-  if (eraAPrazo) cliente.limiteCredito = arredondar(cliente.limiteCredito + totalAnterior);
+  if (eraAPrazo) cliente.limiteCredito = arredondar(cliente.limiteCredito + reservaAnterior);
   if (modalidade === 'A_PRAZO') {
-    if (pedido.valorTotal > cliente.limiteCredito) semLimite(cliente.limiteCredito);
-    cliente.limiteCredito = arredondar(cliente.limiteCredito - pedido.valorTotal);
+    const reserva = valorReservado(pedido);
+    if (reserva > cliente.limiteCredito) semLimite(cliente.limiteCredito);
+    cliente.limiteCredito = arredondar(cliente.limiteCredito - reserva);
   }
   validarEstado(pedido);
 
@@ -318,7 +322,7 @@ export async function finalizarPedidoLocal(id: number): Promise<{ id: number; va
   validarEstado(pedido);
   if (pedido.modalidadePagamento === 'A_PRAZO') {
     const cliente = clientes.find((c) => c.id === pedido.clienteId)!;
-    cliente.limiteCredito = arredondar(cliente.limiteCredito + pedido.valorTotal);
+    cliente.limiteCredito = arredondar(cliente.limiteCredito + valorReservado(pedido));
   }
   gravar(pedidos, clientes, produtos);
   return { id, valorTotal: pedido.valorTotal };
@@ -355,7 +359,7 @@ export async function excluirPedidoLocal(id: number): Promise<{ id: number }> {
   devolverEstoque(pedido.itens, produtos);
   if (pedido.modalidadePagamento === 'A_PRAZO') {
     const cliente = clientes.find((c) => c.id === pedido.clienteId)!;
-    cliente.limiteCredito = arredondar(cliente.limiteCredito + pedido.valorTotal);
+    cliente.limiteCredito = arredondar(cliente.limiteCredito + valorReservado(pedido));
   }
   pedido.excluido = true;
   gravar(pedidos, clientes, produtos);
