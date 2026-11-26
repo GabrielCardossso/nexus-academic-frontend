@@ -14,6 +14,8 @@
  *  8. VIP com aluguel pago e ainda não devolvido (pode devolver)
  *  9. NORMAL pago com desconto de 10% reprovado
  * 10. VIP pedindo 15% aprovado, pendente
+ * 11. NORMAL a prazo que só cabe no limite com o desconto pedido (caso do Rafael): 7.690 com 10%
+ *     pendente reserva 6.921 do limite disponível de 7.658; se reprovar, o limite fica negativo
  * Estoque e limite de crédito já nascem coerentes com esses pedidos.
  */
 import { hojeAAAAMMDD, subtotalDe, totalComDesconto, valorItem, valorReservado } from '../../regras';
@@ -87,6 +89,7 @@ const PEDIDOS: PedidoMock[] = [
   { clienteId: 2, criadoHa: 7, modalidade: 'A_VISTA', itens: [{ produtoId: 6, quantidade: 1, aluguelAte: 7 }], solicitado: 0, autorizado: 0.05, statusDesconto: 'APROVADO_AUTOMATICAMENTE', status: 'PAGO' },
   { clienteId: 5, criadoHa: 10, modalidade: 'A_VISTA', itens: [{ produtoId: 9, quantidade: 1 }], solicitado: 0.1, autorizado: 0, statusDesconto: 'REPROVADO', colaboradorId: 2, status: 'PAGO' },
   { clienteId: 6, criadoHa: 0, modalidade: 'A_VISTA', itens: [{ produtoId: 4, quantidade: 2, aluguelAte: 30 }], solicitado: 0.15, autorizado: 0.15, statusDesconto: 'APROVADO', colaboradorId: 3, status: 'PENDENTE', descricao: 'Evento de fim de ano' },
+  { clienteId: 3, criadoHa: 0, modalidade: 'A_PRAZO', venceEm: 30, itens: [{ produtoId: 3, quantidade: 2 }, { produtoId: 7, quantidade: 1 }], solicitado: 0.1, autorizado: 0, statusDesconto: 'PENDENTE', status: 'PENDENTE', descricao: 'Só cabe no limite com o desconto pedido' },
 ];
 
 /** Só os cadastros, como o back sobe (sem pedidos). Usado para comparar o front com o back. */
