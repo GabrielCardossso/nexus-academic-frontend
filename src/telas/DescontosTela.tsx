@@ -150,10 +150,12 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
           const tipo = tipoDoPedido(p.itens);
           // A prazo: reprovando, o limite passa a segurar o total reprovado no lugar do que segura hoje.
           const limiteAtual = clientes.find((c) => c.id === p.clienteId)?.limiteCredito;
-          const limiteSeReprovar =
-            aguardando && prev && limiteAtual !== undefined && p.modalidadePagamento === 'A_PRAZO'
-              ? limiteAtual + prev.reservado - prev.reprovar
-              : null;
+          const aPrazoAguardando = aguardando && !!prev && p.modalidadePagamento === 'A_PRAZO';
+          const limiteSeReprovar = aPrazoAguardando && limiteAtual !== undefined ? limiteAtual + prev!.reservado - prev!.reprovar : null;
+          // Cliente fora da lista (ex.: desativado, que o back não lista): sem o limite dele, avisa só o quanto
+          // a reprovação passa a ocupar a mais, em vez de não avisar nada.
+          const aMaisSeReprovar =
+            aPrazoAguardando && limiteAtual === undefined && prev!.reprovar > prev!.reservado ? prev!.reprovar - prev!.reservado : 0;
           return (
             <li key={p.id} className="item">
               <div className="item-topo">
@@ -205,6 +207,13 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
                 <p className="aviso">
                   Reprovando, o total vai para {moeda.format(prev!.reprovar)} e o limite de crédito do cliente fica negativo
                   ({moeda.format(limiteSeReprovar)}): até pagar, ele não consegue fazer outro pedido a prazo nem editar os pedidos a prazo pendentes.
+                </p>
+              )}
+              {aMaisSeReprovar > 0 && (
+                <p className="aviso">
+                  Reprovando, o total vai para {moeda.format(prev!.reprovar)} e o pedido passa a ocupar mais{' '}
+                  {moeda.format(aMaisSeReprovar)} do limite de crédito do cliente. Não foi possível ler o limite dele agora: se ele
+                  não tiver esse valor livre, o limite fica negativo.
                 </p>
               )}
               {/* TRAVA DO FRONT: o back aceita aprovar mesmo se o cliente virou inadimplente depois de pedir. */}
