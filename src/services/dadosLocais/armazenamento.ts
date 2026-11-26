@@ -13,13 +13,14 @@ import type {
 } from '../../types';
 import { gerarMocks } from './mocks';
 
-// "v10": modelo do back (aluguel por item, um status de pedido, desconto em fração, soft delete) e o
-// pedido a prazo com desconto pendente reservando no limite o valor com o desconto pedido (valorReservado).
-// Dados de versões antigas ficam de lado e os de exemplo são recriados.
-export const CHAVE_CLIENTES = 'nexus:v10:clientes';
-export const CHAVE_PRODUTOS = 'nexus:v10:produtos';
-export const CHAVE_PEDIDOS = 'nexus:v10:pedidos';
-export const CHAVE_COLABORADORES = 'nexus:v10:colaboradores';
+// "v11": modelo do back (aluguel por item, um status de pedido, desconto em fração, soft delete), o
+// pedido a prazo com desconto pendente reservando no limite o valor com o desconto pedido (valorReservado)
+// e o pedido de exemplo 11 (caso do Rafael). Dados de versões antigas ficam de lado e os de exemplo são
+// recriados: mudar os dados de exemplo pede uma versão nova, senão quem já abriu o app não os vê.
+export const CHAVE_CLIENTES = 'nexus:v11:clientes';
+export const CHAVE_PRODUTOS = 'nexus:v11:produtos';
+export const CHAVE_PEDIDOS = 'nexus:v11:pedidos';
+export const CHAVE_COLABORADORES = 'nexus:v11:colaboradores';
 
 /** Tabela produto (entity/Produto.java). O cadastro do back grava DISPONIVEL; null só em produto antigo. */
 export interface ProdutoSalvo {

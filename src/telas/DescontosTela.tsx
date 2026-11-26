@@ -152,8 +152,9 @@ export default function DescontosTela({ onPendentesMudou }: DescontosTelaProps) 
           const limiteAtual = clientes.find((c) => c.id === p.clienteId)?.limiteCredito;
           const aPrazoAguardando = aguardando && !!prev && p.modalidadePagamento === 'A_PRAZO';
           const limiteSeReprovar = aPrazoAguardando && limiteAtual !== undefined ? limiteAtual + prev!.reservado - prev!.reprovar : null;
-          // Cliente fora da lista (ex.: desativado, que o back não lista): sem o limite dele, avisa só o quanto
-          // a reprovação passa a ocupar a mais, em vez de não avisar nada.
+          // Sem o limite do cliente (a lista de clientes falhou, ou, quando o back também reservar com o desconto
+          // pendente, cliente desativado, que o back não lista): avisa só o quanto a reprovação passa a ocupar a
+          // mais, em vez de não avisar nada.
           const aMaisSeReprovar =
             aPrazoAguardando && limiteAtual === undefined && prev!.reprovar > prev!.reservado ? prev!.reprovar - prev!.reservado : 0;
           return (
