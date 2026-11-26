@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Aviso from '../components/comum/Aviso';
+import BotaoDestaque from '../components/comum/BotaoDestaque';
 import ConfirmarModal from '../components/comum/ConfirmarModal';
 import Modal from '../components/comum/Modal';
 import {
@@ -117,9 +118,7 @@ export default function ColaboradoresTela() {
     <>
       <div className="topo">
         <h1>Colaboradores</h1>
-        <button type="button" onClick={abrirNovo}>
-          + Novo colaborador
-        </button>
+        <BotaoDestaque onClick={abrirNovo}>Novo colaborador</BotaoDestaque>
       </div>
 
       <Aviso msg={aviso} onFechar={fecharAviso} />

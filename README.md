@@ -101,7 +101,7 @@ Todos os endpoints do back (repo `LionT750/Nexus`, branch `main`, commit `e4bd69
 O front usa alguns nomes próprios por dentro (`categoria`, `limiteCredito`, `nome` do colaborador), e os arquivos de `src/services/api/` convertem para os nomes do back ao enviar e receber. Pedido e desconto usam exatamente os nomes e os enums do back:
 
 ```json
-// POST /api/v1/pedidos (o cliente vai pelo CNPJ; desconto em fração: 0.12 = 12%)
+// POST /api/v1/pedidos (o cliente vai pelo CNPJ; desconto em fração: 0.10 = 10%)
 {
   "CNPJcliente": "88447294000145",
   "descontoSolicitado": 0.12,
@@ -145,29 +145,29 @@ As regras são **as do back** (`PedidoService`, `ClienteService`, `ProdutoServic
 ### Pedido
 
 - **Itens:** cada item é **venda** (preço de venda × quantidade) ou **aluguel** (preço de aluguel × quantidade). O aluguel exige a **data de devolução** (`dataVencimentoAluguel`, futura), e o valor **não muda com o tempo**. O estoque baixa quando o pedido é criado.
-- **Pagamento:** **à vista** ou **a prazo** (não existe PIX no back). A prazo exige **data de vencimento** futura e reserva o total no **limite de crédito** do cliente; se o total passar do limite, o pedido é recusado.
+- **Pagamento:** **à vista** ou **a prazo** (não existe PIX no back). A prazo exige **data de vencimento** futura e reserva o total no **limite de crédito** do cliente; se o total passar do limite, o pedido é recusado. **Exceção (só no front, ver "Travas que só o front tem"):** com desconto aguardando decisão, reserva o valor **com o desconto pedido** (limite 12.750, pedido de 13.750 pedindo 10% → reserva 12.375 e entra).
 - **Um status só:** todo pedido nasce **Pendente** e vira **Pago** em **Finalizar** (vale para à vista e a prazo). Não existe "confirmar" separado do pagamento. O enum do back também tem **Rejeitado**, mas nenhuma regra usa.
-- **Finalizar:** só pedido pendente e sem desconto aguardando decisão. No a prazo, o total volta para o limite do cliente.
+- **Finalizar:** só pedido pendente e sem desconto aguardando decisão. No a prazo, o valor reservado (o total) volta para o limite do cliente.
 - **Total:** o back **grava** o total (soma dos itens × (1 − desconto autorizado), 2 casas). Ele é recalculado quando o pedido é editado ou o desconto é decidido.
 - **Editar:** só pedido **pendente**. O cliente não muda. Dá para mudar descrição, pagamento, desconto e itens. O back muda **só o que vem no corpo**, então o front manda os itens só quando eles mudaram: quando vão, são **recotados pelo preço atual** (o formulário mostra o total antes e depois). O estoque e o limite reservados pelo pedido antigo voltam antes de valer o novo.
 - **A prazo → à vista:** o valor reservado volta para o limite, mas o back **mantém o vencimento** no pedido; se ele não for finalizado até lá, o cliente fica inadimplente. O formulário avisa.
-- **Excluir:** só pedido **pendente**. O estoque volta e, no a prazo, o total volta ao limite. O pedido some da lista.
+- **Excluir:** só pedido **pendente**. O estoque volta e, no a prazo, o valor reservado volta ao limite. O pedido some da lista.
 - **Devolver aluguel:** devolve **todos os itens de aluguel ainda não devolvidos**, em qualquer status do pedido. O estoque volta e cada item ganha a data de devolução. O crédito não volta.
 
 ### Descontos
 
-O cliente digita o percentual (de 0% a 15%), que vai ao back como fração (0.12 = 12%).
+O desconto é **escolhido numa lista**, sem digitar: **5%, 10% ou 15%** (o cliente **Normal** não tem 15%). O botão **Limpar**, dentro da lista, volta para "sem desconto". Vai ao back como fração (0.10 = 10%). Regra nova de 2026-11-25: os dados locais só aceitam 0, 0.05, 0.10 ou 0.15, e o Lucas vai levar a mesma regra ao back.
 
 | Cliente | Pedindo | Resultado |
 |---|---|---|
 | **Normal** | 0% | Sem desconto |
-| **Normal** | mais de 0% | **Aguarda** um colaborador. Acima de 10%, o back **limita em 10%**. |
-| **VIP** | até 5% | **5% aprovados na hora** (automático) |
-| **VIP** | de 5% a 15% | **Aguarda** um colaborador, e o pedido fica **sem desconto** até a decisão. Se reprovado, volta a **5%**. |
+| **Normal** | 5% ou 10% | **Aguarda** um colaborador. |
+| **VIP** | 0% ou 5% | **5% aprovados na hora** (automático) |
+| **VIP** | 10% ou 15% | **Aguarda** um colaborador, e o pedido fica **sem desconto** até a decisão. Se reprovado, volta a **5%**. |
 | **Inadimplente** | qualquer valor | O pedido é registrado como **reprovado por inadimplência**, sem desconto. |
 
-- Aprovado: vale o percentual solicitado. No a prazo, a diferença volta para o limite.
-- Na edição, pedir **mais** do que o autorizado volta a **aguardar** decisão. Pedir **igual ou menos** mantém o desconto já decidido (por exemplo, aprovado 12% e agora pedindo 3%: continuam os 12%). É intencional, confirmado pelo Lucas: o cliente não se prejudica pedindo um desconto pior. O formulário avisa quando o desconto pedido é menor que o autorizado e quando um desconto aprovado vai continuar valendo depois de mudar os produtos.
+- Decidido: aprovado vale o percentual solicitado; reprovado volta a 5% no VIP e fica sem desconto no Normal. No a prazo, o limite passa a segurar o total decidido no lugar do que estava reservado. Se o pedido só coube no limite por causa do desconto, **reprovar deixa o limite negativo**: o formulário e a tela de Descontos avisam antes.
+- Na edição, pedir **mais** do que o autorizado volta a **aguardar** decisão. Pedir **igual ou menos** mantém o desconto já decidido (por exemplo, aprovado 15% e agora pedindo 10%: continuam os 15%). É intencional, confirmado pelo Lucas: o cliente não se prejudica pedindo um desconto pior. O formulário avisa quando o desconto pedido é menor que o autorizado e quando um desconto aprovado vai continuar valendo depois de mudar os produtos.
 
 ### Cliente inadimplente
 
@@ -187,6 +187,8 @@ Estas regras **não existem no back** hoje. O front mantém porque, sem elas, o 
 - Solicitação de desconto de cliente que **ficou inadimplente** depois de pedir só pode ser **reprovada**.
 - Produto **Indisponível** ou **Desativado** não entra em pedido (o back só confere se existe e se tem estoque).
 - No cadastro de colaborador, o **CPF** não pode repetir (o back só confere na edição).
+- Pedido a prazo com desconto **aguardando decisão** reserva no limite o valor **com o desconto pedido** (pedido do Rafael, 2026-11-25). Liga e desliga em `RESERVA_COM_DESCONTO_PENDENTE` (`src/config/api.ts`): hoje só vale nos dados locais; com o back real, o front volta a reservar o total, como o back.
+- Desconto só **0, 5, 10 ou 15%**, e o cliente **Normal** não pode pedir 15% (2026-11-25; o Lucas vai levar ao back).
 
 Na edição de cliente, o limite de crédito só vai para o back se for alterado (o back mantém o que não vem no corpo).
 
@@ -194,7 +196,7 @@ Na edição de cliente, o limite de crédito só vai para o back se for alterado
 
 Em `src/config/api.ts`, a constante `USAR_DADOS_LOCAIS` está como `true`: tudo é salvo e lido do **localStorage** pela pasta `src/services/dadosLocais/`, que faz o papel do back-end com as mesmas regras e mensagens. A diferença é que ela lista também os cadastros desativados, para poder reativar (o back não lista).
 
-- Os dados ficam nas chaves `nexus:v9:clientes`, `nexus:v9:produtos`, `nexus:v9:pedidos` e `nexus:v9:colaboradores`. Para recomeçar do zero, abra **F12 > Application > Local Storage**, apague as chaves `nexus:*` e recarregue a página.
+- Os dados ficam nas chaves `nexus:v10:clientes`, `nexus:v10:produtos`, `nexus:v10:pedidos` e `nexus:v10:colaboradores`. Para recomeçar do zero, abra **F12 > Application > Local Storage**, apague as chaves `nexus:*` e recarregue a página.
 - **Dados de exemplo** (`CARREGAR_MOCKS = true`): os **mesmos** 6 clientes, 10 produtos e 4 colaboradores dos mocks do back, mais 10 pedidos que cobrem os cenários da tela: VIP com 5% automático, VIP e Normal aguardando decisão, desconto aprovado e reprovado, aluguel para devolver e já devolvido, pedido pago e o **Mercado Bom Preco** inadimplente por um pedido a prazo vencido. Estoque e limite de crédito já vêm coerentes com esses pedidos.
 
 Para usar o back-end real, troque para `USAR_DADOS_LOCAIS = false`.
@@ -216,6 +218,9 @@ O back devolve tudo o que as telas precisam (ids, CNPJ, status do produto, itens
 - Listagem dos **desativados** (para reativar pela tela com o back real) e rota de **reativar produto**.
 - As regras de **editar e excluir pedido** (pedido vencido, vencimento, aluguel já devolvido) e a troca **a prazo → à vista**, que hoje mantém o vencimento antigo: o Lucas confirmou que vai ajustar. Até lá valem as travas do front (seção "Regras de negócio").
 - Status **cancelado** para pedido lançado errado (o Lucas pretende criar; hoje a saída seria excluir).
+- A reserva do limite com o **desconto pendente** e os descontos só de **0, 5, 10 ou 15%** (Normal até 10%). Em aberto com o Rafael: o que fazer quando o desconto que fez o pedido caber no limite é **reprovado** (hoje o limite fica negativo).
+
+**Celular (até 760px):** o menu vira uma barra de vidro embaixo (com uma lente que desliza até a aba ativa), e a logo e o "+ Novo ..." viram círculos de vidro no topo (tocar na logo volta ao topo). **A página não rola, só o `<main>`**: assim as barras do navegador do celular não encolhem nem cobrem esses elementos. É de propósito, não é bug. O `viewport-fit=cover` no `index.html` faz a página respeitar a área segura do iPhone.
 
 <img src="./.github/readme/secao-08-estrutura.svg" width="100%" alt="Estrutura detalhada" />
 
@@ -255,7 +260,7 @@ src/
 │   │   ├── colaboradores.ts
 │   │   └── pedidos.ts        # pedidos, descontos, finalizar, devolver e excluir
 │   └── dadosLocais/          # back-end "de mentira" no localStorage, com as regras do back
-│       ├── armazenamento.ts  # chaves nexus:v9:*, formato das tabelas e ajudantes comuns
+│       ├── armazenamento.ts  # chaves nexus:v10:*, formato das tabelas e ajudantes comuns
 │       ├── validacao.ts      # CNPJ e CPF
 │       ├── clientes.ts
 │       ├── produtos.ts
@@ -289,6 +294,7 @@ src/
 - [ ] Back: listar desativados e reativar produto
 - [ ] Back: regras de editar e excluir pedido (o Lucas vai ajustar; depois, rever as travas do front)
 - [ ] Decidir com o Lucas as travas que só o front tem (ver "Regras de negócio")
+- [ ] Back: reserva com desconto pendente e descontos só de 0, 5, 10 ou 15% (depois, `RESERVA_COM_DESCONTO_PENDENTE = true`)
 - [ ] Validação de formulário campo a campo
 - [ ] Autenticação (se exigida pelo back)
 

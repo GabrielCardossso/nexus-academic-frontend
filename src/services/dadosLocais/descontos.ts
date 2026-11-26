@@ -1,5 +1,5 @@
 /** Decisão de desconto nos dados locais, igual ao PedidoService.resolverSolicitacaoDesconto do back. */
-import { descontoAutorizadoNaDecisao, hojeAAAAMMDD, subtotalDe, totalComDesconto } from '../../regras';
+import { descontoAutorizadoNaDecisao, hojeAAAAMMDD, subtotalDe, totalComDesconto, valorReservado } from '../../regras';
 import type { DecisaoDesconto } from '../../types';
 import { arredondar } from '../../utils';
 import { ativos, CHAVE_COLABORADORES, falha, ler, type ColaboradorSalvo } from './armazenamento';
@@ -27,16 +27,17 @@ export async function resolverDescontoLocal(
   }
 
   const cliente = clientes.find((c) => c.id === pedido.clienteId)!;
+  const reservaAntes = valorReservado(pedido); // com o desconto ainda pendente: o valor com o desconto pedido
   pedido.colaboradorDescontoId = colaborador.id;
   pedido.statusAprovacaoDesconto = decisao;
   pedido.dataAtualizacaoDesconto = hojeAAAAMMDD();
 
-  const totalAntes = pedido.valorTotal;
   pedido.descontoAutorizado = descontoAutorizadoNaDecisao(pedido, decisao === 'APROVADO', cliente.categoria);
   pedido.valorTotal = totalComDesconto(subtotalDe(pedido.itens), pedido.descontoAutorizado);
-  // Pedido a prazo já tinha reservado o total antigo no limite: a diferença volta.
+  // Pedido a prazo: o limite passa a segurar o total decidido. Na reprovação o total pode passar do que
+  // estava reservado e o limite ficar negativo (pergunta ao Rafael: o que fazer nesse caso).
   if (pedido.modalidadePagamento === 'A_PRAZO') {
-    cliente.limiteCredito = arredondar(cliente.limiteCredito + (totalAntes - pedido.valorTotal));
+    cliente.limiteCredito = arredondar(cliente.limiteCredito + (reservaAntes - pedido.valorTotal));
   }
   validarEstado(pedido);
 

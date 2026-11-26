@@ -56,6 +56,13 @@ export const ENDPOINTS = {
 export const USAR_DADOS_LOCAIS = true;
 
 /**
+ * Pedido a prazo com desconto aguardando decisão reserva no limite o valor COM o desconto pedido
+ * (pedido do Rafael, 2026-11-25). Só os dados locais têm essa regra: o back real ainda reserva o total.
+ * Quando o Lucas levar a regra ao back, troque para `true`.
+ */
+export const RESERVA_COM_DESCONTO_PENDENTE = USAR_DADOS_LOCAIS;
+
+/**
  * true  = na primeira vez (localStorage vazio) carrega os dados de exemplo.
  * Para recomeçar do zero: apague as chaves "nexus:*" no localStorage e recarregue a página.
  */

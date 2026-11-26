@@ -8,6 +8,19 @@ export const DESCONTO_VIP = 0.05; // VIP pedindo até 5% recebe 5% aprovado na h
 export const TETO_NORMAL = 0.1; // NORMAL pedindo 10% ou mais é cortado para 10% (sem erro)
 export const DESCONTO_MAXIMO = 0.15; // @DecimalMax("0.15") do PedidoCriarRequest
 
+/**
+ * REGRA NOVA (2026-11-25; o Lucas vai levar ao back): só dá para pedir 0, 5, 10 ou 15% de desconto,
+ * nada entre eles. O cliente NORMAL não pode pedir 15% (só 5% ou 10%).
+ */
+export const DESCONTOS_PERMITIDOS = [0.05, 0.1, 0.15] as const;
+
+/** Descontos que o cliente pode pedir (sem contar o 0, que é "sem desconto"). */
+export const opcoesDesconto = (categoria: ClienteCategoria): number[] =>
+  DESCONTOS_PERMITIDOS.filter((d) => categoria === 'VIP' || d <= TETO_NORMAL);
+
+/** 0 ou um dos DESCONTOS_PERMITIDOS (com folga para erro de ponto flutuante). */
+export const descontoPermitido = (d: number) => d === 0 || DESCONTOS_PERMITIDOS.some((o) => Math.abs(o - d) < 1e-9);
+
 /** Os campos de desconto de um pedido (como na entidade Pedido do back). */
 export interface EstadoDesconto {
   descontoSolicitado: number;
@@ -108,14 +121,3 @@ export function percentual(fracao: number | undefined | null): string {
   const valor = Math.round((fracao ?? 0) * 10000) / 100;
   return `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
 }
-
-/** Validação do campo "Solicitar desconto (%)": de 0 a 15 (@DecimalMin/@DecimalMax do back). */
-export function erroDescontoDigitado(texto: string): string | null {
-  if (texto.trim() === '') return null;
-  const n = Number(texto.replace(',', '.'));
-  if (!Number.isFinite(n) || n < 0 || n > DESCONTO_MAXIMO * 100) return 'O desconto solicitado deve ser de 0% a 15%.';
-  return null;
-}
-
-/** "12,5" → 0.125 (vazio = 0). */
-export const fracaoDe = (texto: string) => (texto.trim() === '' ? 0 : Number(texto.replace(',', '.')) / 100);

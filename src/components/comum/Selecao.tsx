@@ -14,6 +14,8 @@ interface SelecaoProps<T extends string> {
   placeholder?: string; // mostrado quando nenhuma opção tem o valor atual
   disabled?: boolean;
   'aria-label'?: string;
+  /** Mostra o botão "Limpar" no fim da lista aberta quando há uma opção escolhida; ao clicar, volta para este valor. */
+  limparPara?: T;
 }
 
 const ALTURA_MAX = 260; // px da lista aberta
@@ -30,6 +32,7 @@ export default function Selecao<T extends string>({
   placeholder = 'Selecione',
   disabled = false,
   'aria-label': ariaLabel,
+  limparPara,
 }: SelecaoProps<T>) {
   const id = useId();
   const botaoRef = useRef<HTMLButtonElement>(null);
@@ -40,6 +43,7 @@ export default function Selecao<T extends string>({
 
   const selecionada = opcoes.find((o) => o.valor === value);
   const habilitadas = opcoes.map((o, i) => (o.desabilitada ? -1 : i)).filter((i) => i >= 0);
+  const podeLimpar = limparPara !== undefined && !!selecionada && value !== limparPara;
 
   function abrir() {
     if (disabled) return;
@@ -56,13 +60,21 @@ export default function Selecao<T extends string>({
     botaoRef.current?.focus();
   }
 
+  function limpar() {
+    if (limparPara === undefined) return;
+    onChange(limparPara);
+    setAberta(false);
+    botaoRef.current?.focus();
+  }
+
   // Posição da lista: embaixo do botão, ou em cima se não couber.
   useLayoutEffect(() => {
     if (!aberta || !botaoRef.current) return;
     const r = botaoRef.current.getBoundingClientRect();
-    const paraCima = window.innerHeight - r.bottom < Math.min(ALTURA_MAX, opcoes.length * 40) + 8 && r.top > window.innerHeight - r.bottom;
+    const altura = (opcoes.length + (podeLimpar ? 1 : 0)) * 40;
+    const paraCima = window.innerHeight - r.bottom < Math.min(ALTURA_MAX, altura) + 8 && r.top > window.innerHeight - r.bottom;
     setPosicao({ top: paraCima ? r.top - 4 : r.bottom + 4, left: r.left, width: r.width, paraCima });
-  }, [aberta, opcoes.length]);
+  }, [aberta, opcoes.length, podeLimpar]);
 
   // Fecha ao clicar fora, ao rolar a página (fora da lista) ou ao redimensionar.
   useEffect(() => {
@@ -100,6 +112,12 @@ export default function Selecao<T extends string>({
   }
 
   function aoTeclar(e: KeyboardEvent<HTMLButtonElement>) {
+    // Delete/Backspace limpa a escolha (mesmo efeito do botão "Limpar" da lista).
+    if (podeLimpar && (e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault();
+      limpar();
+      return;
+    }
     if (!aberta) {
       if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) {
         e.preventDefault();
@@ -208,6 +226,19 @@ export default function Selecao<T extends string>({
               )}
             </li>
           ))}
+          {podeLimpar && (
+            <li role="presentation" className="selecao-rodape">
+              <button
+                type="button"
+                className="selecao-limpar"
+                tabIndex={-1}
+                onMouseDown={(e) => e.preventDefault()} // não tira o foco do botão
+                onClick={limpar}
+              >
+                Limpar
+              </button>
+            </li>
+          )}
         </ul>
       )}
     </div>

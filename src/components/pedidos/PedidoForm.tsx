@@ -1,23 +1,24 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
+import { RESERVA_COM_DESCONTO_PENDENTE } from '../../config/api';
 import { criarPedido, editarPedido } from '../../services/api';
 import Selecao from '../comum/Selecao';
 import {
   DESCONTO_VIP,
   descontoNaCriacao,
+  descontoAutorizadoNaDecisao,
   descontoNaEdicao,
   erroDataFutura,
-  erroDescontoDigitado,
-  fracaoDe,
   hojeAAAAMMDD,
   MSG_INADIMPLENTE_NAO_AUMENTA,
   MSG_INADIMPLENTE_SEM_DESCONTO,
   MSG_INADIMPLENTE_SEM_PRAZO,
+  opcoesDesconto,
   percentual,
   ROTULO_STATUS_DESCONTO,
   subtotalDe,
-  TETO_NORMAL,
   totalComDesconto,
   valorItem,
+  valorParaLimite,
   type EstadoDesconto,
 } from '../../regras';
 import type {
@@ -92,8 +93,17 @@ export default function PedidoForm({
   const cliente = editando ? clientesEscolha[0] : clientesEscolha.find((c) => String(c.id) === clienteId);
   const categoria = cliente?.categoria ?? original?.clienteClassificacao ?? 'NORMAL';
   const inadimplente = !!cliente?.inadimplente;
-  // Na edição de um pedido a prazo, o total dele volta para o limite antes de reservar o novo.
-  const limiteDisponivel = (cliente?.limiteCredito ?? 0) + (eraAPrazo ? original!.valorTotal : 0);
+  // Na edição de um pedido a prazo, o que ele reserva volta para o limite antes de reservar o novo (com desconto
+  // pendente, a reserva é o valor com o desconto pedido: valorParaLimite).
+  const reservaOriginal =
+    original?.itens && original.descontoSolicitado !== undefined && original.descontoAutorizado !== undefined
+      ? valorParaLimite(subtotalDe(original.itens), {
+          descontoSolicitado: original.descontoSolicitado,
+          descontoAutorizado: original.descontoAutorizado,
+          statusAprovacaoDesconto: original.statusAprovacaoDesconto,
+        })
+      : (original?.valorTotal ?? 0);
+  const limiteDisponivel = (cliente?.limiteCredito ?? 0) + (eraAPrazo ? reservaOriginal : 0);
 
   // ---------- Produtos ----------
   // Na edição, o estoque que este pedido segura volta para a conta (menos aluguel já devolvido).
@@ -134,8 +144,15 @@ export default function PedidoForm({
   // ---------- Desconto e prévia (mesmas regras do back) ----------
   // Inadimplente: o campo fica bloqueado (o back registra como reprovado por inadimplência).
   const descontoBloqueado = inadimplente || original?.statusAprovacaoDesconto === 'REPROVADO_INADIPLENCIA';
-  const erroDoDesconto = descontoBloqueado ? null : erroDescontoDigitado(descontoTexto);
-  const fracao = descontoBloqueado || erroDoDesconto ? 0 : fracaoDe(descontoTexto);
+  // REGRA NOVA: o desconto é escolhido numa lista (5, 10 ou 15%; o NORMAL não tem 15%), nada digitado.
+  const fracao = descontoBloqueado || descontoTexto === '' ? 0 : Number(descontoTexto) / 100;
+  const opcoesDoDesconto = [
+    // Pedido antigo com um desconto que saiu da lista (ex.: 12%): aparece como está, mas não dá para escolher de novo.
+    ...(descontoInicial && !opcoesDesconto(categoria).some((d) => String(Math.round(d * 100)) === descontoInicial)
+      ? [{ valor: descontoInicial, rotulo: `${descontoInicial.replace('.', ',')}%`, detalhe: 'valor antigo', desabilitada: true }]
+      : []),
+    ...opcoesDesconto(categoria).map((d) => ({ valor: String(Math.round(d * 100)), rotulo: percentual(d) })),
+  ];
   // Na edição, o desconto só vai no corpo se mudou (o que não vai, o back mantém).
   const enviarDesconto = !editando || (!descontoBloqueado && descontoTexto.trim() !== descontoInicial);
 
@@ -172,7 +189,13 @@ export default function PedidoForm({
   const subtotal = enviarItens ? subtotalDe(itensPrevia) : subtotalDe(original?.itens ?? []);
   const total = desconto ? totalComDesconto(subtotal, desconto.descontoAutorizado) : subtotal;
   const totalMudou = editando && temPrevia && total !== original!.valorTotal;
-  const acimaDoLimite = temPrevia && modalidade === 'A_PRAZO' && !!cliente && total > limiteDisponivel;
+  // Com desconto aguardando decisão, o limite é conferido com o valor com o desconto pedido (pedido do Rafael).
+  const reserva = desconto ? valorParaLimite(subtotal, desconto) : total;
+  const noLimite = temPrevia && modalidade === 'A_PRAZO' && !!cliente;
+  const acimaDoLimite = noLimite && reserva > limiteDisponivel;
+  const cabeSoComDesconto = noLimite && !acimaDoLimite && total > limiteDisponivel;
+  // Se reprovar: o VIP volta aos 5%, o Normal fica com o que já tinha autorizado (regra do back).
+  const totalSeReprovar = desconto ? totalComDesconto(subtotal, descontoAutorizadoNaDecisao(desconto, false, categoria)) : total;
   // TRAVA DO FRONT: inadimplente continuando a prazo não pode aumentar o total (seria uma compra nova a prazo).
   const inadimplenteAumenta = temPrevia && eraAPrazo && inadimplente && modalidade === 'A_PRAZO' && total > original!.valorTotal;
 
@@ -216,8 +239,16 @@ export default function PedidoForm({
       const erroData = erroDataFutura(dataVencimento, 'a data de vencimento do pedido');
       if (erroData) return setErro(erroData);
     }
-    if (erroDoDesconto) return setErro(erroDoDesconto);
     if (inadimplenteAumenta) return setErro(MSG_INADIMPLENTE_NAO_AUMENTA);
+    // O back recusaria com uma mensagem confusa ("O limite de crédito de : ... não cobre"): barra aqui com o motivo.
+    // Na edição, o back devolve o que o pedido reservava e reserva de novo; com o limite negativo (desconto
+    // reprovado), nem mudar só a descrição passa enquanto for a prazo.
+    if (acimaDoLimite) {
+      return setErro(
+        `O limite de crédito disponível do cliente (${moeda.format(limiteDisponivel)}) não cobre este pedido a prazo (${moeda.format(reserva)}). ` +
+          (editando ? 'Mude para à vista, reduza o pedido ou finalize um pedido a prazo do cliente.' : 'Mude para à vista ou reduza o pedido.'),
+      );
+    }
 
     setEnviando(true);
     onEnviando(true);
@@ -436,17 +467,15 @@ export default function PedidoForm({
         )}
         {(cliente || editando) && (
           <label className="campo">
-            <span>Solicitar desconto (%)</span>
-            <input
-              type="number"
-              placeholder={descontoBloqueado ? 'Indisponível (inadimplente)' : 'Opcional: 0 a 15'}
-              title={descontoBloqueado ? MSG_INADIMPLENTE_SEM_DESCONTO : undefined}
-              min={0}
-              max={15}
-              step="any"
-              disabled={descontoBloqueado}
+            <span>Solicitar desconto</span>
+            <Selecao
+              aria-label="Solicitar desconto"
               value={descontoBloqueado ? '' : descontoTexto}
-              onChange={(e) => setDescontoTexto(e.target.value)}
+              onChange={setDescontoTexto}
+              opcoes={opcoesDoDesconto}
+              placeholder={descontoBloqueado ? 'Indisponível (inadimplente)' : 'Sem desconto'}
+              disabled={descontoBloqueado}
+              limparPara=""
             />
           </label>
         )}
@@ -462,16 +491,12 @@ export default function PedidoForm({
         </label>
       </div>
 
-      {erroDoDesconto && <p className="msg erro">{erroDoDesconto}</p>}
       {!descontoBloqueado && (cliente || editando) && (
         <p className="dica">
           {categoria === 'VIP'
-            ? `Cliente VIP: pedindo até 5%, recebe ${percentual(DESCONTO_VIP)} na hora. Acima de 5% (até 15%) precisa da aprovação de um colaborador e, enquanto isso, o pedido fica sem desconto; se reprovado, volta a 5%.`
-            : `Cliente Normal: qualquer desconto precisa da aprovação de um colaborador. Acima de ${percentual(TETO_NORMAL)}, o back limita em ${percentual(TETO_NORMAL)}.`}
+            ? `Cliente VIP: sem pedir ou pedindo 5%, recebe ${percentual(DESCONTO_VIP)} na hora. 10% ou 15% precisam da aprovação de um colaborador e, enquanto isso, o pedido fica sem desconto; se reprovado, volta a 5%.`
+            : 'Cliente Normal: pode pedir 5% ou 10%, sempre com a aprovação de um colaborador.'}
         </p>
-      )}
-      {categoria === 'NORMAL' && !descontoBloqueado && fracao > TETO_NORMAL && (
-        <p className="aviso">O desconto solicitado vai ser limitado a {percentual(TETO_NORMAL)} (regra do back).</p>
       )}
       {editando &&
         enviarDesconto &&
@@ -507,13 +532,28 @@ export default function PedidoForm({
         )}
         <span>O pedido fica pendente até alguém clicar em "Finalizar" (registra o pagamento).</span>
       </div>
-      {modalidade === 'A_PRAZO' && <p className="dica">O total fica reservado no limite de crédito do cliente até ser finalizado.</p>}
+      {modalidade === 'A_PRAZO' && (
+        <p className="dica">
+          {RESERVA_COM_DESCONTO_PENDENTE && desconto?.statusAprovacaoDesconto === 'PENDENTE'
+            ? 'Enquanto o desconto aguarda decisão, fica reservado no limite de crédito o valor com o desconto pedido; depois, o total decidido, até ser finalizado.'
+            : 'O total fica reservado no limite de crédito do cliente até ser finalizado.'}
+        </p>
+      )}
+      {cabeSoComDesconto && (
+        <p className="aviso">
+          Sem o desconto pedido, o total ({moeda.format(total)}) passa do limite disponível ({moeda.format(limiteDisponivel)}). O
+          pedido entra porque, com o desconto pedido, fica em {moeda.format(reserva)}.{' '}
+          {totalSeReprovar > limiteDisponivel
+            ? `Se o desconto for reprovado, o total fica em ${moeda.format(totalSeReprovar)} e o limite do cliente fica negativo em ${moeda.format(totalSeReprovar - limiteDisponivel)}.`
+            : `Se o desconto for reprovado, o total fica em ${moeda.format(totalSeReprovar)} e ainda cabe no limite.`}
+        </p>
+      )}
       {vencimentoTravado && modalidade === 'A_PRAZO' && (
         <p className="dica">O vencimento do pedido não muda na edição (fica {dataBR(original!.dataVencimento)}).</p>
       )}
       {saiDoAPrazo && (
         <p className="aviso">
-          Atenção: indo para à vista, {moeda.format(original!.valorTotal)} reservados voltam para o limite do cliente, mas o
+          Atenção: indo para à vista, {moeda.format(reservaOriginal)} reservados voltam para o limite do cliente, mas o
           vencimento {dataBR(original!.dataVencimento)} continua no pedido (regra do back): se ele não for finalizado até lá, o
           cliente fica inadimplente.
         </p>
@@ -530,7 +570,13 @@ export default function PedidoForm({
           baixaria o estoque de novo).
         </p>
       )}
-      {acimaDoLimite && <p className="msg erro">Total acima do limite de crédito do cliente.</p>}
+      {acimaDoLimite && (
+        <p className="msg erro">
+          {reserva < total
+            ? `Mesmo com o desconto pedido (${moeda.format(reserva)}), o pedido passa do limite disponível (${moeda.format(limiteDisponivel)}).`
+            : 'Total acima do limite de crédito do cliente.'}
+        </p>
+      )}
       {inadimplenteAumenta && <p className="msg erro">{MSG_INADIMPLENTE_NAO_AUMENTA}</p>}
 
       {erro && <p className="msg erro">{erro}</p>}
